@@ -69,3 +69,6 @@ Route::get('/home', function () {
 // CRUD routes for Dao
 Route::resource('daos', App\Http\Controllers\DaoController::class)->middleware('auth');
 
+Auth::routes();
+
+Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])->name('home');

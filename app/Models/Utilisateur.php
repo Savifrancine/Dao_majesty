@@ -47,28 +47,4 @@ class Utilisateur extends Authenticatable
     {
         return $this->mot_de_passe;
     }
-
-    /**
-     * Get the token value for the "remember me" functionality.
-     */
-    public function getRememberToken()
-    {
-        return null;
-    }
-
-    /**
-     * Set the token value for the "remember me" functionality.
-     */
-    public function setRememberToken($value)
-    {
-        // Not implemented for this model
-    }
-
-    /**
-     * Get the column name for the "remember me" token.
-     */
-    public function getRememberTokenName()
-    {
-        return null;
-    }
 }
