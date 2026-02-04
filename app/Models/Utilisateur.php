@@ -24,6 +24,25 @@ class Utilisateur extends Authenticatable
         'mot_de_passe',
     ];
 
+    /**
+     * Get the name of the unique identifier for the model.
+     */
+    public function getAuthIdentifierName()
+    {
+        return 'id';
+    }
+
+    /**
+     * Get the unique identifier for the model.
+     */
+    public function getAuthIdentifier()
+    {
+        return $this->getAttribute($this->getAuthIdentifierName());
+    }
+
+    /**
+     * Get the password for the model.
+     */
     public function getAuthPassword()
     {
         return $this->mot_de_passe;
