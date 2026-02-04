@@ -19,6 +19,7 @@ return new class extends Migration
             $table->string('mot_de_passe');
             $table->enum('role', ['admin', 'directeur', 'employe'])->default('employe');
             $table->boolean('actif')->default(true);
+            $table->rememberToken();
             $table->timestamps();
         });
     }

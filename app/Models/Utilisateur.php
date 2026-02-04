@@ -17,11 +17,13 @@ class Utilisateur extends Authenticatable
         'email',
         'mot_de_passe',
         'role',
-        'actif'
+        'actif',
+        'remember_token'
     ];
 
     protected $hidden = [
         'mot_de_passe',
+        'remember_token',
     ];
 
     public function getAuthPassword()
