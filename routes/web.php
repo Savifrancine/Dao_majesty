@@ -88,4 +88,3 @@ Route::middleware('auth')->group(function () {
 
 // CRUD routes for Dao
 Route::resource('daos', App\Http\Controllers\DaoController::class)->middleware('auth');
-

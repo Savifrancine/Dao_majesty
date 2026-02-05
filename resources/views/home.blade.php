@@ -1,6 +1,7 @@
 @extends('layouts.app')
 
 @section('content')
+<<<<<<< HEAD
 <div class="container mt-4">
     <!-- Header -->
     <div class="row mb-4">
