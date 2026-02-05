@@ -21,15 +21,6 @@ return new class extends Migration
             $table->string('ville')->nullable();
             $table->string('code_postal')->nullable();
             $table->boolean('actif')->default(true);
-    public function up()
-    {
-        Schema::create('daos', function (Blueprint $table) {
-            $table->id();
-            $table->string('reference');
-            $table->string('objet');
-            $table->string('autorite_contractante')->nullable();
-            $table->date('date_publication')->nullable();
-            $table->date('date_limite')->nullable();
             $table->timestamps();
         });
     }

@@ -1,7 +1,6 @@
 @extends('layouts.app')
 
 @section('content')
-<<<<<<< HEAD
 <div class="container mt-4">
     <!-- Header -->
     <div class="row mb-4">
@@ -39,7 +38,7 @@
                         <button type="submit" class="btn btn-danger btn-sm">🔓 Déconnexion</button>
                     </form>
                 </div>
-            </div>
+            @endif
         </div>
     </div>
 
