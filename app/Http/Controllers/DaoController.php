@@ -8,6 +8,23 @@ use Illuminate\Http\Request;
 class DaoController extends Controller
 {
     /**
+     * Get validation rules for DAO.
+     */
+    private function validationRules(): array
+    {
+        return [
+            'nom' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string'],
+            'email' => ['nullable', 'email', 'max:255'],
+            'telephone' => ['nullable', 'string', 'max:20'],
+            'adresse' => ['nullable', 'string'],
+            'ville' => ['nullable', 'string', 'max:255'],
+            'code_postal' => ['nullable', 'string', 'max:10'],
+            'actif' => ['nullable', 'boolean'],
+        ];
+    }
+
+    /**
      * Display a listing of the resource.
      */
     public function index()
@@ -29,16 +46,7 @@ class DaoController extends Controller
      */
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'nom' => ['required', 'string', 'max:255'],
-            'description' => ['nullable', 'string'],
-            'email' => ['nullable', 'email', 'max:255'],
-            'telephone' => ['nullable', 'string', 'max:20'],
-            'adresse' => ['nullable', 'string'],
-            'ville' => ['nullable', 'string', 'max:255'],
-            'code_postal' => ['nullable', 'string', 'max:10'],
-            'actif' => ['nullable', 'boolean'],
-        ]);
+        $validated = $request->validate($this->validationRules());
 
         Dao::create($validated);
 
@@ -66,16 +74,7 @@ class DaoController extends Controller
      */
     public function update(Request $request, Dao $dao)
     {
-        $validated = $request->validate([
-            'nom' => ['required', 'string', 'max:255'],
-            'description' => ['nullable', 'string'],
-            'email' => ['nullable', 'email', 'max:255'],
-            'telephone' => ['nullable', 'string', 'max:20'],
-            'adresse' => ['nullable', 'string'],
-            'ville' => ['nullable', 'string', 'max:255'],
-            'code_postal' => ['nullable', 'string', 'max:10'],
-            'actif' => ['nullable', 'boolean'],
-        ]);
+        $validated = $request->validate($this->validationRules());
 
         $dao->update($validated);
 

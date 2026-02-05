@@ -1,94 +1,84 @@
-<!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>S'inscrire - DAO</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; background: linear-gradient(135deg, #f0f9ff, #faf5ff); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
-        a { text-decoration: none; color: inherit; }
-        .container { max-width: 500px; width: 100%; }
-        .header { text-align: center; margin-bottom: 40px; }
-        .logo { font-size: 28px; font-weight: bold; background: linear-gradient(135deg, #2563eb, #9333ea); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 20px; }
-        .header h1 { font-size: 32px; color: #1a1a1a; margin-bottom: 10px; }
-        .header p { color: #666; font-size: 16px; }
-        .card { background: white; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); padding: 40px; }
-        .form-group { margin-bottom: 20px; }
-        label { display: block; margin-bottom: 8px; font-weight: 500; color: #1a1a1a; }
-        input { width: 100%; padding: 12px 15px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; transition: all 0.3s; }
-        input:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
-        .error { color: #dc2626; font-size: 13px; margin-top: 5px; }
-        .btn { width: 100%; padding: 14px; background: linear-gradient(135deg, #2563eb, #9333ea); color: white; border: none; border-radius: 8px; font-weight: 600; font-size: 16px; cursor: pointer; transition: all 0.3s; margin-top: 10px; }
-        .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 16px rgba(37, 99, 235, 0.3); }
-        .login-link { text-align: center; margin-top: 25px; color: #666; }
-        .login-link a { color: #2563eb; font-weight: 600; }
-        .login-link a:hover { text-decoration: underline; }
-        @media (max-width: 500px) { .card { padding: 30px 20px; } .header h1 { font-size: 24px; } }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <div class="logo">DAO</div>
-            <h1>Créer un compte</h1>
-            <p>Rejoignez-nous et commencez à gérer vos dossiers</p>
-        </div>
+@extends('layouts.app')
 
-        <div class="card">
-            <form method="POST" action="{{ route('register') }}">
-                @csrf
-
-                <div class="form-group">
-                    <label for="nom">Nom</label>
-                    <input id="nom" type="text" name="nom" value="{{ old('nom') }}" required autocomplete="off" placeholder="Votre nom">
-                    @error('nom')
-                        <div class="error">{{ $message }}</div>
-                    @enderror
+@section('content')
+<div class="container d-flex align-items-center justify-content-center" style="min-height: calc(100vh - 70px);">
+    <div class="row w-100">
+        <div class="col-lg-5 col-md-7 mx-auto">
+            <div class="card" style="border-radius: 20px; overflow: hidden; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);">
+                <div class="card-header" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); border: none; padding: 30px; text-align: center;">
+                    <div style="font-size: 48px; margin-bottom: 15px;">📝</div>
+                    <h2 style="color: white; font-size: 28px; font-weight: 700; margin: 0;">Créer un compte</h2>
                 </div>
 
-                <div class="form-group">
-                    <label for="prenom">Prénom</label>
-                    <input id="prenom" type="text" name="prenom" value="{{ old('prenom') }}" required autocomplete="off" placeholder="Votre prénom">
-                    @error('prenom')
-                        <div class="error">{{ $message }}</div>
-                    @enderror
-                </div>
-                        <div class="form-group row">
-                            <label class="col-md-4 col-form-label text-md-right">Email</label>
-                            <div class="col-md-6">
-                                <input id="email" type="email" class="form-control @error('email') is-invalid @enderror" name="email" value="{{ old('email') }}" required>
-                        <div class="row mb-3">
-                            <label for="email" class="col-md-4 col-form-label text-md-end">{{ __('Email Address') }}</label>
+                <div class="card-body">
+                    <form method="POST" action="{{ route('register') }}">
+                        @csrf
 
-                <div class="form-group">
-                    <label for="email">Adresse email</label>
-                    <input id="email" type="email" name="email" value="{{ old('email') }}" required autocomplete="email" placeholder="vous@exemple.com">
-                    @error('email')
-                        <div class="error">{{ $message }}</div>
-                    @enderror
-                </div>
+                        <div class="mb-4">
+                            <label for="nom" class="form-label" style="font-weight: 600;">👤 Nom</label>
+                            <input id="nom" type="text" class="form-control @error('nom') is-invalid @enderror" name="nom" value="{{ old('nom') }}" required autocomplete="family-name" autofocus style="border-radius: 12px; padding: 12px 16px;">
 
-                <div class="form-group">
-                    <label for="password">Mot de passe</label>
-                    <input id="password" type="password" name="password" required autocomplete="new-password" placeholder="••••••••">
-                    @error('password')
-                        <div class="error">{{ $message }}</div>
-                    @enderror
-                </div>
+                            @error('nom')
+                                <span class="invalid-feedback" role="alert" style="display: block; margin-top: 5px;">
+                                    <strong>{{ $message }}</strong>
+                                </span>
+                            @enderror
+                        </div>
 
-                <div class="form-group">
-                    <label for="password_confirmation">Confirmer le mot de passe</label>
-                    <input id="password_confirmation" type="password" name="password_confirmation" required autocomplete="new-password" placeholder="••••••••">
-                </div>
+                        <div class="mb-4">
+                            <label for="prenom" class="form-label" style="font-weight: 600;">😊 Prénom</label>
+                            <input id="prenom" type="text" class="form-control @error('prenom') is-invalid @enderror" name="prenom" value="{{ old('prenom') }}" required autocomplete="given-name" style="border-radius: 12px; padding: 12px 16px;">
 
-                <button type="submit" class="btn">S'inscrire</button>
+                            @error('prenom')
+                                <span class="invalid-feedback" role="alert" style="display: block; margin-top: 5px;">
+                                    <strong>{{ $message }}</strong>
+                                </span>
+                            @enderror
+                        </div>
 
-                <div class="login-link">
-                    Vous avez déjà un compte ? <a href="{{ route('login') }}">Se connecter</a>
+                        <div class="mb-4">
+                            <label for="email" class="form-label" style="font-weight: 600;">📧 Email</label>
+                            <input id="email" type="email" class="form-control @error('email') is-invalid @enderror" name="email" value="{{ old('email') }}" required autocomplete="email" style="border-radius: 12px; padding: 12px 16px;">
+
+                            @error('email')
+                                <span class="invalid-feedback" role="alert" style="display: block; margin-top: 5px;">
+                                    <strong>{{ $message }}</strong>
+                                </span>
+                            @enderror
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="password" class="form-label" style="font-weight: 600;">🔑 Mot de passe</label>
+                            <input id="password" type="password" class="form-control @error('password') is-invalid @enderror" name="password" required autocomplete="new-password" style="border-radius: 12px; padding: 12px 16px;">
+
+                            @error('password')
+                                <span class="invalid-feedback" role="alert" style="display: block; margin-top: 5px;">
+                                    <strong>{{ $message }}</strong>
+                                </span>
+                            @enderror
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="password-confirm" class="form-label" style="font-weight: 600;">🔒 Confirmer le mot de passe</label>
+                            <input id="password-confirm" type="password" class="form-control" name="password_confirmation" required autocomplete="new-password" style="border-radius: 12px; padding: 12px 16px;">
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100" style="padding: 14px; font-size: 16px; border-radius: 12px; margin-bottom: 15px;">
+                            ✨ S'inscrire
+                        </button>
+                    </form>
+
+                    <hr style="margin: 30px 0; border: none; border-top: 1px solid #e0e0e0;">
+
+                    <div style="text-align: center;">
+                        <p style="margin: 0; color: #666; font-size: 14px;">Vous avez déjà un compte ?</p>
+                        <a href="{{ route('login') }}" class="btn btn-secondary w-100 mt-2" style="padding: 12px; border-radius: 12px;">
+                            🔐 Se connecter
+                        </a>
+                    </div>
                 </div>
-            </form>
+            </div>
         </div>
     </div>
-</body>
-</html>
+</div>
+@endsection
