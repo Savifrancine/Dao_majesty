@@ -1,90 +1,104 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container" style="padding: 40px 0;">
-    <div class="row justify-content-center">
-        <div class="col-lg-9">
-            @if (Auth::check())
-                <!-- Header du Dashboard -->
-                <div style="margin-bottom: 40px;">
-                    <h1 style="font-size: 32px; font-weight: 700; color: #1e293b; margin: 0 0 8px 0;">Tableau de bord</h1>
-                    <p style="color: #64748b; margin: 0; font-size: 15px;">Bienvenue, {{ Auth::user()->prenom }}</p>
+<div class="container mt-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <h2>📊 Dashboard</h2>
+            <p class="text-muted">Bienvenue {{ Auth::user()->prenom }} {{ Auth::user()->nom }}</p>
+        </div>
+        <div class="col-md-6 text-end">
+            <a href="{{ route('dossiers.create') }}" class="btn btn-success btn-lg">
+                ➕ Créer un nouveau dossier
+            </a>
+        </div>
+    </div>
+
+    <!-- Profil utilisateur -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>Prénom:</strong> {{ Auth::user()->prenom }}</p>
+                    <p><strong>Nom:</strong> {{ Auth::user()->nom }}</p>
+                    <p><strong>Email:</strong> {{ Auth::user()->email }}</p>
                 </div>
-
-                <!-- Messages d'alerte -->
-                @if (session('status'))
-                    <div class="alert alert-success alert-dismissible fade show" role="alert" style="margin-bottom: 24px;">
-                        {{ session('status') }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
-                @endif
-
-                <!-- Profil utilisateur -->
-                <div class="card" style="margin-bottom: 32px;">
-                    <div class="card-header" style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 16px;">
-                        <h5 style="margin: 0; color: #1e293b; font-weight: 600;">Informations personnelles</h5>
-                    </div>
-                    <div class="card-body" style="padding: 20px;">
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
-                            <div>
-                                <p style="margin: 0 0 4px 0; color: #64748b; font-size: 13px; font-weight: 600; text-transform: uppercase;">Nom complet</p>
-                                <p style="margin: 0; color: #1e293b; font-size: 16px; font-weight: 500;">{{ Auth::user()->prenom }} {{ Auth::user()->nom }}</p>
-                            </div>
-                            <div>
-                                <p style="margin: 0 0 4px 0; color: #64748b; font-size: 13px; font-weight: 600; text-transform: uppercase;">Email</p>
-                                <p style="margin: 0; color: #1e293b; font-size: 16px; font-weight: 500;">{{ Auth::user()->email }}</p>
-                            </div>
-                            <div>
-                                <p style="margin: 0 0 4px 0; color: #64748b; font-size: 13px; font-weight: 600; text-transform: uppercase;">Rôle</p>
-                                <p style="margin: 0;"><span style="background: #3b82f6; color: white; padding: 4px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; display: inline-block;">{{ Auth::user()->role ?? 'Utilisateur' }}</span></p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Sections principales -->
-                <div style="margin-bottom: 32px;">
-                    <h5 style="color: #1e293b; font-weight: 600; margin: 0 0 16px 0; font-size: 16px;">Accès rapide</h5>
-                    <div class="feature-grid">
-                        <div class="feature-card">
-                            <div style="width: 40px; height: 40px; background: #dbeafe; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 12px;">
-                                <span style="font-size: 20px; color: #1e40af;">📁</span>
-                            </div>
-                            <h6 style="color: #1e293b; font-weight: 600; margin: 0 0 8px 0;">Dossiers</h6>
-                            <p style="color: #64748b; margin: 0; font-size: 14px;">Accédez et organisez vos dossiers</p>
-                        </div>
-                        <div class="feature-card">
-                            <div style="width: 40px; height: 40px; background: #d1fae5; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 12px;">
-                                <span style="font-size: 20px; color: #065f46;">📄</span>
-                            </div>
-                            <h6 style="color: #1e293b; font-weight: 600; margin: 0 0 8px 0;">Documents</h6>
-                            <p style="color: #64748b; margin: 0; font-size: 14px;">Gérez vos fichiers et documents</p>
-                        </div>
-                        <div class="feature-card">
-                            <div style="width: 40px; height: 40px; background: #fef3c7; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 12px;">
-                                <span style="font-size: 20px; color: #92400e;">⚙️</span>
-                            </div>
-                            <h6 style="color: #1e293b; font-weight: 600; margin: 0 0 8px 0;">Paramètres</h6>
-                            <p style="color: #64748b; margin: 0; font-size: 14px;">Configurez votre profil</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Actions principales -->
-                <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-                    <a href="{{ route('daos.index') }}" class="btn btn-primary">Voir les DAOs</a>
-                    <form action="{{ route('logout') }}" method="POST" style="display: inline;">
+                <div class="col-md-6 text-end">
+                    <p><strong>Rôle:</strong> <span class="badge bg-primary">{{ ucfirst(Auth::user()->role) }}</span></p>
+                    <p><strong>Actif:</strong> 
+                        @if(Auth::user()->actif)
+                            <span class="badge bg-success">✅ Oui</span>
+                        @else
+                            <span class="badge bg-danger">❌ Non</span>
+                        @endif
+                    </p>
+                    <form action="{{ route('logout') }}" method="POST" style="display:inline;">
                         @csrf
-                        <button type="submit" class="btn btn-danger">Déconnexion</button>
+                        <button type="submit" class="btn btn-danger btn-sm">🔓 Déconnexion</button>
                     </form>
                 </div>
+            @endif
+        </div>
+    </div>
 
+    <!-- Mes dossiers -->
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">📁 Mes dossiers</h5>
+        </div>
+        <div class="card-body">
+            @if($dossiers->count() > 0)
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Nom</th>
+                                <th>Type</th>
+                                <th>Entreprise</th>
+                                <th>Statut</th>
+                                <th>Créé le</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($dossiers as $dossier)
+                            <tr>
+                                <td>
+                                    <strong>{{ $dossier->nom_dossier }}</strong>
+                                    @if($dossier->public_prive === 'prive')
+                                        <span class="badge bg-warning">🔒 Privé</span>
+                                    @else
+                                        <span class="badge bg-info">🌐 Public</span>
+                                    @endif
+                                </td>
+                                <td>{{ $dossier->typeDossier->nom }}</td>
+                                <td>{{ $dossier->entreprise->nom }}</td>
+                                <td>
+                                    @if($dossier->statut === 'en_cours')
+                                        <span class="badge bg-warning">⏳ En cours</span>
+                                    @elseif($dossier->statut === 'termine')
+                                        <span class="badge bg-success">✅ Terminé</span>
+                                    @else
+                                        <span class="badge bg-secondary">📄 Généré</span>
+                                    @endif
+                                </td>
+                                <td>{{ $dossier->created_at->format('d/m/Y') }}</td>
+                                <td>
+                                    <a href="{{ route('dossiers.show', $dossier) }}" class="btn btn-sm btn-info">👁️ Voir</a>
+                                    @if($dossier->statut === 'genere')
+                                        <a href="{{ route('dossiers.pdf', $dossier) }}" class="btn btn-sm btn-primary">📥 PDF</a>
+                                    @endif
+                                </td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
             @else
-                <!-- État non connecté -->
-                <div style="text-align: center; padding: 60px 20px;">
-                    <h1 style="font-size: 32px; font-weight: 700; color: #1e293b; margin-bottom: 16px;">Bienvenue</h1>
-                    <p style="font-size: 16px; color: #64748b; margin-bottom: 32px;">Connectez-vous pour accéder à votre tableau de bord</p>
-                    <a href="{{ route('login') }}" class="btn btn-primary">Se connecter</a>
+                <div class="alert alert-info mb-0">
+                    <p class="mb-0">📭 Vous n'avez pas encore créé de dossier.</p>
+                    <p class="mb-0"><a href="{{ route('dossiers.create') }}" class="alert-link">Cliquez ici pour en créer un</a></p>
                 </div>
             @endif
         </div>

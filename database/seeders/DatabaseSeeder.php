@@ -16,9 +16,16 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        Utilisateur::create([
-            'nom' => 'Dupont',
-            'prenom' => 'Jean',
+        $this->call([
+            TypesDossiersSeeder::class,
+            EntreprisesSeeder::class,
+            TypesDocumentsSeeder::class,
+        ]);
+
+        // User::factory(10)->create();
+
+        User::factory()->create([
+            'name' => 'Test User',
             'email' => 'test@example.com',
             'mot_de_passe' => Hash::make('password'),
             'role' => 'employe',

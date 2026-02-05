@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Utilisateur extends Authenticatable
 {
@@ -48,5 +49,45 @@ class Utilisateur extends Authenticatable
     public function getAuthPassword()
     {
         return $this->mot_de_passe;
+    }
+
+    /**
+     * Get the token value for the "remember me" functionality.
+     */
+    public function getRememberToken()
+    {
+        return null;
+    }
+
+    /**
+     * Set the token value for the "remember me" functionality.
+     */
+    public function setRememberToken($value)
+    {
+        // Not implemented for this model
+    }
+
+    /**
+     * Get the column name for the "remember me" token.
+     */
+    public function getRememberTokenName()
+    {
+        return null;
+    }
+
+    /**
+     * Get all valeurs_documents entered by this user.
+     */
+    public function valeursDocuments(): HasMany
+    {
+        return $this->hasMany(ValeurDocument::class);
+    }
+
+    /**
+     * Get all fichiers uploaded by this user.
+     */
+    public function fichiers(): HasMany
+    {
+        return $this->hasMany(DocumentFichier::class);
     }
 }
