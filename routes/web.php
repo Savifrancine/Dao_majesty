@@ -62,9 +62,29 @@ Route::post('logout', function (Request $request) {
     return redirect('/');
 })->name('logout');
 
-Route::get('/home', function () {
-    return view('home');
-})->name('home')->middleware('auth');
+Route::get('/home', [App\Http\Controllers\DossierController::class, 'dashboardHome'])->name('home')->middleware('auth');
+
+// Wizard routes for Dossier creation
+Route::middleware('auth')->group(function () {
+    // Dashboard dossiers
+    Route::get('/dossiers', [App\Http\Controllers\DossierController::class, 'index'])->name('dossiers.index');
+    Route::get('/dossiers/show/{dossier}', [App\Http\Controllers\DossierController::class, 'show'])->name('dossiers.show');
+    
+    // Wizard steps
+    Route::get('/dossiers/create', [App\Http\Controllers\DossierController::class, 'create'])->name('dossiers.create');
+    Route::post('/dossiers/step2', [App\Http\Controllers\DossierController::class, 'step2'])->name('dossiers.step2');
+    Route::post('/dossiers/step3', [App\Http\Controllers\DossierController::class, 'step3'])->name('dossiers.step3');
+    Route::post('/dossiers/step4', [App\Http\Controllers\DossierController::class, 'step4'])->name('dossiers.step4');
+    Route::post('/dossiers/step5', [App\Http\Controllers\DossierController::class, 'step5'])->name('dossiers.step5');
+    Route::post('/dossiers/step6/{dossierId}', [App\Http\Controllers\DossierController::class, 'step6'])->name('dossiers.step6');
+    
+    // Entreprise creation
+    Route::post('/dossiers/entreprise/store', [App\Http\Controllers\DossierController::class, 'storeEntreprise'])->name('dossiers.storeEntreprise');
+    
+    // Document filling
+    Route::post('/dossiers/{dossierId}/documents/{documentIndex}/save', [App\Http\Controllers\DossierController::class, 'saveDocumentValues'])->name('dossiers.saveDocumentValues');
+    Route::get('/dossiers/{dossier}/pdf', [App\Http\Controllers\DossierController::class, 'generatePDF'])->name('dossiers.pdf');
+});
 
 // CRUD routes for Dao
 Route::resource('daos', App\Http\Controllers\DaoController::class)->middleware('auth');
