@@ -62,6 +62,26 @@
                                     <input type="text" class="form-control" id="new_adresse" name="new_adresse">
                                 </div>
 
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="form-group mb-3">
+                                                <label for="new_pays" class="form-label">Pays</label>
+                                                <input type="text" class="form-control" id="new_pays" name="new_pays">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-group mb-3">
+                                                <label for="new_ifu" class="form-label">Numéro IFU</label>
+                                                <input type="text" class="form-control" id="new_ifu" name="new_ifu">
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group mb-3">
+                                        <label for="new_registre" class="form-label">Registre de commerce (PDF/JPG/PNG) - upload</label>
+                                        <input type="file" class="form-control" id="new_registre" name="new_registre" accept="application/pdf,image/*">
+                                    </div>
+
                                 <div class="row">
                                     <div class="col-md-6">
                                         <div class="form-group mb-3">
@@ -120,42 +140,61 @@ document.getElementById('toggleNewEntreprise').addEventListener('click', functio
     form.style.display = form.style.display === 'none' ? 'block' : 'none';
 });
 
-document.getElementById('saveNewEntreprise').addEventListener('click', function() {
-    const data = {
-        nom: document.getElementById('new_nom').value,
-        sigle: document.getElementById('new_sigle').value,
-        adresse: document.getElementById('new_adresse').value,
-        telephone: document.getElementById('new_telephone').value,
-        email: document.getElementById('new_email').value,
-        responsable: document.getElementById('new_responsable').value,
-        fonction_responsable: document.getElementById('new_fonction').value,
-    };
-
-    if (!data.nom) {
+document.getElementById('saveNewEntreprise').addEventListener('click', async function() {
+    const nom = document.getElementById('new_nom').value;
+    if (!nom) {
         alert('Le nom de l\'entreprise est requis');
         return;
     }
 
-    fetch('{{ route("dossiers.storeEntreprise") }}', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': '{{ csrf_token() }}'
-        },
-        body: JSON.stringify(data)
-    })
-    .then(r => r.json())
-    .then(res => {
-        if (res.success) {
-            const option = document.createElement('option');
-            option.value = res.entreprise.id;
-            option.textContent = res.entreprise.nom + (res.entreprise.sigle ? ` (${res.entreprise.sigle})` : '');
-            document.getElementById('entreprise_id').appendChild(option);
-            document.getElementById('entreprise_id').value = res.entreprise.id;
-            document.getElementById('newEntrepriseForm').style.display = 'none';
-            alert('Entreprise créée avec succès!');
+    const formData = new FormData();
+    formData.append('nom', nom);
+    formData.append('sigle', document.getElementById('new_sigle').value || '');
+    formData.append('adresse', document.getElementById('new_adresse').value || '');
+    formData.append('telephone', document.getElementById('new_telephone').value || '');
+    formData.append('email', document.getElementById('new_email').value || '');
+    formData.append('responsable', document.getElementById('new_responsable').value || '');
+    formData.append('fonction_responsable', document.getElementById('new_fonction').value || '');
+    formData.append('pays', document.getElementById('new_pays').value || '');
+    formData.append('ifu', document.getElementById('new_ifu').value || '');
+
+    const fileInput = document.getElementById('new_registre');
+    if (fileInput && fileInput.files && fileInput.files[0]) {
+        formData.append('registre', fileInput.files[0]);
+    }
+
+    try {
+        const resRaw = await fetch('{{ route("dossiers.storeEntreprise") }}', {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+            },
+            body: formData
+        });
+
+        const res = await resRaw.json();
+        if (resRaw.status === 422) {
+            const errors = res.errors || {};
+            const messages = Object.values(errors).flat().join('\n');
+            alert('Validation error:\n' + messages);
+            return;
         }
-    });
+        if (!res.success) {
+            alert(res.message || 'Erreur lors de la création de l\'entreprise');
+            return;
+        }
+
+        const option = document.createElement('option');
+        option.value = res.entreprise.id;
+        option.textContent = res.entreprise.nom + (res.entreprise.sigle ? ` (${res.entreprise.sigle})` : '');
+        document.getElementById('entreprise_id').appendChild(option);
+        document.getElementById('entreprise_id').value = res.entreprise.id;
+        document.getElementById('newEntrepriseForm').style.display = 'none';
+        alert('Entreprise créée avec succès!');
+    } catch (err) {
+        console.error(err);
+        alert('Erreur réseau ou serveur. Vérifiez la console pour plus de détails.');
+    }
 });
 </script>
 @endsection

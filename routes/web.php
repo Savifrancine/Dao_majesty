@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Http\Request;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\DaoController;
 
@@ -74,7 +75,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/dossiers/create', [App\Http\Controllers\DossierController::class, 'create'])->name('dossiers.create');
     Route::post('/dossiers/step2', [App\Http\Controllers\DossierController::class, 'step2'])->name('dossiers.step2');
     Route::post('/dossiers/step3', [App\Http\Controllers\DossierController::class, 'step3'])->name('dossiers.step3');
-    Route::post('/dossiers/step4', [App\Http\Controllers\DossierController::class, 'step4'])->name('dossiers.step4');
+    Route::match(['get','post'], '/dossiers/step4', [App\Http\Controllers\DossierController::class, 'step4'])->name('dossiers.step4');
     Route::post('/dossiers/step5', [App\Http\Controllers\DossierController::class, 'step5'])->name('dossiers.step5');
     Route::post('/dossiers/step6/{dossierId}', [App\Http\Controllers\DossierController::class, 'step6'])->name('dossiers.step6');
     
@@ -88,3 +89,6 @@ Route::middleware('auth')->group(function () {
 
 // CRUD routes for Dao
 Route::resource('daos', App\Http\Controllers\DaoController::class)->middleware('auth');
+
+// Lookups for page de garde (AJAX add)
+Route::post('lookups/{kind}', [App\Http\Controllers\LookupController::class, 'store'])->middleware('auth')->name('lookups.store');

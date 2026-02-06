@@ -16,6 +16,9 @@ class Entreprise extends Model
         'telephone',
         'email',
         'logo',
+        'pays',
+        'ifu',
+        'registre_path',
         'responsable',
         'fonction_responsable',
     ];

@@ -16,7 +16,33 @@ class Dossier extends Model
         'nom_dossier',
         'objectif',
         'lot',
+        'titre_dossier',
+        'type_offre',
+        'procedure_id',
+        'numero_ao',
+        'date_ao',
+        'objet_marche',
+        'lots',
+        'autorite_contractante_id',
+        'source_financement_id',
+        'reference_step',
+        'annee_gestion',
+        'ville_signature',
+        'date_signature',
+        'mois_edition',
         'public_prive',
+        'page_garde_path',
+        'republique',
+        'ministere',
+        'direction',
+        'services_projet',
+        'destinataires',
+        'reference_dossier',
+        'date_lancement',
+        'titre_lot',
+        'autres_details',
+        'mois_depot',
+        'annee_depot',
         'statut',
     ];
 
@@ -47,5 +73,12 @@ class Dossier extends Model
     public function documents(): HasMany
     {
         return $this->hasMany(DossierDocument::class);
+    }
+
+    
+
+    public function signataires()
+    {
+        return $this->belongsToMany(\App\Models\Signataire::class, 'dossier_signataire', 'dossier_id', 'signataire_id')->withPivot('role_signataire')->withTimestamps();
     }
 }

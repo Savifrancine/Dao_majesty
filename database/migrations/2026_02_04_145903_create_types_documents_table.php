@@ -11,13 +11,15 @@ return new class extends Migration
      */
    public function up()
     {
-        Schema::create('types_documents', function (Blueprint $table) {
-            $table->id();
-            $table->string('nom'); // ex: Lettre de soumission
-            $table->enum('type_formulaire', ['texte', 'fichier', 'bordereau']);
-            $table->boolean('obligatoire')->default(false);
-            $table->timestamps();
-        });
+        if (!Schema::hasTable('types_documents')) {
+            Schema::create('types_documents', function (Blueprint $table) {
+                $table->id();
+                $table->string('nom'); // ex: Lettre de soumission
+                $table->enum('type_formulaire', ['texte', 'fichier', 'bordereau']);
+                $table->boolean('obligatoire')->default(false);
+                $table->timestamps();
+            });
+        }
     }
 
 

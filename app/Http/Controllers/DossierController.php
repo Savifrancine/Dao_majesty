@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Dossier;
+use App\Models\TypeMarche;
+// removed Procedure / Autorite / Source / Signataire imports (not used anymore)
 use App\Models\Entreprise;
 use App\Models\TypeDossier;
 use App\Models\TypeDocument;
@@ -10,6 +12,7 @@ use App\Models\DossierDocument;
 use App\Models\ChampDocument;
 use App\Models\ValeurDocument;
 use Illuminate\Http\Request;
+use Dompdf\Dompdf;
 
 class DossierController extends Controller
 {
@@ -68,7 +71,7 @@ class DossierController extends Controller
      */
     public function storeEntreprise(Request $request)
     {
-        $data = $request->validate([
+        $rules = [
             'nom' => ['required', 'string', 'max:255'],
             'sigle' => ['nullable', 'string', 'max:10'],
             'adresse' => ['nullable', 'string'],
@@ -76,9 +79,32 @@ class DossierController extends Controller
             'email' => ['nullable', 'email'],
             'responsable' => ['nullable', 'string'],
             'fonction_responsable' => ['nullable', 'string'],
-        ]);
+            'pays' => ['nullable', 'string', 'max:255'],
+            'ifu' => ['nullable', 'string', 'max:255'],
+            'registre' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+        ];
 
-        $entreprise = Entreprise::create($data);
+        $data = $request->validate($rules);
+
+        // Handle registre upload
+        if ($request->hasFile('registre')) {
+            $path = $request->file('registre')->store('entreprises/registre', 'public');
+            $data['registre_path'] = $path;
+        }
+
+        // Map incoming names to entreprise columns
+        $entreprise = Entreprise::create([
+            'nom' => $data['nom'],
+            'sigle' => $data['sigle'] ?? null,
+            'adresse' => $data['adresse'] ?? null,
+            'telephone' => $data['telephone'] ?? null,
+            'email' => $data['email'] ?? null,
+            'pays' => $data['pays'] ?? null,
+            'ifu' => $data['ifu'] ?? null,
+            'registre_path' => $data['registre_path'] ?? null,
+            'responsable' => $data['responsable'] ?? null,
+            'fonction_responsable' => $data['fonction_responsable'] ?? null,
+        ]);
 
         return response()->json([
             'success' => true,
@@ -91,12 +117,31 @@ class DossierController extends Controller
      */
     public function step4(Request $request)
     {
-        $data = $request->validate([
-            'categorie' => ['required', 'in:public,prive'],
-            'type_dossier_id' => ['required', 'exists:types_dossiers,id'],
-            'entreprise_id' => ['required', 'exists:entreprises,id']
-        ]);
+        if ($request->isMethod('post')) {
+            $data = $request->validate([
+                'categorie' => ['required', 'in:public,prive'],
+                'type_dossier_id' => ['required', 'exists:types_dossiers,id'],
+                'entreprise_id' => ['required', 'exists:entreprises,id']
+            ]);
+        } else {
+            // GET request: try to read from query string, else redirect to start
+            $data = $request->only(['categorie', 'type_dossier_id', 'entreprise_id']);
+            if (empty($data['categorie']) || empty($data['type_dossier_id']) || empty($data['entreprise_id'])) {
+                return redirect()->route('dossiers.create')->with('error', 'Veuillez démarrer la création du dossier depuis l’étape 1.');
+            }
+            // Validate lightly the provided query values
+            $validator = \Illuminate\Support\Facades\Validator::make($data, [
+                'categorie' => ['required', 'in:public,prive'],
+                'type_dossier_id' => ['required', 'exists:types_dossiers,id'],
+                'entreprise_id' => ['required', 'exists:entreprises,id']
+            ]);
+            if ($validator->fails()) {
+                return redirect()->route('dossiers.create')->with('error', 'Données de création invalides.');
+            }
+            $data = $validator->validated();
+        }
 
+        // No select list for type_marche anymore; using free text `type_offre`
         return view('dossiers.create.step4', $data);
     }
 
@@ -112,6 +157,26 @@ class DossierController extends Controller
             'nom_dossier' => ['required', 'string', 'max:255'],
             'objectif' => ['nullable', 'string'],
             'lot' => ['nullable', 'string'],
+            // Page de garde (only fields up to année_depot)
+            'titre_dossier' => ['nullable', 'string', 'max:255'],
+            'type_offre' => ['nullable','string','max:255'],
+            'lots' => ['nullable', 'string'],
+            'titre_lot' => ['nullable','string','max:255'],
+            'autres_details' => ['nullable','string'],
+            'mois_depot' => ['nullable','string','max:255'],
+            'annee_depot' => ['nullable','digits:4'],
+            // new cover fields
+            'republique' => ['nullable','string','max:255'],
+            'ministere' => ['nullable','string','max:255'],
+            'direction' => ['nullable','string','max:255'],
+            'services_projet' => ['nullable','string','max:255'],
+            'destinataires' => ['nullable','string'],
+            'reference_dossier' => ['nullable','string','max:255'],
+            'date_lancement' => ['nullable','date'],
+            'titre_lot' => ['nullable','string','max:255'],
+            'autres_details' => ['nullable','string'],
+            'mois_depot' => ['nullable','string','max:255'],
+            'annee_depot' => ['nullable','digits:4'],
         ]);
 
         // Créer le dossier provisoirement (statut = en_cours)
@@ -119,12 +184,35 @@ class DossierController extends Controller
             'type_dossier_id' => $data['type_dossier_id'],
             'entreprise_id' => $data['entreprise_id'],
             'nom_dossier' => $data['nom_dossier'],
-            'objectif' => $data['objectif'],
-            'lot' => $data['lot'],
+            'objectif' => $data['objectif'] ?? null,
+            'lot' => $data['lot'] ?? null,
+            // Page de garde
+            'titre_dossier' => $data['titre_dossier'] ?? null,
+            'type_offre' => $data['type_offre'] ?? null,
+            'lots' => $data['lots'] ?? ($data['lot'] ?? null),
+            'titre_lot' => $data['titre_lot'] ?? null,
+            'autres_details' => $data['autres_details'] ?? null,
+            'mois_depot' => $data['mois_depot'] ?? null,
+            'annee_depot' => $data['annee_depot'] ?? null,
+            // new cover fields
+            'republique' => $data['republique'] ?? null,
+            'ministere' => $data['ministere'] ?? null,
+            'direction' => $data['direction'] ?? null,
+            'services_projet' => $data['services_projet'] ?? null,
+            'destinataires' => $data['destinataires'] ?? null,
+            'reference_dossier' => $data['reference_dossier'] ?? null,
+            'date_lancement' => $data['date_lancement'] ?? null,
+            'titre_lot' => $data['titre_lot'] ?? null,
+            'types_offres' => $data['types_offres'] ?? null,
+            'autres_details' => $data['autres_details'] ?? null,
+            'mois_depot' => $data['mois_depot'] ?? null,
+            'annee_depot' => $data['annee_depot'] ?? null,
             'public_prive' => $data['categorie'],
+            'page_garde_path' => null,
             'statut' => 'en_cours',
         ]);
 
+        // no file/page_garde handling here (removed)
         $documents = TypeDocument::all();
 
         return view('dossiers.create.step5', compact('dossier', 'documents'));
@@ -221,10 +309,35 @@ class DossierController extends Controller
             'typeDossier'
         ]);
 
-        // TODO: Implémenter la génération PDF
-        // Utiliser une libraire comme DOMPDF ou TCPDF
+        // Préparer le data URI de l'image/PDF de la page de garde pour l'inclure dans le HTML
+        $pageGardeDataUri = null;
+        if (!empty($dossier->page_garde_path)) {
+            $fullPath = storage_path('app/public/' . $dossier->page_garde_path);
+            if (file_exists($fullPath)) {
+                $mime = mime_content_type($fullPath) ?: 'application/octet-stream';
+                $content = file_get_contents($fullPath);
+                $base64 = base64_encode($content);
+                $pageGardeDataUri = "data:{$mime};base64,{$base64}";
+            }
+        }
 
-        return view('dossiers.pdf', compact('dossier'));
+        $html = view('dossiers.pdf', compact('dossier', 'pageGardeDataUri'))->render();
+
+        // Générer le PDF via Dompdf (installer le package si nécessaire)
+        try {
+            $dompdf = new Dompdf(['isRemoteEnabled' => true]);
+            $dompdf->loadHtml($html);
+            $dompdf->setPaper('A4', 'portrait');
+            $dompdf->render();
+
+            return response($dompdf->stream($dossier->nom_dossier . '.pdf', ['Attachment' => false]), 200)
+                ->header('Content-Type', 'application/pdf');
+        } catch (\Throwable $e) {
+            // Si Dompdf non installé ou erreur, tomber back sur la vue HTML
+            
+            
+            return view('dossiers.pdf', compact('dossier', 'pageGardeDataUri'));
+        }
     }
 
     /**

@@ -38,7 +38,7 @@
                         <button type="submit" class="btn btn-danger btn-sm">🔓 Déconnexion</button>
                     </form>
                 </div>
-            @endif
+            
         </div>
     </div>
 

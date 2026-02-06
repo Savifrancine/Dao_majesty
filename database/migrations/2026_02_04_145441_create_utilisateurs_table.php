@@ -11,17 +11,19 @@ return new class extends Migration
      */
     public function up()
     {
-        Schema::create('utilisateurs', function (Blueprint $table) {
-            $table->id();
-            $table->string('nom');
-            $table->string('prenom');
-            $table->string('email')->unique();
-            $table->string('mot_de_passe');
-            $table->enum('role', ['admin', 'directeur', 'employe'])->default('employe');
-            $table->boolean('actif')->default(true);
-            $table->rememberToken();
-            $table->timestamps();
-        });
+        if (!Schema::hasTable('utilisateurs')) {
+            Schema::create('utilisateurs', function (Blueprint $table) {
+                $table->id();
+                $table->string('nom');
+                $table->string('prenom');
+                $table->string('email')->unique();
+                $table->string('mot_de_passe');
+                $table->enum('role', ['admin', 'directeur', 'employe'])->default('employe');
+                $table->boolean('actif')->default(true);
+                $table->rememberToken();
+                $table->timestamps();
+            });
+        }
     }
 
 

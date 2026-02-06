@@ -11,14 +11,16 @@ return new class extends Migration
      */
     public function up()
     {
-        Schema::create('dossier_documents', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('dossier_id')->constrained('dossiers')->onDelete('cascade');
-            $table->foreignId('type_document_id')->constrained('types_documents');
-            $table->integer('ordre')->nullable(); // ordre dans le sommaire
-            $table->enum('statut', ['vide', 'en_cours', 'complete'])->default('vide');
-            $table->timestamps();
-        });
+        if (!Schema::hasTable('dossier_documents')) {
+            Schema::create('dossier_documents', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('dossier_id')->constrained('dossiers')->onDelete('cascade');
+                $table->foreignId('type_document_id')->constrained('types_documents');
+                $table->integer('ordre')->nullable(); // ordre dans le sommaire
+                $table->enum('statut', ['vide', 'en_cours', 'complete'])->default('vide');
+                $table->timestamps();
+            });
+        }
     }
 
 

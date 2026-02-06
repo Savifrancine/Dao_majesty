@@ -11,13 +11,15 @@ return new class extends Migration
      */
     public function up()
     {
-        Schema::create('documents_textes', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('dossier_document_id')->constrained('dossier_documents')->onDelete('cascade');
-            $table->longText('contenu')->nullable();
-            $table->foreignId('utilisateur_id')->constrained('utilisateurs');
-            $table->timestamps();
-        });
+        if (!Schema::hasTable('documents_textes')) {
+            Schema::create('documents_textes', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('dossier_document_id')->constrained('dossier_documents')->onDelete('cascade');
+                $table->longText('contenu')->nullable();
+                $table->foreignId('utilisateur_id')->constrained('utilisateurs');
+                $table->timestamps();
+            });
+        }
     }
 
 
