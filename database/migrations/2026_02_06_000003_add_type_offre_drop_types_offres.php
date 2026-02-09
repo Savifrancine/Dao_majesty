@@ -11,7 +11,7 @@ return new class extends Migration
         if (Schema::hasTable('dossiers')) {
             Schema::table('dossiers', function (Blueprint $table) {
                 if (!Schema::hasColumn('dossiers', 'type_offre')) {
-                    $table->string('type_offre')->nullable()->after('titre_dossier');
+                    $table->string('type_offre')->nullable();
                 }
                 if (Schema::hasColumn('dossiers', 'types_offres')) {
                     $table->dropColumn('types_offres');
@@ -25,7 +25,7 @@ return new class extends Migration
         if (Schema::hasTable('dossiers')) {
             Schema::table('dossiers', function (Blueprint $table) {
                 if (!Schema::hasColumn('dossiers', 'types_offres')) {
-                    $table->string('types_offres')->nullable()->after('titre_lot');
+                    $table->string('types_offres')->nullable();
                 }
                 if (Schema::hasColumn('dossiers', 'type_offre')) {
                     $table->dropColumn('type_offre');

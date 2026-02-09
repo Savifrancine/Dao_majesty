@@ -11,6 +11,7 @@ use App\Models\TypeDocument;
 use App\Models\DossierDocument;
 use App\Models\ChampDocument;
 use App\Models\ValeurDocument;
+use App\Models\DocumentFichier;
 use Illuminate\Http\Request;
 use Dompdf\Dompdf;
 
@@ -213,7 +214,26 @@ class DossierController extends Controller
         ]);
 
         // no file/page_garde handling here (removed)
-        $documents = TypeDocument::all();
+        $pieceNames = [
+            "Lettre de soumission",
+            "Copie legalisee de l'Extrait du RCCM",
+            "Copie legalisee de l'Identifiant Fiscal Unique (IFU)",
+            "Attestation de non-faillite datant de moins de trois (03) mois",
+            "Attestation d'imposition ou de situation fiscale en cours de validite",
+            "Attestation de regularite a la CNSS",
+            "Attestation de non-exclusion de la commande publique",
+            "Engagement a respecter le code d'ethique et de deontologie de la commande publique",
+            "Attestation de non-condamnation pour fraude, corruption ou fausse declaration",
+            "Attestation de nationalite ou document de constitution legale de l'entreprise",
+            "Statuts de la societe et PV de nomination du gerant",
+            "Copie du quitus fiscal",
+            "Attestation de situation reguliere vis-a-vis des organismes de credit",
+        ];
+
+        $documentsByName = TypeDocument::whereIn('nom', $pieceNames)->get()->keyBy('nom');
+        $documents = collect($pieceNames)
+            ->map(fn ($name) => $documentsByName->get($name))
+            ->filter();
 
         return view('dossiers.create.step5', compact('dossier', 'documents'));
     }
@@ -221,44 +241,117 @@ class DossierController extends Controller
     /**
      * Étape 6 : Créer les DossierDocument et afficher le formulaire de remplissage
      */
-    public function step6(Request $request)
+    public function step6(Request $request, $dossierId)
     {
         $data = $request->validate([
             'documents' => ['required', 'array', 'min:1'],
             'documents.*' => ['exists:types_documents,id']
         ]);
-
-        // Récupérer le dossier depuis la session
-        $dossierId = $request->query('dossier_id');
-        if (!$dossierId) {
-            // Essayer depuis le form POST
-            $dossierId = $request->input('dossier_id');
-        }
-
-        if (!$dossierId) {
-            return redirect()->route('dossiers.create')->with('error', 'Dossier non trouvé');
-        }
+        $pieceNames = [
+            "Lettre de soumission",
+            "Copie legalisee de l'Extrait du RCCM",
+            "Copie legalisee de l'Identifiant Fiscal Unique (IFU)",
+            "Attestation de non-faillite datant de moins de trois (03) mois",
+            "Attestation d'imposition ou de situation fiscale en cours de validite",
+            "Attestation de regularite a la CNSS",
+            "Attestation de non-exclusion de la commande publique",
+            "Engagement a respecter le code d'ethique et de deontologie de la commande publique",
+            "Attestation de non-condamnation pour fraude, corruption ou fausse declaration",
+            "Attestation de nationalite ou document de constitution legale de l'entreprise",
+            "Statuts de la societe et PV de nomination du gerant",
+            "Copie du quitus fiscal",
+            "Attestation de situation reguliere vis-a-vis des organismes de credit",
+        ];
 
         $dossier = Dossier::findOrFail($dossierId);
+        $selectedTypes = TypeDocument::whereIn('id', $data['documents'])->get()->keyBy('id');
 
-        // Créer les DossierDocument pour chaque document sélectionné
-        foreach ($data['documents'] as $index => $typeDocumentId) {
-            DossierDocument::updateOrCreate(
+        $invalidSelection = $selectedTypes->contains(function ($doc) use ($pieceNames) {
+            return !in_array($doc->nom, $pieceNames, true);
+        });
+
+        if ($invalidSelection) {
+            return redirect()->route('dossiers.create')->with('error', 'Selection de pieces invalide.');
+        }
+
+        $excludedName = 'Lettre de soumission';
+        $orderedSelected = collect($data['documents'])
+            ->map(fn ($id) => $selectedTypes->get($id))
+            ->filter();
+
+        $uploadQueue = $orderedSelected
+            ->filter(fn ($doc) => $doc->nom !== $excludedName)
+            ->values();
+
+        if ($uploadQueue->isEmpty()) {
+            return redirect()->route('dossiers.show', $dossier->id)->with('success', 'Aucune piece a televerser.');
+        }
+
+        $currentIndex = (int) $request->input('current_index', 0);
+        $currentIndex = max(0, min($currentIndex, $uploadQueue->count() - 1));
+        $currentDocument = $uploadQueue->get($currentIndex);
+
+        if ($request->input('upload_step') === '1') {
+            $currentDocumentId = $request->validate([
+                'current_document_id' => ['required', 'exists:types_documents,id']
+            ])['current_document_id'];
+
+            $currentDocument = $uploadQueue->firstWhere('id', $currentDocumentId);
+            if (!$currentDocument) {
+                return redirect()->route('dossiers.create')->with('error', 'Piece selectionnee invalide.');
+            }
+
+            $currentIndex = $uploadQueue->search(fn ($doc) => $doc->id === $currentDocumentId);
+            if ($currentIndex === false) {
+                $currentIndex = 0;
+            }
+
+            $dossierDocument = DossierDocument::updateOrCreate(
                 [
                     'dossier_id' => $dossier->id,
-                    'type_document_id' => $typeDocumentId,
+                    'type_document_id' => $currentDocumentId,
                 ],
                 [
-                    'ordre' => $index + 1,
+                    'ordre' => $currentIndex + 1,
                     'statut' => 'vide'
                 ]
             );
+
+            if ($request->hasFile("fichiers.$currentDocumentId")) {
+                foreach ($request->file("fichiers.$currentDocumentId") as $fichier) {
+                    if (!$fichier) {
+                        continue;
+                    }
+
+                    $chemin = $fichier->store('dossiers/documents', 'public');
+
+                    DocumentFichier::create([
+                        'dossier_document_id' => $dossierDocument->id,
+                        'chemin_fichier' => $chemin,
+                        'utilisateur_id' => auth()->id(),
+                    ]);
+                }
+            }
+
+            $nextIndex = $currentIndex + 1;
+            if ($nextIndex >= $uploadQueue->count()) {
+                return redirect()->route('dossiers.show', $dossier->id)->with('success', 'Pieces jointes enregistrees.');
+            }
+
+            $currentIndex = $nextIndex;
+            $currentDocument = $uploadQueue->get($currentIndex);
         }
 
-        // Recharger le dossier avec les documents
-        $dossier->load(['documents.typeDocument.champs']);
+        $selectedDocumentIds = $orderedSelected->pluck('id')->all();
 
-        return view('dossiers.create.step6', compact('dossier'));
+        return view('dossiers.create.step6', [
+            'dossier' => $dossier,
+            'uploadQueue' => $uploadQueue,
+            'currentDocument' => $currentDocument,
+            'currentIndex' => $currentIndex,
+            'totalCount' => $uploadQueue->count(),
+            'selectedDocumentIds' => $selectedDocumentIds,
+        ]);
     }
 
     /**
@@ -268,7 +361,7 @@ class DossierController extends Controller
     {
         $dossier = Dossier::findOrFail($dossierId);
         $dossierDocumentId = $request->validate(['dossier_document_id' => 'required|exists:dossier_documents,id'])['dossier_document_id'];
-        
+
         $dossierDocument = DossierDocument::findOrFail($dossierDocumentId);
 
         // Sauvegarder les valeurs pour chaque champ
@@ -277,7 +370,7 @@ class DossierController extends Controller
                 // Le nom de champ est en format: champ_{id}
                 if (preg_match('/champ_(\d+)/', $key, $matches)) {
                     $champId = $matches[1];
-                    
+
                     ValeurDocument::updateOrCreate(
                         [
                             'dossier_document_id' => $dossierDocumentId,
@@ -334,8 +427,8 @@ class DossierController extends Controller
                 ->header('Content-Type', 'application/pdf');
         } catch (\Throwable $e) {
             // Si Dompdf non installé ou erreur, tomber back sur la vue HTML
-            
-            
+
+
             return view('dossiers.pdf', compact('dossier', 'pageGardeDataUri'));
         }
     }
@@ -345,8 +438,20 @@ class DossierController extends Controller
      */
     public function show(Dossier $dossier)
     {
-        $dossier->load(['documents.typeDocument', 'entreprise', 'typeDossier']);
-        return view('dossiers.show', compact('dossier'));
+        $dossier->load(['documents.typeDocument', 'documents.fichiers', 'entreprise', 'typeDossier']);
+
+        $excludedName = 'Lettre de soumission';
+        $uploadableDocs = $dossier->documents
+            ->filter(fn ($doc) => $doc->typeDocument && $doc->typeDocument->nom !== $excludedName)
+            ->sortBy('ordre')
+            ->values();
+
+        $resumeIndex = $uploadableDocs->search(fn ($doc) => $doc->fichiers->isEmpty());
+        $resumeIndex = $resumeIndex === false ? null : $resumeIndex;
+
+        $resumeDocumentIds = $uploadableDocs->map(fn ($doc) => $doc->type_document_id)->values()->all();
+
+        return view('dossiers.show', compact('dossier', 'resumeIndex', 'resumeDocumentIds'));
     }
 
     /**
