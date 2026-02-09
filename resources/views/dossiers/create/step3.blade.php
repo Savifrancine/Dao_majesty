@@ -454,17 +454,87 @@
                         </div>
                     </div>
 
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="wizard-field">
-                                <label for="new_responsable" class="wizard-label">Responsable</label>
-                                <input type="text" class="form-control wizard-input" id="new_responsable" name="new_responsable">
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="wizard-field">
-                                <label for="new_fonction" class="wizard-label">Fonction</label>
-                                <input type="text" class="form-control wizard-input" id="new_fonction" name="new_fonction">
+                        <!-- Form créer entreprise -->
+                        <div id="newEntrepriseForm" class="card border-info mb-4" style="display: none;">
+                            <div class="card-body">
+                                <h6 class="card-title">➕ Créer une nouvelle entreprise</h6>
+                                
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-group mb-3">
+                                            <label for="new_nom" class="form-label">Nom *</label>
+                                            <input type="text" class="form-control" id="new_nom" name="new_nom">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-group mb-3">
+                                            <label for="new_sigle" class="form-label">Sigle</label>
+                                            <input type="text" class="form-control" id="new_sigle" name="new_sigle" maxlength="10">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="form-group mb-3">
+                                    <label for="new_adresse" class="form-label">Adresse</label>
+                                    <input type="text" class="form-control" id="new_adresse" name="new_adresse">
+                                </div>
+
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="form-group mb-3">
+                                                <label for="new_pays" class="form-label">Pays</label>
+                                                <input type="text" class="form-control" id="new_pays" name="new_pays">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-group mb-3">
+                                                <label for="new_ifu" class="form-label">Numéro IFU</label>
+                                                <input type="text" class="form-control" id="new_ifu" name="new_ifu">
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group mb-3">
+                                        <label for="new_registre" class="form-label">Registre de commerce (PDF/JPG/PNG) - upload</label>
+                                        <input type="file" class="form-control" id="new_registre" name="new_registre" accept="application/pdf,image/*">
+                                    </div>
+                                    <div class="form-group mb-3">
+                                        <label for="new_logo" class="form-label">Logo (JPG/PNG) - upload</label>
+                                        <input type="file" id="new_logo" name="logo" accept="image/*" class="form-control">
+                                    </div>
+
+
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-group mb-3">
+                                            <label for="new_telephone" class="form-label">Téléphone</label>
+                                            <input type="tel" class="form-control" id="new_telephone" name="new_telephone">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-group mb-3">
+                                            <label for="new_email" class="form-label">Email</label>
+                                            <input type="email" class="form-control" id="new_email" name="new_email">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-group mb-3">
+                                            <label for="new_responsable" class="form-label">Responsable</label>
+                                            <input type="text" class="form-control" id="new_responsable" name="new_responsable">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-group mb-3">
+                                            <label for="new_fonction" class="form-label">Fonction</label>
+                                            <input type="text" class="form-control" id="new_fonction" name="new_fonction">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <button type="button" class="btn btn-sm btn-info" id="saveNewEntreprise">Créer cette entreprise</button>
                             </div>
                         </div>
                     </div>
@@ -513,6 +583,10 @@ document.getElementById('saveNewEntreprise').addEventListener('click', async fun
     const fileInput = document.getElementById('new_registre');
     if (fileInput && fileInput.files && fileInput.files[0]) {
         formData.append('registre', fileInput.files[0]);
+    }
+    const logoInput = document.getElementById('new_logo');
+    if (logoInput && logoInput.files && logoInput.files[0]) {
+        formData.append('logo', logoInput.files[0]);
     }
 
     try {

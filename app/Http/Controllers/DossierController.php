@@ -83,6 +83,7 @@ class DossierController extends Controller
             'pays' => ['nullable', 'string', 'max:255'],
             'ifu' => ['nullable', 'string', 'max:255'],
             'registre' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+            'logo' => ['nullable', 'file', 'mimes:jpg,jpeg,png', 'max:5120'],
         ];
 
         $data = $request->validate($rules);
@@ -91,6 +92,12 @@ class DossierController extends Controller
         if ($request->hasFile('registre')) {
             $path = $request->file('registre')->store('entreprises/registre', 'public');
             $data['registre_path'] = $path;
+        }
+
+        // Handle logo upload
+        if ($request->hasFile('logo')) {
+            $path = $request->file('logo')->store('entreprises/logos', 'public');
+            $data['logo'] = $path;
         }
 
         // Map incoming names to entreprise columns
@@ -103,6 +110,7 @@ class DossierController extends Controller
             'pays' => $data['pays'] ?? null,
             'ifu' => $data['ifu'] ?? null,
             'registre_path' => $data['registre_path'] ?? null,
+            'logo' => $data['logo'] ?? null,
             'responsable' => $data['responsable'] ?? null,
             'fonction_responsable' => $data['fonction_responsable'] ?? null,
         ]);
