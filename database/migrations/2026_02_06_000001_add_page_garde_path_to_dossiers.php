@@ -16,7 +16,7 @@ return new class extends Migration
         if (Schema::hasTable('dossiers')) {
             Schema::table('dossiers', function (Blueprint $table) {
                 if (!Schema::hasColumn('dossiers', 'page_garde_path')) {
-                    $table->string('page_garde_path')->nullable()->after('mois_edition');
+                    $table->string('page_garde_path')->nullable();
                 }
             });
         }
