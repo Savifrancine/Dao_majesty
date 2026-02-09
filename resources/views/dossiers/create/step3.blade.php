@@ -81,6 +81,11 @@
                                         <label for="new_registre" class="form-label">Registre de commerce (PDF/JPG/PNG) - upload</label>
                                         <input type="file" class="form-control" id="new_registre" name="new_registre" accept="application/pdf,image/*">
                                     </div>
+                                    <div class="form-group mb-3">
+                                        <label for="new_logo" class="form-label">Logo (JPG/PNG) - upload</label>
+                                        <input type="file" id="new_logo" name="logo" accept="image/*" class="form-control">
+                                    </div>
+
 
                                 <div class="row">
                                     <div class="col-md-6">
@@ -161,6 +166,10 @@ document.getElementById('saveNewEntreprise').addEventListener('click', async fun
     const fileInput = document.getElementById('new_registre');
     if (fileInput && fileInput.files && fileInput.files[0]) {
         formData.append('registre', fileInput.files[0]);
+    }
+    const logoInput = document.getElementById('new_logo');
+    if (logoInput && logoInput.files && logoInput.files[0]) {
+        formData.append('logo', logoInput.files[0]);
     }
 
     try {
