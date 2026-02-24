@@ -338,14 +338,7 @@
 
             <div class="show-actions">
                 @if(!is_null($resumeIndex) && !empty($resumeDocumentIds))
-                    <form action="{{ route('dossiers.step6', $dossier->id) }}" method="POST">
-                        @csrf
-                        @foreach($resumeDocumentIds as $docId)
-                            <input type="hidden" name="documents[]" value="{{ $docId }}">
-                        @endforeach
-                        <input type="hidden" name="current_index" value="{{ $resumeIndex }}">
-                        <button type="submit" class="btn btn-primary-custom">Continuer la creation</button>
-                    </form>
+                    <a href="{{ route('dossiers.continuer', $dossier->id) }}" class="btn btn-primary-custom">Continuer la creation</a>
                 @endif
 
                 @if($dossier->statut === 'genere')
@@ -356,6 +349,13 @@
         </div>
 
         <div class="wizard-body">
+            @if(session('error'))
+                <div class="alert alert-danger">{{ session('error') }}</div>
+            @endif
+            @if(session('success'))
+                <div class="alert alert-success">{{ session('success') }}</div>
+            @endif
+
             <div class="section-card">
                 <div class="section-title">Informations du dossier</div>
                 <div class="info-grid">

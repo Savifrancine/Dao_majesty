@@ -22,7 +22,7 @@ Route::post('login', function (Request $request) {
 
     // Attempt authentication with the Utilisateur model
     $user = App\Models\Utilisateur::where('email', $credentials['email'])->first();
-    
+
     if ($user && password_verify($credentials['password'], $user->mot_de_passe)) {
         Auth::login($user);
         $request->session()->regenerate();
@@ -70,7 +70,8 @@ Route::middleware('auth')->group(function () {
     // Dashboard dossiers
     Route::get('/dossiers', [App\Http\Controllers\DossierController::class, 'index'])->name('dossiers.index');
     Route::get('/dossiers/show/{dossier}', [App\Http\Controllers\DossierController::class, 'show'])->name('dossiers.show');
-    
+    Route::get('/dossiers/{dossier}/continuer', [App\Http\Controllers\DossierController::class, 'continueCreation'])->name('dossiers.continuer');
+
     // Wizard steps
     Route::get('/dossiers/create', [App\Http\Controllers\DossierController::class, 'create'])->name('dossiers.create');
     Route::post('/dossiers/step2', [App\Http\Controllers\DossierController::class, 'step2'])->name('dossiers.step2');
@@ -78,10 +79,10 @@ Route::middleware('auth')->group(function () {
     Route::match(['get','post'], '/dossiers/step4', [App\Http\Controllers\DossierController::class, 'step4'])->name('dossiers.step4');
     Route::post('/dossiers/step5', [App\Http\Controllers\DossierController::class, 'step5'])->name('dossiers.step5');
     Route::post('/dossiers/step6/{dossierId}', [App\Http\Controllers\DossierController::class, 'step6'])->name('dossiers.step6');
-    
+
     // Entreprise creation
     Route::post('/dossiers/entreprise/store', [App\Http\Controllers\DossierController::class, 'storeEntreprise'])->name('dossiers.storeEntreprise');
-    
+
     // Document filling
     Route::post('/dossiers/{dossierId}/documents/{documentIndex}/save', [App\Http\Controllers\DossierController::class, 'saveDocumentValues'])->name('dossiers.saveDocumentValues');
     Route::get('/dossiers/{dossier}/pdf', [App\Http\Controllers\DossierController::class, 'generatePDF'])->name('dossiers.pdf');
