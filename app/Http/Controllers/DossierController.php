@@ -279,7 +279,7 @@ class DossierController extends Controller
         });
 
         if ($invalidSelection) {
-            return redirect()->route('dossiers.create')->with('error', 'Selection de pieces invalide.');
+            return redirect()->route('dossiers.show', $dossier->id)->with('error', 'Selection de pieces invalide.');
         }
 
         $excludedName = 'Lettre de soumission';
@@ -290,6 +290,19 @@ class DossierController extends Controller
         $uploadQueue = $orderedSelected
             ->filter(fn ($doc) => $doc->nom !== $excludedName)
             ->values();
+
+        foreach ($uploadQueue as $index => $doc) {
+            DossierDocument::firstOrCreate(
+                [
+                    'dossier_id' => $dossier->id,
+                    'type_document_id' => $doc->id,
+                ],
+                [
+                    'ordre' => $index + 1,
+                    'statut' => 'vide',
+                ]
+            );
+        }
 
         if ($uploadQueue->isEmpty()) {
             return redirect()->route('dossiers.show', $dossier->id)->with('success', 'Aucune piece a televerser.');
@@ -306,7 +319,7 @@ class DossierController extends Controller
 
             $currentDocument = $uploadQueue->firstWhere('id', $currentDocumentId);
             if (!$currentDocument) {
-                return redirect()->route('dossiers.create')->with('error', 'Piece selectionnee invalide.');
+                return redirect()->route('dossiers.show', $dossier->id)->with('error', 'Piece selectionnee invalide.');
             }
 
             $currentIndex = $uploadQueue->search(fn ($doc) => $doc->id === $currentDocumentId);
@@ -454,12 +467,51 @@ class DossierController extends Controller
             ->sortBy('ordre')
             ->values();
 
-        $resumeIndex = $uploadableDocs->search(fn ($doc) => $doc->fichiers->isEmpty());
+        $resumeIndex = $uploadableDocs->search(fn ($doc) => $doc->fichiers->isEmpty() || $doc->statut !== 'complete');
         $resumeIndex = $resumeIndex === false ? null : $resumeIndex;
 
         $resumeDocumentIds = $uploadableDocs->map(fn ($doc) => $doc->type_document_id)->values()->all();
 
         return view('dossiers.show', compact('dossier', 'resumeIndex', 'resumeDocumentIds'));
+    }
+
+    /**
+     * Reprendre la creation d'un dossier a la piece en cours
+     */
+    public function continueCreation(Dossier $dossier)
+    {
+        $dossier->load(['documents.typeDocument', 'documents.fichiers', 'typeDossier']);
+
+        $excludedName = 'Lettre de soumission';
+        $uploadableDocs = $dossier->documents
+            ->filter(fn ($doc) => $doc->typeDocument && $doc->typeDocument->nom !== $excludedName)
+            ->sortBy('ordre')
+            ->values();
+
+        if ($uploadableDocs->isEmpty()) {
+            return redirect()->route('dossiers.show', $dossier->id)
+                ->with('error', 'Impossible de reprendre: aucune piece a televerser.');
+        }
+
+        $resumeIndex = $uploadableDocs->search(fn ($doc) => $doc->fichiers->isEmpty() || $doc->statut !== 'complete');
+
+        if ($resumeIndex === false) {
+            return redirect()->route('dossiers.show', $dossier->id)
+                ->with('success', 'Toutes les pieces sont deja televersees.');
+        }
+
+        $uploadQueue = $uploadableDocs->map(fn ($doc) => $doc->typeDocument)->values();
+        $selectedDocumentIds = $uploadableDocs->pluck('type_document_id')->values()->all();
+        $currentDocument = $uploadQueue->get($resumeIndex);
+
+        return view('dossiers.create.step6', [
+            'dossier' => $dossier,
+            'uploadQueue' => $uploadQueue,
+            'currentDocument' => $currentDocument,
+            'currentIndex' => $resumeIndex,
+            'totalCount' => $uploadQueue->count(),
+            'selectedDocumentIds' => $selectedDocumentIds,
+        ]);
     }
 
     /**
