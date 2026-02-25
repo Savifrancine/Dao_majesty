@@ -362,6 +362,7 @@
                 @php
                     $docsByName = $documents->keyBy('nom');
                     $pieceNames = [
+                        "Déclaration de garantie d'offre",
                         'Lettre de soumission',
                         'Copie legalisee de l\'Extrait du RCCM',
                         'Copie legalisee de l\'Identifiant Fiscal Unique (IFU)',
@@ -408,6 +409,8 @@
                         </label>
                     @endforeach
                 </div>
+
+                
 
                 <div id="selectedList" class="wizard-alert" style="display: none; margin-top: 16px;">
                     <strong>Pieces selectionnees :</strong>

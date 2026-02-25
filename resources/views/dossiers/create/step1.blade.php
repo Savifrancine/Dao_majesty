@@ -10,7 +10,7 @@
         --mint: #d1fae5;
         --green-gradient: linear-gradient(135deg, #10b981 0%, #059669 100%);
         --green-glow: 0 0 30px rgba(16, 185, 129, 0.25);
-    }
+    }                                                                                                                                                                                                
 
     html,
     body {

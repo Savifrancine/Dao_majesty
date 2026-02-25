@@ -289,7 +289,29 @@
         /* Main Content */
         main {
             animation: fadeIn 0.8s ease-out 0.3s both;
+            margin-left: 260px; /* leave space for fixed sidebar */
+            padding: 2rem;
         }
+
+        /* Fixed Sidebar */
+        .app-sidebar {
+            position: fixed;
+            left: 0;
+            top: 88px; /* below navbar */
+            bottom: 0;
+            width: 260px;
+            background: white;
+            border-right: 1px solid var(--border-color);
+            padding: 1rem;
+            z-index: 900;
+            overflow-y: auto;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .app-sidebar .menu { display:flex;flex-direction:column;gap:6px }
+        .app-sidebar .menu-item { display:flex;align-items:center;gap:12px;padding:10px;border-radius:10px;color:var(--text-primary);text-decoration:none;font-weight:700 }
+        .app-sidebar .menu-item .icon { width:36px;height:36px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;background:var(--mint);color:var(--emerald);font-weight:800 }
+        .app-sidebar .menu-item:hover { background: #f8fafc; transform:translateY(-2px) }
 
         @keyframes fadeIn {
             from {
@@ -443,6 +465,34 @@
                 </div>
             </div>
         </nav>
+
+        <aside class="app-sidebar">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+                <div style="width:44px;height:44px;border-radius:10px;background:var(--emerald);display:flex;align-items:center;justify-content:center;color:white;font-weight:800">D</div>
+                <div>
+                    <div style="font-weight:800;color:var(--text-primary)">DAO</div>
+                    <div style="font-size:12px;color:var(--text-secondary)">Gestion dossiers</div>
+                </div>
+            </div>
+            <div class="menu">
+                <a href="{{ route('dossiers.create') }}" class="menu-item">
+                    <span class="icon">✚</span>
+                    <span>Nouveau dossier</span>
+                </a>
+                <a href="{{ route('dossiers.index') }}" class="menu-item">
+                    <span class="icon">📂</span>
+                    <span>Listes</span>
+                </a>
+                <a href="{{ route('templates.index') }}" class="menu-item">
+                    <span class="icon">📐</span>
+                    <span>Modèles</span>
+                </a>
+                <a href="#" class="menu-item">
+                    <span class="icon">⋯</span>
+                    <span>Autres</span>
+                </a>
+            </div>
+        </aside>
 
         <main class="py-4">
             @yield('content')

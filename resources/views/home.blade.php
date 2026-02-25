@@ -818,6 +818,8 @@
             flex-direction: column;
         }
     }
+
+</style>
 </style>
 
 <div class="dashboard-container container">
@@ -834,6 +836,7 @@
             </div>
         </div>
     </div>
+</div>
 
     <!-- Stats Grid -->
     <div class="stats-grid">
@@ -966,7 +969,11 @@
             </div>
         </div>
 
-        @if($dossiers->count() > 0)
+                @php
+                    $shortList = $dossiers->sortByDesc('created_at')->take(5);
+                @endphp
+
+                @if($shortList->count() > 0)
         <div style="overflow-x: auto;">
             <table class="modern-table">
                 <thead>
@@ -981,7 +988,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach($dossiers as $dossier)
+                    @foreach($shortList as $dossier)
                     <tr>
                         <td>
                             <div class="table-name">
@@ -1010,7 +1017,12 @@
                         <td>{{ $dossier->created_at->format('d/m/Y') }}</td>
                         <td>
                             <div class="action-btns">
-                                <a href="{{ route('dossiers.show', $dossier) }}" class="action-btn btn-view">👁️ Voir</a>
+                                <a href="{{ route('dossiers.show', $dossier) }}" class="action-btn btn-view">▶ Continuer</a>
+                                <a href="{{ route('dossiers.show', $dossier) }}" class="action-btn btn-view">✎ Modifier</a>
+                                <form action="{{ route('dossiers.destroy', $dossier) }}" method="POST" style="display:inline">
+                                    @csrf
+                                    <button type="submit" class="action-btn" style="background:#fee2e2;color:#991b1b;border-radius:8px;padding:8px 10px;font-weight:700">🗑 Supprimer</button>
+                                </form>
                                 @if($dossier->statut === 'genere')
                                     <a href="{{ route('dossiers.pdf', $dossier) }}" class="action-btn btn-download">📥 PDF</a>
                                 @endif

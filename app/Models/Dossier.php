@@ -26,6 +26,7 @@ class Dossier extends Model
         'autorite_contractante_id',
         'source_financement_id',
         'reference_step',
+        'ref',
         'annee_gestion',
         'ville_signature',
         'date_signature',

@@ -400,10 +400,35 @@
                     <div class="card-header">
                         <h6 class="mb-0">Piece {{ $currentIndex + 1 }} / {{ $totalCount }}</h6>
                     </div>
-                    <div class="card-body">
-                        <label class="wizard-label" for="fichier_{{ $currentDocument->id }}">{{ $currentDocument->nom }}</label>
-                        <input type="file" class="form-control wizard-input" name="fichiers[{{ $currentDocument->id }}][]" id="fichier_{{ $currentDocument->id }}" multiple required>
-                    </div>
+                        <div class="card-body">
+                            <label class="wizard-label">{{ $currentDocument->nom }}</label>
+
+                            @if(trim($currentDocument->nom) === "Déclaration de garantie d'offre")
+                                {{-- Afficher le formulaire de déclaration inline pour step6 --}}
+                                @include('documents.partials.declaration_form_step6', ['dossier' => $dossier, 'docId' => $currentDocument->id])
+                            @else
+                                @php
+                                    $dossierDocument = $dossier->documents->firstWhere('type_document_id', $currentDocument->id);
+                                    $existingFiles = $dossierDocument ? $dossierDocument->fichiers : collect();
+                                @endphp
+
+                                <label class="wizard-label" for="fichier_{{ $currentDocument->id }}">Fichiers à téléverser</label>
+
+                                @if($existingFiles && $existingFiles->count() > 0)
+                                    <div style="margin-bottom:8px">
+                                        <div style="font-weight:700;margin-bottom:6px">Fichiers existants</div>
+                                        @foreach($existingFiles as $f)
+                                            <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
+                                                <a href="{{ asset('storage/' . $f->chemin_fichier) }}" target="_blank">{{ basename($f->chemin_fichier) }}</a>
+                                                <label style="font-size:0.9rem;color:#b91c1c"><input type="checkbox" name="delete_file_ids[]" value="{{ $f->id }}"> Supprimer</label>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                @endif
+
+                                <input type="file" class="form-control wizard-input" name="fichiers[{{ $currentDocument->id }}][]" id="fichier_{{ $currentDocument->id }}" multiple {{ ($existingFiles && $existingFiles->count() > 0) ? '' : 'required' }}>
+                            @endif
+                        </div>
                 </div>
 
                 <div class="wizard-actions">

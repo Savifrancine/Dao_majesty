@@ -410,15 +410,23 @@
                     <div class="table-wrap">
                         <table class="simple-table">
                             <thead>
-                                <tr>
-                                    <th>Ordre</th>
-                                    <th>Document</th>
-                                    <th>Type</th>
-                                    <th>Statut</th>
-                                    <th>Cree le</th>
-                                </tr>
+                                                <tr>
+                                                    <th>Ordre</th>
+                                                    <th>Document</th>
+                                                    <th>Type</th>
+                                                    <th>Statut</th>
+                                                    <th>Cree le</th>
+                                                    <th>Actions</th>
+                                                </tr>
                             </thead>
                             <tbody>
+                                @php
+                                    $uploadable = $dossier->documents->filter(function($dd){
+                                        return $dd->typeDocument && $dd->typeDocument->nom !== 'Lettre de soumission';
+                                    })->sortBy('ordre')->values();
+                                    $uploadableTypeIds = $uploadable->pluck('type_document_id');
+                                @endphp
+
                                 @foreach($dossier->documents->sortBy('ordre') as $doc)
                                 <tr>
                                     <td><strong>{{ $doc->ordre }}</strong></td>
@@ -434,6 +442,24 @@
                                         @endif
                                     </td>
                                     <td>{{ $doc->created_at->format('d/m/Y H:i') }}</td>
+                                    <td>
+                                        @php
+                                            $pos = $uploadable->pluck('id')->search($doc->id);
+                                        @endphp
+
+                                        @if($pos !== false)
+                                            <form action="{{ route('dossiers.step6', $dossier->id) }}" method="POST" style="display:inline">
+                                                @csrf
+                                                @foreach($uploadable as $ud)
+                                                    <input type="hidden" name="documents[]" value="{{ $ud->type_document_id }}">
+                                                @endforeach
+                                                <input type="hidden" name="current_index" value="{{ $pos }}">
+                                                <button class="btn btn-sm btn-primary" type="submit">✎ Modifier</button>
+                                            </form>
+                                        @else
+                                            —
+                                        @endif
+                                    </td>
                                 </tr>
                                 @endforeach
                             </tbody>

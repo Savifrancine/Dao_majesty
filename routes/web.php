@@ -79,12 +79,17 @@ Route::middleware('auth')->group(function () {
     Route::post('/dossiers/step5', [App\Http\Controllers\DossierController::class, 'step5'])->name('dossiers.step5');
     Route::post('/dossiers/step6/{dossierId}', [App\Http\Controllers\DossierController::class, 'step6'])->name('dossiers.step6');
     
+    // Déclaration de garantie — formulaire et génération PDF
+    Route::get('/documents/declaration', [App\Http\Controllers\DocumentController::class, 'showDeclarationForm'])->name('documents.declaration.form');
+    Route::post('/documents/declaration/pdf', [App\Http\Controllers\DocumentController::class, 'generateDeclarationPDF'])->name('documents.declaration.pdf');
+    Route::get('/documents/declaration/partial', [App\Http\Controllers\DocumentController::class, 'showDeclarationPartial'])->name('documents.declaration.partial');
     // Entreprise creation
     Route::post('/dossiers/entreprise/store', [App\Http\Controllers\DossierController::class, 'storeEntreprise'])->name('dossiers.storeEntreprise');
     
     // Document filling
     Route::post('/dossiers/{dossierId}/documents/{documentIndex}/save', [App\Http\Controllers\DossierController::class, 'saveDocumentValues'])->name('dossiers.saveDocumentValues');
     Route::get('/dossiers/{dossier}/pdf', [App\Http\Controllers\DossierController::class, 'generatePDF'])->name('dossiers.pdf');
+    Route::post('/dossiers/{dossier}/destroy', [App\Http\Controllers\DossierController::class, 'destroy'])->name('dossiers.destroy');
 });
 
 // CRUD routes for Dao
@@ -92,3 +97,12 @@ Route::resource('daos', App\Http\Controllers\DaoController::class)->middleware('
 
 // Lookups for page de garde (AJAX add)
 Route::post('lookups/{kind}', [App\Http\Controllers\LookupController::class, 'store'])->middleware('auth')->name('lookups.store');
+
+    // Templates CRUD
+    Route::get('/templates', [App\Http\Controllers\TemplateController::class, 'index'])->name('templates.index');
+    Route::get('/templates/create', [App\Http\Controllers\TemplateController::class, 'create'])->name('templates.create');
+    Route::post('/templates', [App\Http\Controllers\TemplateController::class, 'store'])->name('templates.store');
+    Route::get('/templates/{template}/edit', [App\Http\Controllers\TemplateController::class, 'edit'])->name('templates.edit');
+    Route::post('/templates/{template}', [App\Http\Controllers\TemplateController::class, 'update'])->name('templates.update');
+    Route::post('/templates/{template}/destroy', [App\Http\Controllers\TemplateController::class, 'destroy'])->name('templates.destroy');
+    Route::get('/templates/{template}/json', [App\Http\Controllers\TemplateController::class, 'showJson'])->name('templates.showJson');

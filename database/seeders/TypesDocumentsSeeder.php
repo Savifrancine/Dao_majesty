@@ -15,6 +15,7 @@ class TypesDocumentsSeeder extends Seeder
         $now = now();
 
         $documents = [
+            ['nom' => 'Déclaration de garantie d\'offre', 'type_formulaire' => 'fichier'],
             ['nom' => 'Lettre de soumission', 'type_formulaire' => 'fichier'],
             ['nom' => 'Copie legalisee de l\'Extrait du RCCM', 'type_formulaire' => 'fichier'],
             ['nom' => 'Copie legalisee de l\'Identifiant Fiscal Unique (IFU)', 'type_formulaire' => 'fichier'],

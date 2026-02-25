@@ -397,6 +397,14 @@
                             <label for="reference_dossier" class="wizard-label">Reference du dossier</label>
                             <input type="text" name="reference_dossier" id="reference_dossier" class="form-control wizard-input" value="{{ old('reference_dossier') }}">
                         </div>
+
+                        <div class="wizard-field">
+                            <label for="ref" class="wizard-label">Ref</label>
+                            <input type="text" name="ref" id="ref" class="form-control wizard-input @error('ref') is-invalid @enderror" placeholder="Ex: REF-123" value="{{ old('ref') }}">
+                            @error('ref')
+                                <div class="invalid-feedback d-block">{{ $message }}</div>
+                            @enderror
+                        </div>
                     </div>
                     <div class="col-md-6">
                         <div class="wizard-field">

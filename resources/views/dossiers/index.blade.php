@@ -41,7 +41,12 @@
                         </td>
                         <td>{{ $dossier->created_at->format('d/m/Y') }}</td>
                         <td>
-                            <a href="{{ route('dossiers.show', $dossier) }}" class="btn btn-sm btn-info">👁️ Voir</a>
+                            <a href="{{ route('dossiers.show', $dossier) }}" class="btn btn-sm btn-info">▶ Continuer</a>
+                            <a href="{{ route('dossiers.show', $dossier) }}" class="btn btn-sm btn-secondary">✎ Modifier</a>
+                            <form action="{{ route('dossiers.destroy', $dossier) }}" method="POST" style="display:inline">
+                                @csrf
+                                <button class="btn btn-sm btn-danger" type="submit">🗑 Supprimer</button>
+                            </form>
                             @if($dossier->statut === 'genere')
                                 <a href="{{ route('dossiers.pdf', $dossier) }}" class="btn btn-sm btn-primary">📥 PDF</a>
                             @endif

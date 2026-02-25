@@ -14,6 +14,7 @@ use App\Models\ValeurDocument;
 use App\Models\DocumentFichier;
 use Illuminate\Http\Request;
 use Dompdf\Dompdf;
+use Illuminate\Support\Facades\Storage;
 
 class DossierController extends Controller
 {
@@ -181,6 +182,7 @@ class DossierController extends Controller
             'services_projet' => ['nullable','string','max:255'],
             'destinataires' => ['nullable','string'],
             'reference_dossier' => ['nullable','string','max:255'],
+            'ref' => ['nullable','string','max:255'],
             'date_lancement' => ['nullable','date'],
             'titre_lot' => ['nullable','string','max:255'],
             'autres_details' => ['nullable','string'],
@@ -210,6 +212,7 @@ class DossierController extends Controller
             'services_projet' => $data['services_projet'] ?? null,
             'destinataires' => $data['destinataires'] ?? null,
             'reference_dossier' => $data['reference_dossier'] ?? null,
+            'ref' => $data['ref'] ?? null,
             'date_lancement' => $data['date_lancement'] ?? null,
             'titre_lot' => $data['titre_lot'] ?? null,
             'types_offres' => $data['types_offres'] ?? null,
@@ -223,6 +226,7 @@ class DossierController extends Controller
 
         // no file/page_garde handling here (removed)
         $pieceNames = [
+            "Déclaration de garantie d'offre",
             "Lettre de soumission",
             "Copie legalisee de l'Extrait du RCCM",
             "Copie legalisee de l'Identifiant Fiscal Unique (IFU)",
@@ -256,6 +260,7 @@ class DossierController extends Controller
             'documents.*' => ['exists:types_documents,id']
         ]);
         $pieceNames = [
+            "Déclaration de garantie d'offre",
             "Lettre de soumission",
             "Copie legalisee de l'Extrait du RCCM",
             "Copie legalisee de l'Identifiant Fiscal Unique (IFU)",
@@ -325,6 +330,75 @@ class DossierController extends Controller
                 ]
             );
 
+            // Si le document courant est la Déclaration de garantie d'offre,
+            // on attend des champs de formulaire plutôt que des fichiers.
+            if (trim($currentDocument->nom) === "Déclaration de garantie d'offre") {
+                $vals = $request->validate([
+                    'societe' => ['required','string','max:255'],
+                    'date' => ['required','date'],
+                    'declarant' => ['required','string','max:255'],
+                    'fonction' => ['nullable','string','max:255'],
+                    'reference' => ['nullable','string','max:255'],
+                    'template_id' => ['nullable','exists:templates,id'],
+                ]);
+
+                // If a template is selected, use it (replace placeholders), otherwise use the default blade view
+                try {
+                    if (!empty($vals['template_id'])) {
+                        $template = \App\Models\Template::find($vals['template_id']);
+                        if ($template) {
+                                $raw = $template->content ?? '';
+                                // Treat template as plain text: escape template then replace placeholders with escaped values
+                                $processed = e($raw);
+                                foreach (['societe','date','declarant','fonction','reference'] as $k) {
+                                    $v = $vals[$k] ?? '';
+                                    $processed = preg_replace('/{{\s*'.preg_quote($k, '/') .'\s*}}/', e($v), $processed);
+                                }
+
+                                // Convert newlines to <br> so Dompdf renders lines correctly
+                                $htmlForPdf = '<div style="white-space:pre-line;font-family: Arial, Helvetica, sans-serif;">' . nl2br($processed) . '</div>';
+
+                                $dompdf = new Dompdf(['isRemoteEnabled' => true]);
+                                $dompdf->loadHtml($htmlForPdf);
+                            $dompdf->setPaper('A4', 'portrait');
+                            $dompdf->render();
+
+                            $output = $dompdf->output();
+                            $filename = 'dossiers/documents/dossier_' . $dossier->id . '_declaration_' . time() . '.pdf';
+                            Storage::disk('public')->put($filename, $output);
+
+                            DocumentFichier::create([
+                                'dossier_document_id' => $dossierDocument->id,
+                                'chemin_fichier' => $filename,
+                                'utilisateur_id' => auth()->id(),
+                            ]);
+
+                            $dossierDocument->update(['statut' => 'complete']);
+                        }
+                    } else {
+                        $html = view('documents.declaration_pdf', array_merge($vals, ['signatureDataUri' => null]))->render();
+                        $dompdf = new Dompdf(['isRemoteEnabled' => true]);
+                        $dompdf->loadHtml($html);
+                        $dompdf->setPaper('A4', 'portrait');
+                        $dompdf->render();
+
+                        $output = $dompdf->output();
+                        $filename = 'dossiers/documents/dossier_' . $dossier->id . '_declaration_' . time() . '.pdf';
+                        Storage::disk('public')->put($filename, $output);
+
+                        DocumentFichier::create([
+                            'dossier_document_id' => $dossierDocument->id,
+                            'chemin_fichier' => $filename,
+                            'utilisateur_id' => auth()->id(),
+                        ]);
+
+                        $dossierDocument->update(['statut' => 'complete']);
+                    }
+                } catch (\Throwable $e) {
+                    // ignore and continue with normal flow (mark as vide)
+                }
+            }
+
             if ($request->hasFile("fichiers.$currentDocumentId")) {
                 foreach ($request->file("fichiers.$currentDocumentId") as $fichier) {
                     if (!$fichier) {
@@ -338,6 +412,22 @@ class DossierController extends Controller
                         'chemin_fichier' => $chemin,
                         'utilisateur_id' => auth()->id(),
                     ]);
+                }
+            }
+
+            // Handle deletion of existing files if requested
+            if ($request->filled('delete_file_ids')) {
+                $deleteIds = $request->input('delete_file_ids', []);
+                foreach ($deleteIds as $fid) {
+                    $file = DocumentFichier::find($fid);
+                    if ($file && $file->dossier_document_id === $dossierDocument->id) {
+                        try {
+                            Storage::disk('public')->delete($file->chemin_fichier);
+                        } catch (\Throwable $e) {
+                            // ignore deletion errors
+                        }
+                        $file->delete();
+                    }
                 }
             }
 
@@ -454,8 +544,14 @@ class DossierController extends Controller
             ->sortBy('ordre')
             ->values();
 
-        $resumeIndex = $uploadableDocs->search(fn ($doc) => $doc->fichiers->isEmpty());
-        $resumeIndex = $resumeIndex === false ? null : $resumeIndex;
+        // Prefer the last document that was in progress, otherwise the first empty one
+        $inProgressIndex = $uploadableDocs->search(fn ($doc) => $doc->statut === 'en_cours');
+        if ($inProgressIndex !== false) {
+            $resumeIndex = $inProgressIndex;
+        } else {
+            $firstEmpty = $uploadableDocs->search(fn ($doc) => $doc->fichiers->isEmpty());
+            $resumeIndex = $firstEmpty === false ? null : $firstEmpty;
+        }
 
         $resumeDocumentIds = $uploadableDocs->map(fn ($doc) => $doc->type_document_id)->values()->all();
 
@@ -469,5 +565,20 @@ class DossierController extends Controller
     {
         $dossiers = auth()->user()->dossiers ?? Dossier::all();
         return view('dossiers.index', compact('dossiers'));
+    }
+
+    /**
+     * Supprimer un dossier et ses relations si nécessaire.
+     */
+    public function destroy(Dossier $dossier)
+    {
+        // Basic authorization: only allow owner or admins (not implemented fully)
+        // For now, allow if authenticated
+        try {
+            $dossier->delete();
+            return redirect()->route('dossiers.index')->with('success', 'Dossier supprimé.');
+        } catch (\Throwable $e) {
+            return redirect()->route('dossiers.index')->with('error', 'Impossible de supprimer le dossier.');
+        }
     }
 }
