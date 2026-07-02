@@ -426,6 +426,11 @@
                                     <i class="fas fa-users-cog me-1"></i>{{ __('DAOs') }}
                                 </a>
                             </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ route('signataires.index') }}">
+                                    <i class="fas fa-file-signature me-1"></i>{{ __('Signataires') }}
+                                </a>
+                            </li>
                         @endauth
                     </ul>
 
@@ -466,6 +471,11 @@
             </div>
         </nav>
 
+        @php
+            $hideSidebar = request()->routeIs('login', 'register') || request()->is('/');
+        @endphp
+
+        @unless($hideSidebar)
         <aside class="app-sidebar">
             <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
                 <div style="width:44px;height:44px;border-radius:10px;background:var(--emerald);display:flex;align-items:center;justify-content:center;color:white;font-weight:800">D</div>
@@ -479,10 +489,28 @@
                     <span class="icon">✚</span>
                     <span>Nouveau dossier</span>
                 </a>
+                <a href="{{ route('formulaire_mat.index') }}" class="menu-item">
+                    <span class="icon">📄</span>
+                    <span>Formulaire MAT</span>
+                </a>
+                <a href="{{ route('formulaire_per.index') }}" class="menu-item">
+                    <span class="icon">📋</span>
+                    <span>Formulaire PER</span>
+                </a>
+                    <a href="{{ route('chiffres.index') }}" class="menu-item">
+                        <span class="icon">📈</span>
+                        <span>Chiffres d'affaires</span>
+                    </a>
                 <a href="{{ route('dossiers.index') }}" class="menu-item">
                     <span class="icon">📂</span>
                     <span>Listes</span>
                 </a>
+                @if(auth()->check() && auth()->user()->isAdminOrDirecteur())
+                <a href="{{ route('utilisateurs.index') }}" class="menu-item">
+                    <span class="icon">👥</span>
+                    <span>Gestion des utilisateurs</span>
+                </a>
+                @endif
                 <a href="{{ route('templates.index') }}" class="menu-item">
                     <span class="icon">📐</span>
                     <span>Modèles</span>
@@ -493,8 +521,9 @@
                 </a>
             </div>
         </aside>
+        @endunless
 
-        <main class="py-4">
+        <main class="py-4" style="{{ $hideSidebar ? 'margin-left: 0 !important;' : '' }}">
             @yield('content')
         </main>
     </div>

@@ -411,6 +411,11 @@
                             <label for="date_lancement" class="wizard-label">Date de lancement</label>
                             <input type="date" name="date_lancement" id="date_lancement" class="form-control wizard-input" value="{{ old('date_lancement') }}">
                         </div>
+
+                        <div class="wizard-field">
+                            <label for="date_soumission" class="wizard-label">Date de soumission</label>
+                            <input type="date" name="date_soumission" id="date_soumission" class="form-control wizard-input" value="{{ old('date_soumission') }}">
+                        </div>
                     </div>
                 </div>
 

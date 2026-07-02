@@ -12,15 +12,33 @@ class BordereauLigne extends Model
     protected $fillable = [
         'bordereau_id',
         'designation',
+        'unite_physique',
         'quantite',
         'prix_unitaire',
         'montant',
+        'cout_benin',
+        'site',
+        'date_prestation',
+        'frequence',
+        'specifications_techniques',
+        'specifications_obligatoires',
+        'specifications_proposees',
+        'total_materiel',
+        'location_amort',
+        'matiere_frais',
+        'main_oeuvre',
+        'deborse_sec',
+        'coef_c1',
+        'coef_k',
+        'prix_vente_htva',
     ];
 
     protected $casts = [
-        'quantite' => 'integer',
+        'quantite' => 'decimal:2',
         'prix_unitaire' => 'decimal:2',
         'montant' => 'decimal:2',
+        'cout_benin' => 'decimal:2',
+        'frequence' => 'string',
     ];
 
     /**

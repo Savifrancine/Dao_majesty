@@ -419,6 +419,16 @@
                         <input type="text" class="form-control wizard-input" id="new_adresse" name="new_adresse">
                     </div>
 
+                    <div class="wizard-field">
+                        <label for="new_adresse_officielle" class="wizard-label">Adresse officielle</label>
+                        <input type="text" class="form-control wizard-input" id="new_adresse_officielle" name="new_adresse_officielle">
+                    </div>
+
+                    <div class="wizard-field">
+                        <label for="new_annee_enregistrement" class="wizard-label">Année d'enregistrement</label>
+                        <input type="number" class="form-control wizard-input" id="new_annee_enregistrement" name="new_annee_enregistrement" min="1900" max="2100">
+                    </div>
+
                     <div class="row">
                         <div class="col-md-6">
                             <div class="wizard-field">
@@ -454,89 +464,22 @@
                         </div>
                     </div>
 
-                        <!-- Form créer entreprise -->
-                        <div id="newEntrepriseForm" class="card border-info mb-4" style="display: none;">
-                            <div class="card-body">
-                                <h6 class="card-title">➕ Créer une nouvelle entreprise</h6>
-                                
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="form-group mb-3">
-                                            <label for="new_nom" class="form-label">Nom *</label>
-                                            <input type="text" class="form-control" id="new_nom" name="new_nom">
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group mb-3">
-                                            <label for="new_sigle" class="form-label">Sigle</label>
-                                            <input type="text" class="form-control" id="new_sigle" name="new_sigle" maxlength="10">
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="form-group mb-3">
-                                    <label for="new_adresse" class="form-label">Adresse</label>
-                                    <input type="text" class="form-control" id="new_adresse" name="new_adresse">
-                                </div>
-
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <div class="form-group mb-3">
-                                                <label for="new_pays" class="form-label">Pays</label>
-                                                <input type="text" class="form-control" id="new_pays" name="new_pays">
-                                            </div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <div class="form-group mb-3">
-                                                <label for="new_ifu" class="form-label">Numéro IFU</label>
-                                                <input type="text" class="form-control" id="new_ifu" name="new_ifu">
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="form-group mb-3">
-                                        <label for="new_registre" class="form-label">Registre de commerce (PDF/JPG/PNG) - upload</label>
-                                        <input type="file" class="form-control" id="new_registre" name="new_registre" accept="application/pdf,image/*">
-                                    </div>
-                                    <div class="form-group mb-3">
-                                        <label for="new_logo" class="form-label">Logo (JPG/PNG) - upload</label>
-                                        <input type="file" id="new_logo" name="logo" accept="image/*" class="form-control">
-                                    </div>
-
-
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="form-group mb-3">
-                                            <label for="new_telephone" class="form-label">Téléphone</label>
-                                            <input type="tel" class="form-control" id="new_telephone" name="new_telephone">
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group mb-3">
-                                            <label for="new_email" class="form-label">Email</label>
-                                            <input type="email" class="form-control" id="new_email" name="new_email">
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="form-group mb-3">
-                                            <label for="new_responsable" class="form-label">Responsable</label>
-                                            <input type="text" class="form-control" id="new_responsable" name="new_responsable">
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group mb-3">
-                                            <label for="new_fonction" class="form-label">Fonction</label>
-                                            <input type="text" class="form-control" id="new_fonction" name="new_fonction">
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <button type="button" class="btn btn-sm btn-info" id="saveNewEntreprise">Créer cette entreprise</button>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="wizard-field">
+                                <label for="new_responsable" class="wizard-label">Responsable</label>
+                                <input type="text" class="form-control wizard-input" id="new_responsable" name="new_responsable">
                             </div>
                         </div>
+                        <div class="col-md-6">
+                            <div class="wizard-field">
+                                <label for="new_fonction" class="wizard-label">Fonction</label>
+                                <input type="text" class="form-control wizard-input" id="new_fonction" name="new_fonction">
+                            </div>
+                        </div>
+                    </div>
+
+                        <!-- duplicate old block removed -->
                     </div>
 
                     <button type="button" class="btn btn-primary-custom btn-sm" id="saveNewEntreprise">Creer cette entreprise</button>
@@ -577,6 +520,8 @@ document.getElementById('saveNewEntreprise').addEventListener('click', async fun
     formData.append('email', document.getElementById('new_email').value || '');
     formData.append('responsable', document.getElementById('new_responsable').value || '');
     formData.append('fonction_responsable', document.getElementById('new_fonction').value || '');
+    formData.append('adresse_officielle', document.getElementById('new_adresse_officielle') ? document.getElementById('new_adresse_officielle').value : '');
+    formData.append('annee_enregistrement', document.getElementById('new_annee_enregistrement') ? document.getElementById('new_annee_enregistrement').value : '');
     formData.append('pays', document.getElementById('new_pays').value || '');
     formData.append('ifu', document.getElementById('new_ifu').value || '');
 

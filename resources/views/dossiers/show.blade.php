@@ -307,11 +307,134 @@
         letter-spacing: 0.6px;
     }
 
+    .doc-actions {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+
+    .doc-summary {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 12px;
+    }
+
+    .doc-summary-card {
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(5, 150, 105, 0.03));
+        border: 1px solid rgba(16, 185, 129, 0.16);
+        border-radius: 12px;
+        padding: 10px 14px;
+        min-width: 150px;
+    }
+
+    .doc-summary-card strong {
+        display: block;
+        font-size: 1rem;
+        color: #0f172a;
+    }
+
+    .doc-summary-card span {
+        font-size: 0.82rem;
+        color: #047857;
+    }
+
+    .order-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 34px;
+        padding: 4px 8px;
+        border-radius: 999px;
+        background: rgba(16, 185, 129, 0.12);
+        color: #047857;
+        font-weight: 700;
+    }
+
+    .btn-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        padding: 6px 12px;
+        border: none;
+        border-radius: 8px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        white-space: nowrap;
+    }
+
+    .btn-modify {
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        color: white;
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    }
+
+    .btn-modify:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(59, 130, 246, 0.4);
+    }
+
+    .btn-delete {
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        color: white;
+        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+    }
+
+    .btn-delete:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4);
+    }
+
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+
+    .btn-add-doc {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 16px;
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .btn-add-doc:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
+    }
+
+    .doc-row-empty {
+        padding: 20px;
+        text-align: center;
+        color: #6b7280;
+    }
+
     @media (max-width: 768px) {
         .show-actions {
             flex-direction: column;
         }
+        
+        .doc-actions {
+            flex-direction: column;
+        }
+
+        .btn-action {
+            width: 100%;
+        }
     }
+
 </style>
 
 <div class="floating-particles">
@@ -338,24 +461,39 @@
 
             <div class="show-actions">
                 @if(!is_null($resumeIndex) && !empty($resumeDocumentIds))
-                    <form action="{{ route('dossiers.step6', $dossier->id) }}" method="POST">
-                        @csrf
-                        @foreach($resumeDocumentIds as $docId)
-                            <input type="hidden" name="documents[]" value="{{ $docId }}">
-                        @endforeach
-                        <input type="hidden" name="current_index" value="{{ $resumeIndex }}">
-                        <button type="submit" class="btn btn-primary-custom">Continuer la creation</button>
-                    </form>
+                    <a href="{{ route('dossiers.continuer', $dossier->id) }}" class="btn btn-primary-custom">Continuer la creation</a>
                 @endif
 
                 @if($dossier->statut === 'genere')
                     <a href="{{ route('dossiers.pdf', $dossier) }}" class="btn btn-success-custom">Telecharger PDF</a>
                 @endif
+
+                @php
+                    $allComplete = $dossier->documents->count() > 0 && $dossier->documents->every(function ($dd) {
+                        return $dd->statut === 'complete'
+                            || ($dd->fichiers && $dd->fichiers->count() > 0);
+                    });
+                @endphp
+                @if($allComplete)
+                    <a href="{{ route('dossiers.pdf', $dossier) }}" target="_blank" class="btn btn-success-custom">Générer le dossier</a>
+                @endif
+
+                @if(auth()->check() && auth()->user()->isAdminOrDirecteur())
+                    <a href="{{ route('dossiers.utilisateurs', $dossier) }}" class="btn btn-ghost">Gérer les contributeurs</a>
+                @endif
+
                 <a href="{{ route('dossiers.index') }}" class="btn btn-ghost">Retour</a>
             </div>
         </div>
 
         <div class="wizard-body">
+            @if(session('error'))
+                <div class="alert alert-danger">{{ session('error') }}</div>
+            @endif
+            @if(session('success'))
+                <div class="alert alert-success">{{ session('success') }}</div>
+            @endif
+
             <div class="section-card">
                 <div class="section-title">Informations du dossier</div>
                 <div class="info-grid">
@@ -405,19 +543,49 @@
             </div>
 
             <div class="section-card">
-                <div class="section-title">Sommaire ({{ $dossier->documents->count() }} documents)</div>
+                <div class="section-title">Contributeurs autorisés</div>
+                <div class="info-grid">
+                    @forelse($dossier->utilisateurs as $utilisateur)
+                        <div class="info-item"><strong>{{ $utilisateur->prenom }} {{ $utilisateur->nom }}</strong><br><small>{{ ucfirst($utilisateur->role) }}</small></div>
+                    @empty
+                        <div class="info-item">Aucun contributeur défini.</div>
+                    @endforelse
+                </div>
+            </div>
+
+            <div class="section-card">
+                <div class="section-header">
+                    <div class="section-title">Sommaire ({{ $dossier->documents->count() }} documents)</div>
+                    <a href="{{ route('dossiers.selectDocuments', $dossier->id) }}" class="btn-add-doc">
+                        ✚ Ajouter des documents
+                    </a>
+                </div>
                 @if($dossier->documents->count() > 0)
+                    <div class="doc-summary">
+                        <div class="doc-summary-card">
+                            <strong>{{ $dossier->documents->count() }}</strong>
+                            <span>Documents</span>
+                        </div>
+                        <div class="doc-summary-card">
+                            <strong>{{ $dossier->documents->where('statut', 'complete')->count() }}</strong>
+                            <span>Complets</span>
+                        </div>
+                        <div class="doc-summary-card">
+                            <strong>{{ $dossier->documents->where('statut', '!=', 'complete')->count() }}</strong>
+                            <span>À finaliser</span>
+                        </div>
+                    </div>
                     <div class="table-wrap">
                         <table class="simple-table">
                             <thead>
-                                                <tr>
-                                                    <th>Ordre</th>
-                                                    <th>Document</th>
-                                                    <th>Type</th>
-                                                    <th>Statut</th>
-                                                    <th>Cree le</th>
-                                                    <th>Actions</th>
-                                                </tr>
+                                <tr>
+                                    <th>Ordre</th>
+                                    <th>Document</th>
+                                    <th>Type</th>
+                                    <th>Statut</th>
+                                    <th>Créé le</th>
+                                    <th>Actions</th>
+                                </tr>
                             </thead>
                             <tbody>
                                 @php
@@ -427,11 +595,13 @@
                                     $uploadableTypeIds = $uploadable->pluck('type_document_id');
                                 @endphp
 
-                                @foreach($dossier->documents->sortBy('ordre') as $doc)
+                                @foreach($dossier->documents->sortBy('ordre')->values() as $doc)
                                 <tr>
-                                    <td><strong>{{ $doc->ordre }}</strong></td>
-                                    <td>{{ $doc->typeDocument->nom }}</td>
-                                    <td><span class="status-pill info">{{ ucfirst($doc->typeDocument->type_formulaire) }}</span></td>
+                                    <td><span class="order-pill">#{{ $doc->ordre ?? '—' }}</span></td>
+                                    <td>
+                                        <strong>{{ $doc->typeDocument->nom ?? 'Document' }}</strong>
+                                    </td>
+                                    <td><span class="status-pill info">{{ ucfirst($doc->typeDocument->type_formulaire ?? '—') }}</span></td>
                                     <td>
                                         @if($doc->statut === 'vide')
                                             <span class="status-pill danger">Vide</span>
@@ -447,18 +617,25 @@
                                             $pos = $uploadable->pluck('id')->search($doc->id);
                                         @endphp
 
-                                        @if($pos !== false)
-                                            <form action="{{ route('dossiers.step6', $dossier->id) }}" method="POST" style="display:inline">
+                                        <div class="doc-actions">
+                                            @if($pos !== false)
+                                                <a href="{{ route('dossiers.continuer', $dossier->id) }}?current_index={{ $pos }}" class="btn-action btn-modify" title="Modifier ce document">
+                                                    ✎ Modifier
+                                                </a>
+                                            @endif
+                                            
+                                            <a href="{{ route('documents.preview', ['document' => $doc->id]) }}" target="_blank" rel="noopener noreferrer" class="btn-action" title="Aperçu du document" style="background-color: #3b82f6; color: white;">
+                                                👁 Aperçu
+                                            </a>
+                                            
+                                            <form action="{{ route('dossiers.destroyDocument', ['dossier' => $dossier->id, 'document' => $doc->id]) }}" method="POST" style="display:inline" onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer ce document?');">
                                                 @csrf
-                                                @foreach($uploadable as $ud)
-                                                    <input type="hidden" name="documents[]" value="{{ $ud->type_document_id }}">
-                                                @endforeach
-                                                <input type="hidden" name="current_index" value="{{ $pos }}">
-                                                <button class="btn btn-sm btn-primary" type="submit">✎ Modifier</button>
+                                                @method('DELETE')
+                                                <button class="btn-action btn-delete" type="submit" title="Supprimer ce document">
+                                                    🗑 Supprimer
+                                                </button>
                                             </form>
-                                        @else
-                                            —
-                                        @endif
+                                        </div>
                                     </td>
                                 </tr>
                                 @endforeach
@@ -466,7 +643,12 @@
                         </table>
                     </div>
                 @else
-                    <div class="wizard-alert">Aucun document n'a ete ajoute a ce dossier.</div>
+                    <div class="doc-row-empty">
+                        <p>📄 Aucun document n'a été ajouté à ce dossier.</p>
+                        <a href="{{ route('dossiers.selectDocuments', $dossier->id) }}" class="btn-add-doc" style="display:inline-block; margin-top:12px;">
+                            ✚ Ajouter les premiers documents
+                        </a>
+                    </div>
                 @endif
             </div>
         </div>

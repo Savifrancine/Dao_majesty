@@ -86,6 +86,7 @@ class DaoController extends Controller
      */
     public function destroy(Dao $dao)
     {
+        $this->denyEmployeeDeletion();
         $dao->delete();
         return redirect()->route('daos.index')->with('success', 'DAO supprimé avec succès.');
     }

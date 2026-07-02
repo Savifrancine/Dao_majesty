@@ -235,10 +235,63 @@
         padding: 14px;
         display: flex;
         gap: 12px;
-        align-items: flex-start;
+        align-items: center;
         transition: all 0.3s ease;
         background: #f8fafc;
         cursor: pointer;
+    }
+
+    .checkbox-wrapper {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        min-width: 28px;
+        height: 28px;
+    }
+
+    .doc-option input[type="checkbox"] {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        opacity: 0;
+        cursor: pointer;
+        z-index: 2;
+    }
+
+    .checkbox-custom {
+        width: 20px;
+        height: 20px;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        background: #ffffff;
+        transition: all 0.2s ease;
+        position: relative;
+    }
+
+    .doc-option input[type="checkbox"]:checked + .checkbox-custom {
+        background: #10b981;
+        border-color: #10b981;
+    }
+
+    .doc-option input[type="checkbox"]:checked + .checkbox-custom::after {
+        content: '';
+        position: absolute;
+        left: 5px;
+        top: 1px;
+        width: 6px;
+        height: 12px;
+        border: solid #ffffff;
+        border-width: 0 2px 2px 0;
+        transform: rotate(45deg);
+    }
+
+    .doc-option input[type="checkbox"]:disabled + .checkbox-custom {
+        background: #f1f5f9;
+        border-color: #e2e8f0;
+        cursor: not-allowed;
     }
 
     .doc-option + .doc-option {
@@ -359,39 +412,72 @@
                 @csrf
                 <input type="hidden" name="dossier_id" value="{{ $dossier->id }}">
 
+                <div class="wizard-field" style="margin-bottom:16px;">
+                    <label for="signataire_id" class="wizard-label">Signataire (pour déclaration de garantie)</label>
+                    <select id="signataire_id" name="signataire_id" class="form-control wizard-input">
+                        <option value="">-- Aucun --</option>
+                        @foreach($signataires as $signataire)
+                            <option value="{{ $signataire->id }}"
+                                {{ old('signataire_id') == $signataire->id ? 'selected' : '' }}>
+                                {{ $signataire->nom }} {{ $signataire->prenom }}{{ $signataire->fonction ? ' – ' . $signataire->fonction : '' }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+
                 @php
                     $docsByName = $documents->keyBy('nom');
                     $pieceNames = [
                         "Déclaration de garantie d'offre",
-                        'Lettre de soumission',
-                        'Copie legalisee de l\'Extrait du RCCM',
-                        'Copie legalisee de l\'Identifiant Fiscal Unique (IFU)',
-                        'Attestation de non-faillite datant de moins de trois (03) mois',
-                        'Attestation d\'imposition ou de situation fiscale en cours de validite',
-                        'Attestation de regularite a la CNSS',
-                        'Attestation de non-exclusion de la commande publique',
-                        'Engagement a respecter le code d\'ethique et de deontologie de la commande publique',
-                        'Attestation de non-condamnation pour fraude, corruption ou fausse declaration',
-                        'Attestation de nationalite ou document de constitution legale de l\'entreprise',
-                        'Statuts de la societe et PV de nomination du gerant',
-                        'Copie du quitus fiscal',
-                        'Attestation de situation reguliere vis-a-vis des organismes de credit',
+                        "Lettre de soumission",
+                        "RCCM",
+                        "Copie legalisee de l'Extrait du RCCM",
+                        "Copie legalisee de l'Identifiant Fiscal Unique (IFU)",
+                        "Attestation de non-faillite datant de moins de trois (03) mois",
+                        "Attestation d'imposition ou de situation fiscale en cours de validite",
+                        "Attestation de regularite a la CNSS",
+                        "Formulaire de renseignements sur le candidat",
+                        "Formulaire MAT",
+                        "Formulaire PER",
+                        "Liste du personnel affecté à l'exécution du marché",
+                        "Chiffre d'affaires annuel moyen des activités de services",
+                        "Attestation de non-exclusion de la commande publique",
+                        "Engagement du soumissionnaire à respecter le code d'éthique et de déontologie",
+                        "Attestation de non-condamnation pour fraude, corruption ou fausse declaration",
+                        "Attestation de nationalite ou document de constitution legale de l'entreprise",
+                        "Statuts de la societe et PV de nomination du gerant",
+                        "Copie du quitus fiscal",
+                        "Attestation de situation reguliere vis-a-vis des organismes de credit",
+                        "Bordereau prix unitaire",
+                        "Bordereau des prix pour les fournitures à importer",
+                        "Bordereau des prix et calendrier d'exécution des services connexes",
+                        "Listes des services connexes et calendrier de réalisation",
+                        "Listes des Fournitures et Calendrier de livraison",
+                        "Tableau de résumé des bordereaux de prix",
+                        "Cadres de sous détails des prix unitaire",
+                        "Programme d'activités",
+                        "Méthodes d'exécution",
+                        "Calendrier d'exécution",
+                        "Description technique des services",
                     ];
                 @endphp
 
                 <div>
                     @foreach($pieceNames as $pieceName)
                         @php $doc = $docsByName->get($pieceName); @endphp
-                        <label class="doc-option">
-                            <input
-                                class="form-check-input"
-                                type="checkbox"
-                                name="documents[]"
-                                value="{{ $doc?->id }}"
-                                id="doc_{{ $doc?->id ?? Str::slug($pieceName) }}"
-                                @if(!$doc) disabled @endif
-                            >
-                            <div>
+                        <label class="doc-option" for="doc_{{ $doc?->id ?? Str::slug($pieceName) }}">
+                            <div class="checkbox-wrapper">
+                                <input
+                                    class="form-check-input"
+                                    type="checkbox"
+                                    name="documents[]"
+                                    value="{{ $doc?->id }}"
+                                    id="doc_{{ $doc?->id ?? Str::slug($pieceName) }}"
+                                    @if(!$doc) disabled @endif
+                                >
+                                <span class="checkbox-custom"></span>
+                            </div>
+                            <div class="doc-content" style="flex: 1;">
                                 <div class="doc-title">
                                     {{ $pieceName }}
                                     @if($pieceName === 'Lettre de soumission')
@@ -435,10 +521,14 @@ const continueBtn = document.getElementById('continueBtn');
 function updateList() {
     const selected = Array.from(checkboxes)
         .filter(cb => cb.checked)
-        .map(cb => ({
-            id: cb.value,
-            label: cb.parentElement.querySelector('.doc-title').textContent.trim()
-        }));
+        .map(cb => {
+            const docOption = cb.closest('.doc-option');
+            const titleEl = docOption ? docOption.querySelector('.doc-title') : null;
+            return {
+                id: cb.value,
+                label: titleEl ? titleEl.textContent.trim() : cb.value
+            };
+        });
 
     if (selected.length === 0) {
         selectedList.style.display = 'none';

@@ -90,4 +90,32 @@ class Utilisateur extends Authenticatable
     {
         return $this->hasMany(DocumentFichier::class);
     }
+
+    /**
+     * Get all dossiers shared with this user.
+     */
+    public function dossiers(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(Dossier::class, 'dossier_utilisateurs', 'utilisateur_id', 'dossier_id')->withTimestamps();
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->role === 'admin';
+    }
+
+    public function isDirecteur(): bool
+    {
+        return $this->role === 'directeur';
+    }
+
+    public function isEmploye(): bool
+    {
+        return $this->role === 'employe';
+    }
+
+    public function isAdminOrDirecteur(): bool
+    {
+        return in_array($this->role, ['admin', 'directeur'], true);
+    }
 }

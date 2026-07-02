@@ -22,8 +22,12 @@ class TypesDocumentsSeeder extends Seeder
             ['nom' => 'Attestation de non-faillite datant de moins de trois (03) mois', 'type_formulaire' => 'fichier'],
             ['nom' => 'Attestation d\'imposition ou de situation fiscale en cours de validite', 'type_formulaire' => 'fichier'],
             ['nom' => 'Attestation de regularite a la CNSS', 'type_formulaire' => 'fichier'],
+            ['nom' => 'Formulaire de renseignements sur le candidat', 'type_formulaire' => 'formulaire'],
+            ['nom' => 'Formulaire MAT', 'type_formulaire' => 'formulaire'],
+            ['nom' => 'Formulaire PER', 'type_formulaire' => 'formulaire'],
+            ['nom' => 'Liste du personnel affecté à l\'exécution du marché', 'type_formulaire' => 'formulaire'],
             ['nom' => 'Attestation de non-exclusion de la commande publique', 'type_formulaire' => 'fichier'],
-            ['nom' => 'Engagement a respecter le code d\'ethique et de deontologie de la commande publique', 'type_formulaire' => 'fichier'],
+            ['nom' => 'Engagement du soumissionnaire à respecter le code d\'éthique et de déontologie', 'type_formulaire' => 'formulaire'],
             ['nom' => 'Attestation de non-condamnation pour fraude, corruption ou fausse declaration', 'type_formulaire' => 'fichier'],
             ['nom' => 'Attestation de nationalite ou document de constitution legale de l\'entreprise', 'type_formulaire' => 'fichier'],
             ['nom' => 'Statuts de la societe et PV de nomination du gerant', 'type_formulaire' => 'fichier'],
@@ -31,6 +35,14 @@ class TypesDocumentsSeeder extends Seeder
             ['nom' => 'Attestation de situation reguliere vis-a-vis des organismes de credit', 'type_formulaire' => 'fichier'],
             ['nom' => 'RCCM', 'type_formulaire' => 'fichier'],
             ['nom' => 'Bordereau prix unitaire', 'type_formulaire' => 'bordereau'],
+            ['nom' => 'Bordereau des prix pour les fournitures à importer', 'type_formulaire' => 'bordereau'],
+            ['nom' => 'Bordereau des prix et calendrier d'exécution des services connexes', 'type_formulaire' => 'bordereau'],
+            ['nom' => 'Listes des Fournitures et Calendrier de livraison', 'type_formulaire' => 'bordereau'],
+            ['nom' => 'Cadres de sous détails des prix unitaire', 'type_formulaire' => 'bordereau'],
+            ['nom' => 'Programme d\'activités', 'type_formulaire' => 'bordereau'],
+            ['nom' => 'Méthodes d\'exécution', 'type_formulaire' => 'bordereau'],
+            ['nom' => 'Calendrier d\'exécution', 'type_formulaire' => 'bordereau'],
+            ['nom' => 'Description technique des services', 'type_formulaire' => 'bordereau'],
         ];
 
         foreach ($documents as $document) {

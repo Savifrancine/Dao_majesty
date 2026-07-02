@@ -15,6 +15,7 @@ class DossierDocument extends Model
         'type_document_id',
         'ordre',
         'statut',
+        'content',
     ];
 
     /**
@@ -46,7 +47,7 @@ class DossierDocument extends Model
      */
     public function fichiers(): HasMany
     {
-        return $this->hasMany(DocumentFichier::class);
+        return $this->hasMany(DocumentFichier::class)->orderBy('id', 'desc');
     }
 
     /**

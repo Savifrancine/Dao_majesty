@@ -19,6 +19,8 @@ class Entreprise extends Model
         'pays',
         'ifu',
         'registre_path',
+        'adresse_officielle',
+        'annee_enregistrement',
         'responsable',
         'fonction_responsable',
     ];

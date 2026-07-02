@@ -49,6 +49,7 @@ class TemplateController extends Controller
 
     public function destroy(Template $template)
     {
+        $this->denyEmployeeDeletion();
         $template->delete();
         return redirect()->route('templates.index')->with('success', 'Modèle supprimé');
     }

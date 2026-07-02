@@ -44,10 +44,13 @@ class Dossier extends Model
         'autres_details',
         'mois_depot',
         'annee_depot',
+        'date_soumission',
         'statut',
     ];
 
     protected $casts = [
+        'date_lancement' => 'date',
+        'date_soumission' => 'date',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
@@ -81,5 +84,18 @@ class Dossier extends Model
     public function signataires()
     {
         return $this->belongsToMany(\App\Models\Signataire::class, 'dossier_signataire', 'dossier_id', 'signataire_id')->withPivot('role_signataire')->withTimestamps();
+    }
+
+    public function chiffresAffaires()
+    {
+        return $this->hasMany(\App\Models\ChiffreAffaire::class, 'dossier_id');
+    }
+
+    /**
+     * Get users who can access this dossier.
+     */
+    public function utilisateurs(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(\App\Models\Utilisateur::class, 'dossier_utilisateurs', 'dossier_id', 'utilisateur_id')->withTimestamps();
     }
 }

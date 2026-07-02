@@ -13,6 +13,11 @@ class Bordereau extends Model
     protected $fillable = [
         'dossier_document_id',
         'titre',
+        'column_defs',
+    ];
+
+    protected $casts = [
+        'column_defs' => 'json',
     ];
 
     /**
