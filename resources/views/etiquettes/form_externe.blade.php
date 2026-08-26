@@ -41,7 +41,7 @@
         <h5 class="mt-4">Institution</h5>
         <div class="mb-3">
             <label for="institution_nom" class="form-label">Nom de l'institution</label>
-            <input id="institution_nom" name="institution_nom" class="form-control @error('institution_nom') is-invalid @enderror" value="{{ old('institution_nom', $dossier->institution_nom) }}" placeholder="Ex: Centre Hospitalier Universitaire de Zone Suru Léré">
+            <input id="institution_nom" name="institution_nom" class="form-control @error('institution_nom') is-invalid @enderror" value="{{ old('institution_nom', $dossier->institution_nom ?? $dossier->destinataires) }}" placeholder="Ex: Centre Hospitalier Universitaire de Zone Suru Léré">
             @error('institution_nom') <div class="invalid-feedback">{{ $message }}</div> @enderror
         </div>
         <div class="mb-3">

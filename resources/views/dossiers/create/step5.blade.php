@@ -502,7 +502,7 @@
 
                     $pieceNames = array_values(array_unique(array_merge(
                         $pieceNames,
-                        App\Models\TypeDocument::whereIn('type_formulaire', ['libre', 'fichier'])->pluck('nom')->all()
+                        App\Models\TypeDocument::whereIn('type_formulaire', ['libre', 'piece_jointe'])->pluck('nom')->all()
                     )));
                 @endphp
 

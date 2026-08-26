@@ -78,6 +78,7 @@ class EtiquetteController extends Controller
     public function interneFormUpdate(Request $request, Dossier $dossier)
     {
         $data = $request->validate([
+            'etiquette_a' => ['nullable', 'string', 'max:100'],
             'destinataires' => ['nullable', 'string', 'max:255'],
             'destinataire_adresse' => ['nullable', 'string', 'max:500'],
             'titre_dossier' => ['nullable', 'string', 'max:255'],

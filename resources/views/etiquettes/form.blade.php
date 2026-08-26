@@ -15,6 +15,12 @@
         @method('PUT')
 
         <div class="mb-3">
+            <label for="etiquette_a" class="form-label">« À » (laisser vide pour ne pas l'afficher)</label>
+            <input id="etiquette_a" name="etiquette_a" class="form-control @error('etiquette_a') is-invalid @enderror" value="{{ old('etiquette_a', $dossier->etiquette_a ?? 'À') }}">
+            @error('etiquette_a') <div class="invalid-feedback">{{ $message }}</div> @enderror
+        </div>
+
+        <div class="mb-3">
             <label for="destinataires" class="form-label">Nom du destinataire</label>
             <input id="destinataires" name="destinataires" class="form-control @error('destinataires') is-invalid @enderror" value="{{ old('destinataires', $dossier->destinataires) }}">
             @error('destinataires') <div class="invalid-feedback">{{ $message }}</div> @enderror

@@ -119,44 +119,18 @@ class DocumentController extends Controller
             return abort(404, 'Type de document non trouvé');
         }
 
-        if (\App\Models\TypeDocument::isUploadOnlyName($typeDoc->nom, $typeDoc->type_formulaire)) {
-            $file = $document->fichiers()->latest()->first();
-            if ($file && !empty($file->chemin_fichier)) {
-                $path = storage_path('app/public/' . $file->chemin_fichier);
-                if (file_exists($path)) {
-                    return response()->file($path);
-                }
-            }
-
-            return view('documents.preview_generic', [
-                'document' => $document,
-                'typeDoc' => $typeDoc,
-                'message' => 'Aucun fichier joint pour ce document.',
-            ]);
-        }
-
-        $dossier = \App\Models\Dossier::with(['entreprise', 'signataires', 'typeDossier'])
-            ->find($document->dossier_id);
-        $pageGardeDataUri = null;
-
-        $html = view('dossiers.pdf', compact('dossier', 'pageGardeDataUri'))->with([
-            'documents' => collect([$document]),
-            'renderMode' => 'doc',
-        ])->render();
-
-        $orientation = \App\Models\TypeDocument::isLandscapeTableName($typeDoc->nom) ? 'landscape' : 'portrait';
-
         try {
-            $dompdf = new Dompdf(['isRemoteEnabled' => true]);
-            $dompdf->loadHtml($html);
-            $dompdf->setPaper('A4', $orientation);
-            $dompdf->render();
+            $output = app(\App\Http\Controllers\DossierController::class)->previewSingleDocumentPdf($document);
 
-            return response($dompdf->output(), 200)
+            return response($output, 200)
                 ->header('Content-Type', 'application/pdf')
                 ->header('Content-Disposition', 'inline; filename="apercu.pdf"');
         } catch (\Throwable $e) {
-            return response($html)->header('Content-Type', 'text/html');
+            return view('documents.preview_generic', [
+                'document' => $document,
+                'typeDoc' => $typeDoc,
+                'message' => 'Aperçu indisponible : ' . $e->getMessage(),
+            ]);
         }
     }
 }

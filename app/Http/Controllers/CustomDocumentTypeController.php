@@ -28,7 +28,7 @@ class CustomDocumentTypeController extends Controller
         $data = $request->validate([
             'nom' => ['required', 'string', 'max:255', 'unique:types_documents,nom'],
             'dossier_id' => ['required', 'exists:dossiers,id'],
-            'type_formulaire' => ['required', 'in:libre,fichier'],
+            'type_formulaire' => ['required', 'in:libre,piece_jointe'],
         ]);
 
         $typeDocument = TypeDocument::create([
@@ -54,14 +54,14 @@ class CustomDocumentTypeController extends Controller
 
     public function edit(TypeDocument $customDocumentType)
     {
-        abort_unless(in_array($customDocumentType->type_formulaire, ['libre', 'fichier'], true), 404);
+        abort_unless(in_array($customDocumentType->type_formulaire, ['libre', 'piece_jointe'], true), 404);
 
         return view('custom_document_types.edit', ['type' => $customDocumentType]);
     }
 
     public function update(Request $request, TypeDocument $customDocumentType)
     {
-        abort_unless(in_array($customDocumentType->type_formulaire, ['libre', 'fichier'], true), 404);
+        abort_unless(in_array($customDocumentType->type_formulaire, ['libre', 'piece_jointe'], true), 404);
 
         $data = $request->validate([
             'nom' => ['required', 'string', 'max:255', 'unique:types_documents,nom,' . $customDocumentType->id],
@@ -74,7 +74,7 @@ class CustomDocumentTypeController extends Controller
 
     public function destroy(TypeDocument $customDocumentType)
     {
-        abort_unless(in_array($customDocumentType->type_formulaire, ['libre', 'fichier'], true), 404);
+        abort_unless(in_array($customDocumentType->type_formulaire, ['libre', 'piece_jointe'], true), 404);
 
         if ($customDocumentType->dossierDocuments()->exists()) {
             return redirect()->route('custom-document-types.index')->with('error', 'Impossible de supprimer : ce document est déjà utilisé dans un ou plusieurs dossiers.');

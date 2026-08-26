@@ -81,7 +81,7 @@ class TypeDocument extends Model
      */
     public static function isUploadOnlyName(?string $nom, ?string $typeFormulaire = null): bool
     {
-        if (trim($typeFormulaire ?? '') === 'fichier') {
+        if (trim($typeFormulaire ?? '') === 'piece_jointe') {
             return true;
         }
 
@@ -90,6 +90,29 @@ class TypeDocument extends Model
         return in_array($lower, self::uploadOnlyNames(), true)
             || str_contains($lower, 'attestation de situation reguliere')
             || str_contains($lower, 'attestation de non imposition');
+    }
+
+    /**
+     * Formulaires EXP – 4.2 : en pratique remplis en dehors de l'application
+     * puis simplement joints en PDF (à l'instar des pièces jointes classiques
+     * comme RCCM). Un ancien "content" JSON peut subsister de leur usage
+     * précédent avec formulaire dédié ; on l'ignore pour ces noms afin que le
+     * fichier joint soit fusionné directement (page PDF vectorielle) plutôt
+     * que ré-affiché en image rasterisée (ce qui rend le texte flou/réduit).
+     */
+    public static function exp42Names(): array
+    {
+        return [
+            'Formulaire EXP – 4.2 a) Expérience spécifique de fournitures/services',
+            'Formulaire EXP – 4.2 b) (suite) Expérience spécifique de fournitures/services dans les activités principales (suite)',
+            'Formulaire EXP – 4.2 a) (suite) Expérience spécifique de fournitures/services dans les activités principales (suite)',
+            'Formulaire EXP – 4.2 b)  Expérience spécifique de fournitures',
+        ];
+    }
+
+    public static function isExp42Name(?string $nom): bool
+    {
+        return in_array(trim($nom ?? ''), self::exp42Names(), true);
     }
 
     /**

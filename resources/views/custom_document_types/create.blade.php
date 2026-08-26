@@ -22,7 +22,7 @@
                 </label>
             </div>
             <div class="form-check">
-                <input class="form-check-input" type="radio" name="type_formulaire" id="type_fichier" value="fichier" {{ old('type_formulaire') === 'fichier' ? 'checked' : '' }}>
+                <input class="form-check-input" type="radio" name="type_formulaire" id="type_fichier" value="piece_jointe" {{ old('type_formulaire') === 'piece_jointe' ? 'checked' : '' }}>
                 <label class="form-check-label" for="type_fichier">
                     Pièce jointe — le document sera un fichier téléversé (PDF, image...), affiché comme les autres pièces jointes.
                 </label>

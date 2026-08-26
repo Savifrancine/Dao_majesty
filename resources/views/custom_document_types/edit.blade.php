@@ -15,7 +15,7 @@
 
         <div class="mb-3">
             <label class="form-label d-block">Type de document</label>
-            <p class="form-control-plaintext">{{ $type->type_formulaire === 'fichier' ? 'Pièce jointe' : 'Formulaire (texte et tableau)' }}</p>
+            <p class="form-control-plaintext">{{ $type->type_formulaire === 'piece_jointe' ? 'Pièce jointe' : 'Formulaire (texte et tableau)' }}</p>
             <small class="text-muted">Le type ne peut pas être changé après création.</small>
         </div>
 

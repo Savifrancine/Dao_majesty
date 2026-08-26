@@ -78,8 +78,8 @@
             <div class="attention-info">BOITE POSTALE : {{ strtoupper($dossier->prmp_email) }}</div>
         @endif
 
-        @if(!empty($dossier->institution_nom))
-            <div class="institution-nom">{{ strtoupper($dossier->institution_nom) }}</div>
+        @if(!empty($dossier->institution_nom ?: $dossier->destinataires))
+            <div class="institution-nom">{{ strtoupper($dossier->institution_nom ?: $dossier->destinataires) }}</div>
         @endif
 
         @if(!empty($dossier->secretariat_adresse))

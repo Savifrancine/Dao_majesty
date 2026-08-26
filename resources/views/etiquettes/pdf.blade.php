@@ -75,9 +75,12 @@
     @php
         $entreprise = $dossier->entreprise;
         $dateLancement = $dossier->date_lancement ? \Illuminate\Support\Carbon::parse($dossier->date_lancement)->format('d/m/Y') : null;
+        $etiquetteA = $dossier->etiquette_a === null ? 'À' : $dossier->etiquette_a;
     @endphp
     <div class="label-box">
-        <div class="destinataire-a">À</div>
+        @if($etiquetteA !== '')
+            <div class="destinataire-a">{{ $etiquetteA }}</div>
+        @endif
         <div class="destinataire-nom">{{ strtoupper($dossier->destinataires ?? '') }}</div>
         @if(!empty($dossier->destinataire_adresse))
             <div class="destinataire-adresse">{{ $dossier->destinataire_adresse }}</div>

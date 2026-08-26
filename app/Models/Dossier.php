@@ -51,6 +51,7 @@ class Dossier extends Model
         'imputation_budgetaire',
         'accord_pret',
         'destinataire_adresse',
+        'etiquette_a',
         'prmp_titre',
         'prmp_nom',
         'prmp_telephone',

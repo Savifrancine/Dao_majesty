@@ -102,7 +102,7 @@ class DossierController extends Controller
             "Description technique des fournitures/services",
         ];
 
-        $customNames = TypeDocument::whereIn('type_formulaire', ['libre', 'fichier'])->pluck('nom')->all();
+        $customNames = TypeDocument::whereIn('type_formulaire', ['libre', 'piece_jointe'])->pluck('nom')->all();
 
         return array_values(array_unique(array_merge($fixedNames, $customNames)));
     }
@@ -2307,7 +2307,7 @@ class DossierController extends Controller
                 && $otherAttachments->isEmpty()
                 && $doc->valeurs->isEmpty()
                 && $doc->bordereau->isEmpty()
-                && empty($doc->content)
+                && (empty($doc->content) || \App\Models\TypeDocument::isExp42Name($docName))
                 && !in_array($docName, [
                     "Déclaration de garantie d'offre",
                     'Declaration de garantie d\'offre',
@@ -2393,7 +2393,7 @@ class DossierController extends Controller
                     && $otherAttachments->isEmpty()
                     && $doc->valeurs->isEmpty()
                     && $doc->bordereau->isEmpty()
-                    && empty($doc->content)
+                    && (empty($doc->content) || \App\Models\TypeDocument::isExp42Name(trim($doc->typeDocument->nom ?? '')))
                     && $doc->typeDocument
                     && !in_array(trim($doc->typeDocument->nom), [
                         "Déclaration de garantie d'offre",
@@ -2479,6 +2479,138 @@ class DossierController extends Controller
         }
 
         return response()->file($finalFull, ['Content-Type' => 'application/pdf']);
+    }
+
+    /**
+     * Génère le PDF d'aperçu d'un seul document, en reproduisant exactement la
+     * même logique (page de titre, rendu HTML ou fusion du fichier PDF joint
+     * "brut") que celle utilisée pour ce même document lors de la génération
+     * du PDF complet du dossier, afin que l'aperçu corresponde toujours au
+     * document réel.
+     */
+    public function previewSingleDocumentPdf(DossierDocument $document): string
+    {
+        $dossier = Dossier::with(['entreprise', 'signataires', 'typeDossier'])->find($document->dossier_id);
+
+        $pageGardeDataUri = null;
+        if (!empty($dossier->page_garde_path)) {
+            $fullPath = storage_path('app/public/' . $dossier->page_garde_path);
+            if (file_exists($fullPath)) {
+                $mime = mime_content_type($fullPath) ?: 'application/octet-stream';
+                $pageGardeDataUri = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($fullPath));
+            }
+        }
+
+        $classify = function ($doc) {
+            $fichiers = $doc->fichiers ?? collect();
+            return [
+                'pdf' => $fichiers->filter(fn($f) => strtolower(pathinfo($f->chemin_fichier, PATHINFO_EXTENSION)) === 'pdf'),
+                'image' => $fichiers->filter(fn($f) => in_array(strtolower(pathinfo($f->chemin_fichier, PATHINFO_EXTENSION)), ['png', 'jpg', 'jpeg', 'gif'], true)),
+                'other' => $fichiers->filter(fn($f) => !in_array(strtolower(pathinfo($f->chemin_fichier, PATHINFO_EXTENSION)), ['png', 'jpg', 'jpeg', 'gif', 'pdf'], true)),
+            ];
+        };
+
+        $excludedFromSkip = [
+            "Déclaration de garantie d'offre",
+            'Declaration de garantie d\'offre',
+            'Formulaire ELI – 1.1 : Formulaire de renseignements sur le candidat',
+        ];
+
+        $allDocuments = $dossier->documents()->with(['typeDocument', 'fichiers', 'valeurs', 'bordereau'])->get();
+
+        $pdfAttachmentsExist = $allDocuments->contains(function ($doc) use ($classify, $excludedFromSkip) {
+            $groups = $classify($doc);
+            $docName = trim(optional($doc->typeDocument)->nom ?? '');
+            return $groups['pdf']->isNotEmpty()
+                && $groups['image']->isEmpty()
+                && $groups['other']->isEmpty()
+                && $doc->valeurs->isEmpty()
+                && $doc->bordereau->isEmpty()
+                && (empty($doc->content) || TypeDocument::isExp42Name($docName))
+                && !in_array($docName, $excludedFromSkip, true);
+        });
+
+        $tempFiles = [];
+        $filesToMerge = [];
+
+        try {
+            $htmlTitle = view('dossiers.pdf', compact('dossier', 'pageGardeDataUri'))->with([
+                'documents' => collect([$document]),
+                'renderMode' => 'title',
+            ])->render();
+            $dompdfTitle = new Dompdf(['isRemoteEnabled' => true]);
+            $dompdfTitle->loadHtml($htmlTitle);
+            $dompdfTitle->setPaper('A4', 'portrait');
+            $dompdfTitle->render();
+            $titleTemp = tempnam(sys_get_temp_dir(), 'apercu_title_') . '.pdf';
+            file_put_contents($titleTemp, $dompdfTitle->output());
+            $filesToMerge[] = $titleTemp;
+            $tempFiles[] = $titleTemp;
+
+            $skipHtmlDocPage = false;
+            $pdfAttachments = collect();
+
+            if ($pdfAttachmentsExist) {
+                $groups = $classify($document);
+                $pdfAttachments = $groups['pdf'];
+                $docName = trim(optional($document->typeDocument)->nom ?? '');
+
+                $skipHtmlDocPage = $groups['pdf']->isNotEmpty()
+                    && $groups['image']->isEmpty()
+                    && $groups['other']->isEmpty()
+                    && $document->valeurs->isEmpty()
+                    && $document->bordereau->isEmpty()
+                    && (empty($document->content) || TypeDocument::isExp42Name($docName))
+                    && !in_array($docName, $excludedFromSkip, true);
+            }
+
+            $hasNothingToShow = $document->typeDocument
+                && TypeDocument::isUploadOnlyName($document->typeDocument->nom, $document->typeDocument->type_formulaire)
+                && $document->fichiers->isEmpty()
+                && $document->valeurs->isEmpty()
+                && $document->bordereau->isEmpty()
+                && empty($document->content);
+
+            if (!$skipHtmlDocPage && !$hasNothingToShow) {
+                $htmlDoc = view('dossiers.pdf', compact('dossier', 'pageGardeDataUri'))->with([
+                    'documents' => collect([$document]),
+                    'renderMode' => 'doc',
+                ])->render();
+                $docOrientation = $document->typeDocument && in_array(trim($document->typeDocument->nom), $this->getLandscapeTableDocNames(), true)
+                    ? 'landscape'
+                    : 'portrait';
+                $dompdfDoc = new Dompdf(['isRemoteEnabled' => true]);
+                $dompdfDoc->loadHtml($htmlDoc);
+                $dompdfDoc->setPaper('A4', $docOrientation);
+                $dompdfDoc->render();
+                $docTemp = tempnam(sys_get_temp_dir(), 'apercu_doc_') . '.pdf';
+                file_put_contents($docTemp, $dompdfDoc->output());
+                $filesToMerge[] = $docTemp;
+                $tempFiles[] = $docTemp;
+            }
+
+            if ($skipHtmlDocPage) {
+                foreach ($pdfAttachments as $f) {
+                    $path = storage_path('app/public/' . ltrim($f->chemin_fichier, '/'));
+                    if (file_exists($path)) {
+                        $filesToMerge[] = $path;
+                    }
+                }
+            }
+
+            $outputTemp = tempnam(sys_get_temp_dir(), 'apercu_merged_') . '.pdf';
+            $tempFiles[] = $outputTemp;
+
+            $this->mergePdfs($filesToMerge, $outputTemp);
+
+            return file_get_contents($outputTemp);
+        } finally {
+            foreach ($tempFiles as $t) {
+                if (file_exists($t)) {
+                    @unlink($t);
+                }
+            }
+        }
     }
 
     /**
