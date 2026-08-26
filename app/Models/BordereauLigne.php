@@ -17,6 +17,10 @@ class BordereauLigne extends Model
         'prix_unitaire',
         'montant',
         'cout_benin',
+        'transport',
+        'cout_main_oeuvre_locale',
+        'taxe_vente',
+        'droits_douane',
         'site',
         'date_prestation',
         'frequence',
@@ -38,6 +42,9 @@ class BordereauLigne extends Model
         'prix_unitaire' => 'decimal:2',
         'montant' => 'decimal:2',
         'cout_benin' => 'decimal:2',
+        'transport' => 'decimal:2',
+        'taxe_vente' => 'decimal:2',
+        'droits_douane' => 'decimal:2',
         'frequence' => 'string',
     ];
 

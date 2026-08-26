@@ -14,13 +14,17 @@ class SyncDocumentTypes extends Command
     {
         $pieceNames = [
             "Déclaration de garantie d'offre",
+            "Formulaire de qualification",
             "Lettre de soumission",
-            "Copie legalisee de l'Extrait du RCCM",
+            "Déclaration de l'autorité contractante",
+            "Fiche technique de chaque article, délivrée par le fabricant",
+            "Copie de l'arrêté du Ministre de la Santé portant autorisation d'importation, de détention et de vente des équipements médicaux",
             "Copie legalisee de l'Identifiant Fiscal Unique (IFU)",
             "Attestation de non-faillite datant de moins de trois (03) mois",
             "Attestation d'imposition ou de situation fiscale en cours de validite",
             "Attestation de regularite a la CNSS",
-            "Formulaire de renseignements sur le candidat",
+            "Formulaire ELI – 1.1 : Formulaire de renseignements sur le candidat",
+            "Formulaire ANT-2 : Formulaire renseignant sur les antécédents de marchés non exécutés, de litiges en instance et d'antécédents de litiges",
             "Formulaire MAT",
             "Formulaire PER",
             "Chiffre d'affaires annuel moyen des activités de services",
@@ -40,7 +44,7 @@ class SyncDocumentTypes extends Command
             "Programme d'activités",
             "Méthodes d'exécution",
             "Calendrier d'exécution",
-            "Description technique des services",
+            "Description technique des fournitures/services",
         ];
 
         $created = 0;
@@ -54,7 +58,7 @@ class SyncDocumentTypes extends Command
             'Programme d\'activités',
             'Méthodes d\'exécution',
             'Calendrier d\'exécution',
-            'Description technique des services',
+            'Description technique des fournitures/services',
         ];
 
         foreach ($pieceNames as $name) {

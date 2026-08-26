@@ -16,9 +16,10 @@
     </style>
 </head>
 <body>
+    @include('documents.partials.majesty_header', ['entreprise' => $entreprise ?? optional($dossier)->entreprise])
+
     <div class="header">
         <div>
-            <strong>MAJESTY SERVICES & ÉQUIPEMENTS SARL</strong><br>
             {{ $dossier->ref ?? '' }}
         </div>
         <div style="text-align:right;">

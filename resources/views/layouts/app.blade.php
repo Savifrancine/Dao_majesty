@@ -12,7 +12,7 @@
     <!-- Fonts -->
     <link rel="dns-prefetch" href="//fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=Inter:300,400,500,600,700" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link id="bs-css" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <!-- Scripts -->
@@ -422,13 +422,18 @@
                     <ul class="navbar-nav me-auto">
                         @auth
                             <li class="nav-item">
-                                <a class="nav-link" href="{{ route('daos.index') }}">
-                                    <i class="fas fa-users-cog me-1"></i>{{ __('DAOs') }}
+                                <a class="nav-link" href="{{ route('dossiers.index') }}">
+                                    <i class="fas fa-folder-open me-1"></i>{{ __('DAOs') }}
                                 </a>
                             </li>
                             <li class="nav-item">
                                 <a class="nav-link" href="{{ route('signataires.index') }}">
                                     <i class="fas fa-file-signature me-1"></i>{{ __('Signataires') }}
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ route('entreprises.index') }}">
+                                    <i class="fas fa-building me-1"></i>{{ __('Entreprises') }}
                                 </a>
                             </li>
                         @endauth
@@ -493,6 +498,22 @@
                     <span class="icon">📄</span>
                     <span>Formulaire MAT</span>
                 </a>
+                <a href="{{ route('formulaire_exp_4_2_a.index') }}" class="menu-item">
+                    <span class="icon">🧾</span>
+                    <span>FORMULAIRE EXP-4.2 a)</span>
+                </a>
+                <a href="{{ route('formulaire_exp_4_2_b.index') }}" class="menu-item">
+                    <span class="icon">🧾</span>
+                    <span>FORMULAIRE EXP-4.2 b)</span>
+                </a>
+                <a href="{{ route('formulaire_exp_4_2_a_suite.index') }}" class="menu-item">
+                    <span class="icon">🧾</span>
+                    <span>FORMULAIRE EXP-4.2 a) (suite)</span>
+                </a>
+                <a href="{{ route('formulaire_exp_4_2_b_suite.index') }}" class="menu-item">
+                    <span class="icon">🧾</span>
+                    <span>FORMULAIRE EXP-4.2 b) (suite)</span>
+                </a>
                 <a href="{{ route('formulaire_per.index') }}" class="menu-item">
                     <span class="icon">📋</span>
                     <span>Formulaire PER</span>
@@ -515,6 +536,19 @@
                     <span class="icon">📐</span>
                     <span>Modèles</span>
                 </a>
+                <a href="{{ route('custom-document-types.index') }}" class="menu-item">
+                    <span class="icon">🗂️</span>
+                    <span>Documents personnalisés</span>
+                </a>
+                <div style="margin-top:14px; margin-bottom:4px; font-size:11px; font-weight:700; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.05em; padding-left:4px;">Étiquette</div>
+                <a href="{{ route('etiquettes.interne.select') }}" class="menu-item">
+                    <span class="icon">🏷️</span>
+                    <span>Enveloppe intérieure</span>
+                </a>
+                <a href="{{ route('etiquettes.externe.select') }}" class="menu-item">
+                    <span class="icon">🏷️</span>
+                    <span>Enveloppe extérieure</span>
+                </a>
                 <a href="#" class="menu-item">
                     <span class="icon">⋯</span>
                     <span>Autres</span>
@@ -531,6 +565,42 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
+        // CSS fallback: if CDN CSS fails to load, switch to local copy
+        (function() {
+            var link = document.getElementById('bs-css');
+            if (link) {
+                link.onerror = function() {
+                    link.href = "{{ asset('css/bootstrap.min.css') }}";
+                };
+            }
+        })();
+
+        // JS fallback: if CDN JS didn't define `bootstrap`, load local bundle
+        (function() {
+            function loadLocalBootstrap() {
+                var s = document.createElement('script');
+                s.src = "{{ asset('js/bootstrap.bundle.min.js') }}";
+                s.async = false;
+                document.head.appendChild(s);
+            }
+
+            if (typeof bootstrap === 'undefined') {
+                // give the CDN a short moment to initialize, then fallback
+                setTimeout(function() {
+                    if (typeof bootstrap === 'undefined') loadLocalBootstrap();
+                }, 250);
+            }
+        })();
+
+        // Add scroll effect to navbar
+        window.addEventListener('scroll', function() {
+            const navbar = document.querySelector('.navbar');
+            if (window.scrollY > 50) {
+                navbar.classList.add('scrolled');
+            } else {
+                navbar.classList.remove('scrolled');
+            }
+        });
         // Add scroll effect to navbar
         window.addEventListener('scroll', function() {
             const navbar = document.querySelector('.navbar');

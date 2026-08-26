@@ -18,6 +18,10 @@
             })->toArray();
         }
 
+        if (empty($oldSections) && !empty($prefillSections)) {
+            $oldSections = $prefillSections;
+        }
+
         if (empty($oldSections)) {
             $oldSections = [
                 [
@@ -28,10 +32,93 @@
                 ],
             ];
         }
+
+        // Complète quantité/durée manquantes sur les lignes déjà existantes de ce
+        // document en les récupérant, par désignation, depuis un document frère
+        // du dossier qui les a déjà renseignées (ex: Listes des Fournitures et
+        // Calendrier de livraison), même si ce document a déjà été partiellement rempli.
+        if (!empty($prefillSections)) {
+            // Normalise une désignation pour la comparaison : certains documents
+            // (ex: Listes des Fournitures et Calendrier de livraison) stockent parfois
+            // dans le champ désignation d'autres colonnes collées (numéro, quantité,
+            // unité, délais) séparées par des tabulations. On ne garde que les mots
+            // pour comparer le "coeur" du texte plutôt que la chaîne brute.
+            $normalizeDesignation = function ($value) {
+                $value = mb_strtolower((string) $value, 'UTF-8');
+                $value = str_replace(["\t", "\n", "\r"], ' ', $value);
+                $value = preg_replace('/[^\p{L}\p{N}]+/u', ' ', $value);
+                $value = trim(preg_replace('/\s+/u', ' ', $value));
+                return $value;
+            };
+
+            $prefillByDesignation = [];
+            $prefillList = [];
+            foreach ($prefillSections as $prefillSection) {
+                foreach (($prefillSection['lignes'] ?? []) as $prefillLigne) {
+                    $raw = trim($prefillLigne['designation'] ?? '');
+                    if ($raw === '') {
+                        continue;
+                    }
+                    $key = mb_strtolower($raw, 'UTF-8');
+                    if (!isset($prefillByDesignation[$key])) {
+                        $prefillByDesignation[$key] = $prefillLigne;
+                    }
+                    $prefillList[] = ['norm' => $normalizeDesignation($raw), 'ligne' => $prefillLigne];
+                }
+            }
+
+            if (!empty($prefillByDesignation) || !empty($prefillList)) {
+                foreach ($oldSections as &$section) {
+                    if (!isset($section['lignes']) || !is_array($section['lignes'])) {
+                        continue;
+                    }
+                    foreach ($section['lignes'] as &$ligne) {
+                        $raw = trim($ligne['designation'] ?? '');
+                        if ($raw === '') {
+                            continue;
+                        }
+                        $key = mb_strtolower($raw, 'UTF-8');
+                        $match = $prefillByDesignation[$key] ?? null;
+
+                        // Repli : correspondance approximative si la désignation exacte
+                        // n'est pas retrouvée (colonnes collées, ponctuation différente...).
+                        if (!$match) {
+                            $normLigne = $normalizeDesignation($raw);
+                            if (mb_strlen($normLigne, 'UTF-8') >= 6) {
+                                foreach ($prefillList as $candidate) {
+                                    if ($candidate['norm'] === '') {
+                                        continue;
+                                    }
+                                    if (str_contains($candidate['norm'], $normLigne) || str_contains($normLigne, $candidate['norm'])) {
+                                        $match = $candidate['ligne'];
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+
+                        if (!$match) {
+                            continue;
+                        }
+
+                        if ((float) ($ligne['quantite'] ?? 0) <= 0 && !empty($match['quantite'])) {
+                            $ligne['quantite'] = $match['quantite'];
+                        }
+                        if (trim((string) ($ligne['date_prestation'] ?? '')) === '' && !empty($match['date_prestation'])) {
+                            $ligne['date_prestation'] = $match['date_prestation'];
+                        }
+                    }
+                    unset($ligne);
+                }
+                unset($section);
+            }
+        }
     @endphp
 
-    <div class="mb-3">
+    <div class="mb-3" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
         <button type="button" id="addBordereauSection" class="btn btn-secondary">Ajouter un tableau</button>
+        <button type="button" id="importTableauBtn" class="btn btn-outline-secondary">Importer depuis un fichier (Excel/CSV)</button>
+        <span id="importTableauStatus" style="font-size:0.8rem;"></span>
     </div>
 
     <div id="bordereauSections">
@@ -275,5 +362,21 @@
         });
 
         updateSectionIndexes();
+
+        if (window.DaoTableImport) {
+            window.DaoTableImport.setup({
+                buttonId: 'importTableauBtn',
+                statusId: 'importTableauStatus',
+                sectionsContainerId: 'bordereauSections',
+                importUrl: '{{ route('dossiers.importTableau') }}',
+                fieldSynonyms: {
+                    designation: ['description du produit', 'description', 'designation', 'objet'],
+                    date_prestation: ['date de livraison', 'date'],
+                    quantite: ['quantite', 'qte'],
+                    prix_unitaire: ['prix unitaire'],
+                    cout_benin: ['cout benin', 'cout uemoa', 'uemoa'],
+                },
+            });
+        }
     })();
 </script>

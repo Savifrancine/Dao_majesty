@@ -60,6 +60,10 @@
             }
         }
 
+        if (empty($oldSections) && !empty($prefillSections)) {
+            $oldSections = $prefillSections;
+        }
+
         if (empty($oldSections)) {
             $oldSections = [
                 [
@@ -72,8 +76,10 @@
         }
     @endphp
 
-    <div class="mb-3">
+    <div class="mb-3" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
         <button type="button" id="addBordereauSection" class="btn btn-secondary">Ajouter un tableau</button>
+        <button type="button" id="importTableauBtn" class="btn btn-outline-secondary">Importer depuis un fichier (Excel/CSV)</button>
+        <span id="importTableauStatus" style="font-size:0.8rem;"></span>
     </div>
 
     <div id="bordereauSections">
@@ -185,6 +191,22 @@
                 });
             }
 
+            // La destination et la date de livraison offerte sont en général les
+            // mêmes pour toutes les lignes d'un tableau : ce qui est saisi sur la
+            // première ligne se recopie automatiquement sur les lignes suivantes
+            // (l'utilisateur peut toujours corriger une ligne individuellement après coup).
+            function propagateFirstRowValue(sectionEl, key) {
+                const rows = Array.from(sectionEl.querySelectorAll('.bordereau-lines tr'));
+                if (rows.length < 2) return;
+                const firstField = rows[0].querySelector(`[name*="[${key}]" ]`);
+                if (!firstField) return;
+                const value = firstField.value;
+                rows.slice(1).forEach((row) => {
+                    const field = row.querySelector(`[name*="[${key}]" ]`);
+                    if (field) field.value = value;
+                });
+            }
+
             function createLineRow(sectionIndex, designation = '', quantity = '1', unit = '', site = '', datePlusTot = '', datePlusTard = '', dateOfferte = '') {
                 const row = document.createElement('tr');
                 row.innerHTML = `
@@ -276,6 +298,8 @@
                     tableBody.appendChild(newRow);
                     attachLineEvents(sectionEl, sectionIndex);
                     updateLineIndexes(sectionEl, sectionIndex);
+                    propagateFirstRowValue(sectionEl, 'site');
+                    propagateFirstRowValue(sectionEl, 'date_livraison_offerte');
                 });
 
                 removeSectionButton.addEventListener('click', function () {
@@ -302,6 +326,40 @@
                 attachSectionEvents(sectionEl, idx);
                 attachLineEvents(sectionEl, idx);
             });
+
+            sectionsContainer.addEventListener('input', (event) => {
+                const name = event.target.name || '';
+                const isSite = name.includes('[site]');
+                const isDateOfferte = name.includes('[date_livraison_offerte]');
+                if (!isSite && !isDateOfferte) return;
+
+                const row = event.target.closest('tr');
+                const sectionEl = event.target.closest('.bordereau-section');
+                if (!row || !sectionEl) return;
+
+                const rows = Array.from(sectionEl.querySelectorAll('.bordereau-lines tr'));
+                if (rows[0] !== row) return; // seule la première ligne propage sa valeur
+
+                propagateFirstRowValue(sectionEl, isSite ? 'site' : 'date_livraison_offerte');
+            });
         })();
+
+        if (window.DaoTableImport) {
+            window.DaoTableImport.setup({
+                buttonId: 'importTableauBtn',
+                statusId: 'importTableauStatus',
+                sectionsContainerId: 'bordereauSections',
+                importUrl: '{{ route('dossiers.importTableau') }}',
+                fieldSynonyms: {
+                    designation: ['description des fournitures', 'description', 'designation', 'objet'],
+                    quantite: ['quantite nb d unites', 'quantite', 'qte'],
+                    unite_physique: ['unite'],
+                    site: ['site', 'destination', 'projet'],
+                    date_livraison_plus_tot: ['date de livraison au plus tot', 'plus tot'],
+                    date_livraison_plus_tard: ['date de livraison au plus tard', 'plus tard'],
+                    date_livraison_offerte: ['date de livraison offerte', 'offerte'],
+                },
+            });
+        }
     </script>
 </div>

@@ -22,9 +22,11 @@
     </style>
 </head>
 <body>
+    @include('documents.partials.majesty_header', ['entreprise' => $entreprise ?? null])
+
     <div class="header">
         <div class="company">
-            <strong>FORMULAIRE DE RENSEIGNEMENTS SUR LE CANDIDAT</strong>
+            <strong>FORMULAIRE ELI – 1.1 : FORMULAIRE DE RENSEIGNEMENTS SUR LE CANDIDAT</strong>
         </div>
         <div class="meta">
             <div>Date : {{ now()->format('d/m/Y') }}</div>

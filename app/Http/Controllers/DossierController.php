@@ -39,16 +39,42 @@ class DossierController extends Controller
      */
     private function getDocumentPieceNames(): array
     {
-        return [
+        $fixedNames = [
             "Déclaration de garantie d'offre",
+            "Formulaire de qualification",
             "Lettre de soumission",
             "RCCM",
-            "Copie legalisee de l'Extrait du RCCM",
+            "Relevé d'identité bancaire (RIB)",
+            "Formulaire de divulgation des bénéficiaires effectifs",
+            "Pièce d'identité du premier responsable",
+            "Déclaration de l'autorité contractante",
+            "Fiche technique de chaque article, délivrée par le fabricant",
+            "Copie de l'arrêté du Ministre de la Santé portant autorisation d'importation, de détention et de vente des équipements médicaux",
+            "Attestation d'identification de statut",
+            "Attestation de visite de site",
+            "Attestation de bonne fin",
+            "Bon de commande et contrats",
+            "Preuves de propriété des matériels adéquats nécessaire à la bonne exécution du marché",
+            "Attestation / Preuve de vente des équipements ou des pièces de recharge",
+            "Attestation / Certificat de formation ou de qualifications en maintenance(sur au moins une équipements)",
+            "Etats financiers certifiés",
+            "Attestation de capacité financière",
             "Copie legalisee de l'Identifiant Fiscal Unique (IFU)",
             "Attestation de non-faillite datant de moins de trois (03) mois",
             "Attestation d'imposition ou de situation fiscale en cours de validite",
             "Attestation de regularite a la CNSS",
-            "Formulaire de renseignements sur le candidat",
+            "Formulaire ELI – 1.1 : Formulaire de renseignements sur le candidat",
+            "Formulaire FIN – 3.1 Situation financière",
+            "Formulaire FIN 3.3",
+            "Formulaire FIN 3.4 (a) Modèle d'attestation de capacité financière",
+            "Formulaire FIN 3.4 (b) Modèle de lettre de confirmation de la capacité financière",
+            "Formulaire MTC/FIN – 3.5 : Marchés de fournitures/services en cours",
+            "Formulaire EXP – 4.1 : Expérience générale de fournitures/services",
+            "Formulaire EXP – 4.2 a) Expérience spécifique de fournitures/services",
+            "Formulaire EXP – 4.2 a) (suite) Expérience spécifique de fournitures/services dans les activités principales (suite)",
+            "Formulaire EXP – 4.2 b)  Expérience spécifique de fournitures",
+            "Formulaire EXP – 4.2 b) (suite) Expérience spécifique de fournitures/services dans les activités principales (suite)",
+            "Formulaire ANT-2 : Formulaire renseignant sur les antécédents de marchés non exécutés, de litiges en instance et d'antécédents de litiges",
             "Formulaire MAT",
             "Formulaire PER",
             "Liste du personnel affecté à l'exécution du marché",
@@ -62,16 +88,354 @@ class DossierController extends Controller
             "Attestation de situation reguliere vis-a-vis des organismes de credit",
             "Bordereau prix unitaire",
             "Bordereau des prix pour les fournitures à importer",
+            "Bordereau des prix des fournitures, déjà importées",
+            "Bordereau des prix pour les fournitures fabriquées au Bénin",
             "Tableau de résumé des bordereaux de prix",
             "Bordereau des prix et calendrier d'exécution des services connexes",
             "Listes des services connexes et calendrier de réalisation",
             "Listes des Fournitures et Calendrier de livraison",
             "Cadres de sous détails des prix unitaire",
             "Programme d'activités",
+            "Plan de charge",
             "Méthodes d'exécution",
             "Calendrier d'exécution",
-            "Description technique des services",
+            "Description technique des fournitures/services",
         ];
+
+        $customNames = TypeDocument::whereIn('type_formulaire', ['libre', 'fichier'])->pluck('nom')->all();
+
+        return array_values(array_unique(array_merge($fixedNames, $customNames)));
+    }
+
+    /**
+     * Documents dont le tableau du PDF comporte plus de 3 colonnes : ils doivent
+     * être générés en orientation paysage pour rester lisibles.
+     */
+    private function getLandscapeTableDocNames(): array
+    {
+        return TypeDocument::landscapeTableNames();
+    }
+
+    /**
+     * Nettoie les champs numériques des lignes de bordereau avant validation :
+     * les utilisateurs tapent souvent les prix avec des espaces (y compris
+     * insécables) ou des virgules comme séparateur de milliers/décimales
+     * (ex. "17 280", "1.000.000,50"), ce que la règle "numeric" rejette telle quelle.
+     */
+    private function normalizeBordereauNumbers(array $sections): array
+    {
+        $numericKeys = ['prix_unitaire', 'quantite', 'cout_benin'];
+
+        foreach ($sections as &$section) {
+            if (!isset($section['lignes']) || !is_array($section['lignes'])) {
+                continue;
+            }
+            foreach ($section['lignes'] as &$ligne) {
+                if (!is_array($ligne)) {
+                    continue;
+                }
+                foreach ($numericKeys as $key) {
+                    if (!isset($ligne[$key]) || !is_string($ligne[$key]) || trim($ligne[$key]) === '') {
+                        continue;
+                    }
+                    $ligne[$key] = $this->normalizeNumericString($ligne[$key]);
+                }
+            }
+            unset($ligne);
+        }
+        unset($section);
+
+        return $sections;
+    }
+
+    private function normalizeNumericString(string $value): string
+    {
+        $clean = trim($value);
+
+        // Convertit les chiffres unicode "pleine largeur" (ex: saisie via un clavier
+        // asiatique) en chiffres ASCII normaux avant tout le reste.
+        $clean = strtr($clean, [
+            '０' => '0', '１' => '1', '２' => '2', '３' => '3', '４' => '4',
+            '５' => '5', '６' => '6', '７' => '7', '８' => '8', '９' => '9',
+        ]);
+
+        // Ne garde que les chiffres, la virgule, le point et le signe moins : retire
+        // les espaces (normaux ou insécables), lettres, symboles monétaires, etc.
+        $clean = preg_replace('/[^0-9,\.\-]/u', '', $clean) ?? '';
+
+        if ($clean === '') {
+            return $clean;
+        }
+
+        $hasComma = str_contains($clean, ',');
+        $hasDot = str_contains($clean, '.');
+
+        if ($hasComma && $hasDot) {
+            // Le séparateur le plus à droite est la décimale, l'autre les milliers
+            if (strrpos($clean, ',') > strrpos($clean, '.')) {
+                $clean = str_replace('.', '', $clean);
+                $clean = str_replace(',', '.', $clean);
+            } else {
+                $clean = str_replace(',', '', $clean);
+            }
+        } elseif ($hasComma) {
+            $clean = str_replace(',', '.', $clean);
+        }
+
+        return $clean;
+    }
+
+    /**
+     * Reprend automatiquement le registre de commerce téléversé lors de la création
+     * de l'entreprise comme pièce jointe pour le document RCCM du dossier, tant
+     * qu'aucun fichier n'a encore été attaché (upload manuel ou suppression par l'utilisateur).
+     */
+    private function attachEntrepriseRegistreIfMissing(Dossier $dossier, DossierDocument $dossierDocument): void
+    {
+        $registrePath = $dossier->entreprise?->registre_path;
+
+        if (!$registrePath || $dossierDocument->fichiers()->exists()) {
+            return;
+        }
+
+        if (!Storage::disk('public')->exists($registrePath)) {
+            return;
+        }
+
+        $extension = pathinfo($registrePath, PATHINFO_EXTENSION);
+        $copyPath = 'dossiers/documents/dossier_' . $dossier->id . '_rccm_' . $dossierDocument->id . ($extension ? '.' . $extension : '');
+        Storage::disk('public')->copy($registrePath, $copyPath);
+
+        DocumentFichier::create([
+            'dossier_document_id' => $dossierDocument->id,
+            'chemin_fichier' => $copyPath,
+            'utilisateur_id' => auth()->id(),
+        ]);
+    }
+
+    private function resolveQualificationSignataire(Dossier $dossier): ?Signataire
+    {
+        return $dossier->signataires->firstWhere('pivot.role_signataire', 'gerant') ?? $dossier->signataires->first();
+    }
+
+    /**
+     * Retourne [signatureDataUri, cachetDataUri] du signataire, ou [null, null]
+     * si aucune image n'est disponible.
+     */
+    private function signataireImageDataUris(?Signataire $signataire): array
+    {
+        $signatureDataUri = null;
+        $cachetDataUri = null;
+
+        if ($signataire) {
+            if (!empty($signataire->signature_path)) {
+                $sigPath = storage_path('app/public/' . ltrim($signataire->signature_path, '/'));
+                if (file_exists($sigPath)) {
+                    $mime = mime_content_type($sigPath) ?: 'image/png';
+                    $signatureDataUri = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($sigPath));
+                }
+            }
+            if (!empty($signataire->cachet_path)) {
+                $cachetPath = storage_path('app/public/' . ltrim($signataire->cachet_path, '/'));
+                if (file_exists($cachetPath)) {
+                    $mime = mime_content_type($cachetPath) ?: 'image/png';
+                    $cachetDataUri = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($cachetPath));
+                }
+            }
+        }
+
+        return [$signatureDataUri, $cachetDataUri];
+    }
+
+    /**
+     * (Re)génère le PDF individuel du Formulaire de qualification à partir de son
+     * contenu courant, et l'attache au document du dossier.
+     */
+    private function regenerateQualificationPdf(Dossier $dossier, DossierDocument $qualificationDoc, array $vals): void
+    {
+        try {
+            $signataire = $this->resolveQualificationSignataire($dossier);
+            [$signatureDataUri, $cachetDataUri] = $this->signataireImageDataUris($signataire);
+
+            $html = view('documents.formulaire_qualification_pdf', array_merge($vals, [
+                'entreprise' => $dossier->entreprise,
+                'signatureDataUri' => $signatureDataUri,
+                'cachetDataUri' => $cachetDataUri,
+            ]))->render();
+            $dompdf = new Dompdf(['isRemoteEnabled' => true]);
+            $dompdf->loadHtml($html);
+            $dompdf->setPaper('A4', 'portrait');
+            $dompdf->render();
+
+            $output = $dompdf->output();
+            $filename = 'dossiers/documents/dossier_' . $dossier->id . '_qualification_' . time() . '.pdf';
+            Storage::disk('public')->put($filename, $output);
+
+            DocumentFichier::create([
+                'dossier_document_id' => $qualificationDoc->id,
+                'chemin_fichier' => $filename,
+                'utilisateur_id' => auth()->id(),
+            ]);
+
+            $qualificationDoc->update(['statut' => 'complete']);
+        } catch (\Throwable $e) {
+            // ignore and continue with normal flow
+        }
+    }
+
+    /**
+     * Reporte automatiquement les marchés similaires saisis dans le Formulaire de
+     * qualification vers le Formulaire EXP – 4.1 (Expérience générale), pour éviter
+     * à l'utilisateur de ressaisir la même expérience deux fois :
+     * - l'année du marché est reportée uniquement dans "Mois/année de départ"
+     *   (une seule ligne par marché, "Mois/année final(e)" n'est pas dupliqué) ;
+     * - "Identification du marché" reçoit "Marché n° {référence} - {nom}" ;
+     * - le rôle du candidat n'est jamais renseigné par la qualification (ce champ
+     *   n'existe pas dans ce formulaire) : il est laissé tel quel s'il a déjà été
+     *   saisi manuellement dans EXP 4.1, vide sinon.
+     * Les lignes ajoutées manuellement dans EXP 4.1 au-delà des marchés de
+     * qualification sont conservées.
+     */
+    private function syncQualificationMarchesToExp41(Dossier $dossier, array $marches): void
+    {
+        $exp41Type = TypeDocument::where('nom', 'Formulaire EXP – 4.1 : Expérience générale de fournitures/services')->first();
+        if (!$exp41Type) {
+            return;
+        }
+
+        $exp41Doc = DossierDocument::where('dossier_id', $dossier->id)
+            ->where('type_document_id', $exp41Type->id)
+            ->first();
+        if (!$exp41Doc) {
+            return;
+        }
+
+        $marches = array_values(array_filter($marches, function ($m) {
+            return !empty(trim($m['annee'] ?? '')) || !empty(trim($m['nom'] ?? '')) || !empty(trim($m['reference'] ?? ''));
+        }));
+
+        if (empty($marches)) {
+            return;
+        }
+
+        $existing = [];
+        if (!empty($exp41Doc->content)) {
+            $decoded = json_decode($exp41Doc->content, true);
+            if (is_array($decoded)) {
+                $existing = $decoded;
+            }
+        }
+
+        $moisDepart = $existing['mois_depart'] ?? [];
+        $identification = $existing['identification'] ?? [];
+        $roleCandidat = $existing['role_candidat'] ?? [];
+
+        foreach ($marches as $i => $m) {
+            $annee = trim($m['annee'] ?? '');
+            $nom = trim($m['nom'] ?? '');
+            $reference = trim($m['reference'] ?? '');
+
+            $moisDepart[$i] = $annee;
+            $identification[$i] = \App\Support\MarcheIdentification::format($nom, $reference);
+            $roleCandidat[$i] = $roleCandidat[$i] ?? '';
+        }
+
+        $content = json_encode([
+            'mois_depart' => array_values($moisDepart),
+            'mois_final' => array_values($existing['mois_final'] ?? []),
+            'identification' => array_values($identification),
+            'role_candidat' => array_values($roleCandidat),
+        ], JSON_UNESCAPED_UNICODE);
+
+        if ($content === false) {
+            return;
+        }
+
+        $exp41Doc->update([
+            'content' => $content,
+            'statut' => 'complete',
+        ]);
+    }
+
+    /**
+     * Sens inverse du report ci-dessus : à chaque sauvegarde du Formulaire EXP –
+     * 4.1, reporte l'année ("Mois/année de départ") et le marché ("Identification
+     * du marché", décomposé en nom/référence) vers le Formulaire de qualification,
+     * pour que les deux documents restent synchronisés quel que soit celui rempli
+     * en premier.
+     */
+    private function syncExp41ToQualificationMarches(Dossier $dossier, array $values): void
+    {
+        $qualificationType = TypeDocument::where('nom', 'Formulaire de qualification')->first();
+        if (!$qualificationType) {
+            return;
+        }
+
+        $qualificationDoc = DossierDocument::where('dossier_id', $dossier->id)
+            ->where('type_document_id', $qualificationType->id)
+            ->first();
+        if (!$qualificationDoc) {
+            return;
+        }
+
+        $moisDepart = $values['mois_depart'] ?? [];
+        $identification = $values['identification'] ?? [];
+        $count = max(count($moisDepart), count($identification));
+        if ($count === 0) {
+            return;
+        }
+
+        $marches = [];
+        for ($i = 0; $i < $count; $i++) {
+            $annee = trim((string) ($moisDepart[$i] ?? ''));
+            $ident = trim((string) ($identification[$i] ?? ''));
+            $parsed = \App\Support\MarcheIdentification::parse($ident);
+
+            if ($annee === '' && $parsed['nom'] === '' && $parsed['reference'] === '') {
+                continue;
+            }
+
+            $marches[] = ['annee' => $annee, 'nom' => $parsed['nom'], 'reference' => $parsed['reference']];
+        }
+
+        if (empty($marches)) {
+            return;
+        }
+
+        $existing = [];
+        if (!empty($qualificationDoc->content)) {
+            $decoded = json_decode($qualificationDoc->content, true);
+            if (is_array($decoded)) {
+                $existing = $decoded;
+            }
+        }
+
+        $existing['marches'] = $marches;
+        $existing['nombre_marches'] = count($marches);
+
+        // Si le formulaire de qualification n'a jamais encore été enregistré
+        // directement, on renseigne ses champs déduits du dossier (comme le fait
+        // sa propre sauvegarde) afin que le PDF individuel reste complet.
+        $qualificationSignataire = $this->resolveQualificationSignataire($dossier);
+        $qualificationEntreprise = $dossier->entreprise;
+        $existing['societe'] = $existing['societe'] ?? (optional($qualificationEntreprise)->nom ?? '');
+        $existing['date'] = $existing['date'] ?? now()->format('Y-m-d');
+        $existing['declarant'] = $existing['declarant'] ?? ($qualificationSignataire
+            ? trim($qualificationSignataire->nom . ' ' . ($qualificationSignataire->prenom ?? ''))
+            : trim(optional($qualificationEntreprise)->responsable ?? ''));
+        $existing['fonction'] = $existing['fonction'] ?? ($qualificationSignataire
+            ? ($qualificationSignataire->fonction ?: (optional($qualificationEntreprise)->fonction_responsable ?? ''))
+            : (optional($qualificationEntreprise)->fonction_responsable ?? ''));
+        $existing['reference'] = $existing['reference'] ?? ($dossier->reference_dossier ?? $dossier->ref ?? '');
+
+        $content = json_encode($existing, JSON_UNESCAPED_UNICODE);
+        if ($content === false) {
+            return;
+        }
+
+        $qualificationDoc->update(['content' => $content, 'statut' => 'complete']);
+
+        $this->regenerateQualificationPdf($dossier, $qualificationDoc, $existing);
     }
 
     /**
@@ -230,6 +594,11 @@ class DossierController extends Controller
             'autres_details' => ['nullable','string'],
             'mois_depot' => ['nullable','string','max:255'],
             'annee_depot' => ['nullable','digits:4'],
+            'reference_step' => ['nullable','string','max:255'],
+            'source_financement' => ['nullable','string','max:255'],
+            'gestion' => ['nullable','string','max:255'],
+            'imputation_budgetaire' => ['nullable','string','max:255'],
+            'accord_pret' => ['nullable','string','max:255'],
         ]);
 
         // Créer le dossier provisoirement (statut = en_cours)
@@ -262,6 +631,11 @@ class DossierController extends Controller
             'autres_details' => $data['autres_details'] ?? null,
             'mois_depot' => $data['mois_depot'] ?? null,
             'annee_depot' => $data['annee_depot'] ?? null,
+            'reference_step' => $data['reference_step'] ?? null,
+            'source_financement' => $data['source_financement'] ?? null,
+            'gestion' => $data['gestion'] ?? null,
+            'imputation_budgetaire' => $data['imputation_budgetaire'] ?? null,
+            'accord_pret' => $data['accord_pret'] ?? null,
             'public_prive' => $data['categorie'],
             'page_garde_path' => null,
             'statut' => 'en_cours',
@@ -275,6 +649,8 @@ class DossierController extends Controller
         $bordereauNames = [
             'Bordereau prix unitaire',
             'Bordereau des prix pour les fournitures à importer',
+            'Bordereau des prix des fournitures, déjà importées',
+            'Bordereau des prix pour les fournitures fabriquées au Bénin',
             'Bordereau des prix et calendrier d\'exécution des services connexes',
             'Listes des services connexes et calendrier de réalisation',
             'Listes des Fournitures et Calendrier de livraison',
@@ -282,7 +658,7 @@ class DossierController extends Controller
             'Programme d\'activités',
             'Méthodes d\'exécution',
             'Calendrier d\'exécution',
-            'Description technique des services',
+            'Description technique des fournitures/services',
         ];
 
         foreach ($pieceNames as $name) {
@@ -308,6 +684,7 @@ class DossierController extends Controller
         $pieceNames = $this->getDocumentPieceNames();
 
         $dossier = Dossier::findOrFail($dossierId);
+        $dossier->load(['documents.typeDocument', 'documents.bordereau.lignes', 'entreprise']);
 
         $sessionKeyDocs = 'step6_documents_' . $dossierId;
         $sessionKeySignataire = 'step6_signataire_' . $dossierId;
@@ -349,32 +726,39 @@ class DossierController extends Controller
             return redirect()->route('dossiers.show', $dossier->id)->with('error', 'Sélection de pièces invalide.');
         }
 
-        $excludedName = 'Lettre de soumission';
         $autoCompleteNames = [];
         $orderedSelected = collect($selectedDocumentIds)
             ->map(fn ($id) => $selectedTypes->get($id))
             ->filter();
 
         $uploadQueue = $orderedSelected
-            ->filter(fn ($doc) => $doc->nom !== $excludedName && !in_array($doc->nom, $autoCompleteNames, true))
+            ->filter(fn ($doc) => !in_array($doc->nom, $autoCompleteNames, true))
             ->values();
 
         foreach ($orderedSelected as $index => $doc) {
-            $dossierDocument = DossierDocument::updateOrCreate(
-                [
-                    'dossier_id' => $dossier->id,
-                    'type_document_id' => $doc->id,
-                ],
-                [
-                    'ordre' => $index + 1,
-                    'statut' => 'vide',
-                ]
-            );
+            $dossierDocument = DossierDocument::firstOrNew([
+                'dossier_id' => $dossier->id,
+                'type_document_id' => $doc->id,
+            ]);
+
+            $dossierDocument->ordre = $index + 1;
+            if (! $dossierDocument->exists) {
+                $dossierDocument->statut = 'vide';
+            }
+            $dossierDocument->save();
 
             if (in_array($doc->nom, $autoCompleteNames, true)) {
                 $dossierDocument->update(['statut' => 'complete']);
             }
+
+            if (trim($doc->nom) === "RCCM") {
+                $this->attachEntrepriseRegistreIfMissing($dossier, $dossierDocument);
+            }
         }
+
+        // Recharge les documents (et leurs fichiers) créés/mis à jour ci-dessus,
+        // car $dossier->documents a été chargé avant la boucle et n'en tiendrait pas compte.
+        $dossier->load(['documents.typeDocument', 'documents.bordereau.lignes', 'documents.fichiers', 'entreprise']);
 
         if ($uploadQueue->isEmpty()) {
             $dossier->statut = 'termine';
@@ -387,25 +771,31 @@ class DossierController extends Controller
         $requestedIndex = (int) $request->query('current_index', $request->input('current_index', 0));
         $currentIndex = max(0, min($requestedIndex, $uploadQueue->count() - 1));
 
-        // Skip already complete documents
-        while ($currentIndex < $uploadQueue->count()) {
-            $docToCheck = $uploadQueue->get($currentIndex);
-            $docRec = DossierDocument::where('dossier_id', $dossier->id)
-                ->where('type_document_id', $docToCheck->id)
-                ->first();
-            if ($docRec && $docRec->statut === 'complete') {
-                $currentIndex++;
-                continue;
+        // Lorsqu'on soumet le formulaire d'une pièce précise (ex: "Modifier" sur une pièce
+        // déjà complète), current_document_id désigne sans ambiguïté le document à traiter :
+        // on ne doit pas sauter les pièces déjà complètes ni court-circuiter vers "terminé",
+        // sinon les données soumises pour cette pièce ne sont jamais enregistrées.
+        if ($request->input('upload_step') !== '1') {
+            // Skip already complete documents
+            while ($currentIndex < $uploadQueue->count()) {
+                $docToCheck = $uploadQueue->get($currentIndex);
+                $docRec = DossierDocument::where('dossier_id', $dossier->id)
+                    ->where('type_document_id', $docToCheck->id)
+                    ->first();
+                if ($docRec && $docRec->statut === 'complete') {
+                    $currentIndex++;
+                    continue;
+                }
+                break;
             }
-            break;
-        }
 
-        if ($currentIndex >= $uploadQueue->count()) {
-            $dossier->statut = 'termine';
-            $dossier->save();
-            Session::forget($sessionKeyDocs);
-            Session::forget($sessionKeySignataire);
-            return redirect()->route('dossiers.show', $dossier->id)->with('success', 'Pièces jointes enregistrées — dossier terminé.');
+            if ($currentIndex >= $uploadQueue->count()) {
+                $dossier->statut = 'termine';
+                $dossier->save();
+                Session::forget($sessionKeyDocs);
+                Session::forget($sessionKeySignataire);
+                return redirect()->route('dossiers.show', $dossier->id)->with('success', 'Pièces jointes enregistrées — dossier terminé.');
+            }
         }
 
         $currentDocument = $uploadQueue->get($currentIndex);
@@ -425,32 +815,52 @@ class DossierController extends Controller
                 $currentIndex = 0;
             }
 
-            $dossierDocument = DossierDocument::updateOrCreate(
-                [
-                    'dossier_id' => $dossier->id,
-                    'type_document_id' => $currentDocumentId,
-                ],
-                [
-                    'ordre' => $currentIndex + 1,
-                    'statut' => 'vide'
-                ]
-            );
+            $dossierDocument = DossierDocument::firstOrNew([
+                'dossier_id' => $dossier->id,
+                'type_document_id' => $currentDocumentId,
+            ]);
+            $dossierDocument->ordre = $currentIndex + 1;
+            if (! $dossierDocument->exists) {
+                $dossierDocument->statut = 'vide';
+            }
+            $dossierDocument->save();
+
+            if (\App\Models\TypeDocument::isReferenceLineName($currentDocument->nom) || $currentDocument->type_formulaire === 'libre') {
+                $refModel = $request->input('reference_model');
+                if (in_array($refModel, \App\Support\ReferenceLine::MODELS, true)) {
+                    $dossierDocument->update(['reference_model' => $refModel]);
+                }
+            }
 
             if (trim($currentDocument->nom) === "Déclaration de garantie d'offre") {
                 $vals = $request->validate([
                     'societe' => ['required','string','max:255'],
                     'date' => ['required','date'],
-                    'declarant' => ['required','string','max:255'],
-                    'fonction' => ['nullable','string','max:255'],
                     'reference' => ['nullable','string','max:255'],
                     'template_id' => ['nullable','exists:templates,id'],
                 ]);
+
+                // Nom du déclarant / fonction ne sont plus saisis dans le formulaire :
+                // ils sont déduits automatiquement du signataire du dossier, comme pour
+                // le Formulaire de qualification.
+                $garantieSignataire = $this->resolveQualificationSignataire($dossier);
+                $vals['declarant'] = $garantieSignataire
+                    ? trim($garantieSignataire->nom . ' ' . ($garantieSignataire->prenom ?? ''))
+                    : trim(optional($dossier->entreprise)->responsable ?? '');
+                $vals['fonction'] = $garantieSignataire
+                    ? ($garantieSignataire->fonction ?: (optional($dossier->entreprise)->fonction_responsable ?? ''))
+                    : (optional($dossier->entreprise)->fonction_responsable ?? '');
+
+                // Enregistré pour que le formulaire réaffiche les valeurs saisies quand on
+                // revient modifier ce document (auparavant seul un PDF figé était généré,
+                // sans qu'aucune donnée ne soit conservée pour préremplir le formulaire).
+                $dossierDocument->update(['content' => json_encode($vals, JSON_UNESCAPED_UNICODE)]);
 
                 try {
                     // On ignore le modèle sélectionné pour éviter que son contenu ne s'infiltre
                     // dans le document final. Le rendu de la déclaration de garantie d'offre
                     // reste basé sur la vue standard et inchangé.
-                    $html = view('documents.declaration_pdf', array_merge($vals, ['signatureDataUri' => null]))->render();
+                    $html = view('documents.declaration_pdf', array_merge($vals, ['signatureDataUri' => null, 'entreprise' => $dossier->entreprise]))->render();
                     $dompdf = new Dompdf(['isRemoteEnabled' => true]);
                     $dompdf->loadHtml($html);
                     $dompdf->setPaper('A4', 'portrait');
@@ -470,6 +880,41 @@ class DossierController extends Controller
                 } catch (\Throwable $e) {
                     // ignore and continue with normal flow
                 }
+            }
+
+            if (trim($currentDocument->nom) === 'Formulaire de qualification') {
+                $vals = $request->validate([
+                    'nombre_marches' => ['nullable','integer','min:0','max:20'],
+                    'marches' => ['nullable','array'],
+                    'marches.*.annee' => ['nullable','string','max:10'],
+                    'marches.*.nom' => ['nullable','string','max:255'],
+                    'marches.*.reference' => ['nullable','string','max:255'],
+                ]);
+
+                // Champs déduits automatiquement du dossier (plus de saisie manuelle
+                // de la société, la date, le déclarant, la fonction ou la référence).
+                $qualificationEntreprise = $dossier->entreprise;
+                $qualificationSignataire = $this->resolveQualificationSignataire($dossier);
+                $vals['societe'] = optional($qualificationEntreprise)->nom ?? '';
+                $vals['date'] = now()->format('Y-m-d');
+                $vals['declarant'] = $qualificationSignataire
+                    ? trim($qualificationSignataire->nom . ' ' . ($qualificationSignataire->prenom ?? ''))
+                    : trim(optional($qualificationEntreprise)->responsable ?? '');
+                $vals['fonction'] = $qualificationSignataire
+                    ? ($qualificationSignataire->fonction ?: (optional($qualificationEntreprise)->fonction_responsable ?? ''))
+                    : (optional($qualificationEntreprise)->fonction_responsable ?? '');
+                $vals['reference'] = $dossier->reference_dossier ?? $dossier->ref ?? '';
+
+                // Enregistré pour permettre au PDF final du dossier (dossiers.pdf) de
+                // ré-afficher ce contenu, de la même façon que la déclaration de garantie.
+                $qualificationContent = json_encode($vals, JSON_UNESCAPED_UNICODE);
+                if ($qualificationContent === false) {
+                    $qualificationContent = json_encode($vals, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+                }
+                $dossierDocument->update(['content' => $qualificationContent]);
+
+                $this->regenerateQualificationPdf($dossier, $dossierDocument, $vals);
+                $this->syncQualificationMarchesToExp41($dossier, $vals['marches'] ?? []);
             }
 
             if (trim($currentDocument->nom) === 'Tableau de résumé des bordereaux de prix') {
@@ -550,6 +995,52 @@ class DossierController extends Controller
                 ]);
             }
 
+            if ($currentDocument->type_formulaire === 'libre') {
+                $values = $request->validate([
+                    'texte' => ['nullable', 'string'],
+                    'tableaux' => ['nullable', 'array'],
+                    'tableaux.*.titre' => ['nullable', 'string', 'max:255'],
+                    'tableaux.*.colonnes' => ['nullable', 'array'],
+                    'tableaux.*.colonnes.*' => ['nullable', 'string', 'max:255'],
+                    'tableaux.*.lignes' => ['nullable', 'array'],
+                    'tableaux.*.lignes.*' => ['nullable', 'array'],
+                    'tableaux.*.lignes.*.*' => ['nullable', 'string', 'max:1000'],
+                ]);
+
+                $tableaux = [];
+                foreach ($values['tableaux'] ?? [] as $tableau) {
+                    $colonnes = array_values(array_filter($tableau['colonnes'] ?? [], fn ($c) => trim($c ?? '') !== ''));
+                    if (empty($colonnes)) {
+                        continue;
+                    }
+
+                    $lignes = [];
+                    foreach ($tableau['lignes'] ?? [] as $ligne) {
+                        $row = [];
+                        for ($i = 0; $i < count($colonnes); $i++) {
+                            $row[] = trim($ligne[$i] ?? '');
+                        }
+                        if (trim(implode('', $row)) !== '') {
+                            $lignes[] = $row;
+                        }
+                    }
+
+                    $tableaux[] = [
+                        'titre' => trim($tableau['titre'] ?? ''),
+                        'colonnes' => $colonnes,
+                        'lignes' => $lignes,
+                    ];
+                }
+
+                $dossierDocument->update([
+                    'content' => json_encode([
+                        'texte' => $values['texte'] ?? '',
+                        'tableaux' => $tableaux,
+                    ], JSON_UNESCAPED_UNICODE),
+                    'statut' => 'complete',
+                ]);
+            }
+
             if (trim($currentDocument->nom) === 'Liste du personnel affecté à l\'exécution du marché') {
                 $personnel = $request->input('personnel', []);
                 $savedPersonnel = [];
@@ -573,7 +1064,40 @@ class DossierController extends Controller
                 }
             }
 
-            if (trim($currentDocument->nom) === 'Formulaire de renseignements sur le candidat') {
+            if (trim($currentDocument->nom) === 'Formulaire de divulgation des bénéficiaires effectifs') {
+                $vals = $request->validate([
+                    'numero_avis' => ['nullable', 'string', 'max:255'],
+                    'destinataire' => ['nullable', 'string', 'max:255'],
+                    'option' => ['required', 'in:i,ii'],
+                    'beneficiaires' => ['nullable', 'array'],
+                    'beneficiaires.*.identite' => ['nullable', 'string', 'max:1000'],
+                    'beneficiaires.*.action_25' => ['nullable', 'in:Oui,Non'],
+                    'beneficiaires.*.vote_25' => ['nullable', 'in:Oui,Non'],
+                    'beneficiaires.*.pouvoir_nomination' => ['nullable', 'in:Oui,Non'],
+                ]);
+
+                $beneficiaires = [];
+                foreach ($vals['beneficiaires'] ?? [] as $row) {
+                    $identite = trim($row['identite'] ?? '');
+                    if ($identite === '') {
+                        continue;
+                    }
+                    $beneficiaires[] = [
+                        'identite' => $identite,
+                        'action_25' => $row['action_25'] ?? '',
+                        'vote_25' => $row['vote_25'] ?? '',
+                        'pouvoir_nomination' => $row['pouvoir_nomination'] ?? '',
+                    ];
+                }
+                $vals['beneficiaires'] = $beneficiaires;
+
+                $dossierDocument->update([
+                    'content' => json_encode($vals, JSON_UNESCAPED_UNICODE),
+                    'statut' => 'complete',
+                ]);
+            }
+
+            if (trim($currentDocument->nom) === 'Formulaire ELI – 1.1 : Formulaire de renseignements sur le candidat') {
                 $rules = [
                     'use_existing_info' => ['required', 'in:yes,no'],
                 ];
@@ -602,7 +1126,7 @@ class DossierController extends Controller
                         'nom_candidat' => $entreprise->nom,
                         'groupement_membres' => '',
                         'pays_candidat' => $entreprise->pays ?? '',
-                        'identification_nationale' => $entreprise->ifu ?? '',
+                        'identification_nationale' => $entreprise->rccm ?? '',
                         'annee_enregistrement' => $entreprise->annee_enregistrement ?? '',
                         'adresse_officielle' => $entreprise->adresse_officielle ?? $entreprise->adresse ?? '',
                         'nom_representant' => $entreprise->responsable ?? '',
@@ -654,12 +1178,385 @@ class DossierController extends Controller
                 }
             }
 
-                if ($currentDocument->type_formulaire === 'bordereau' || trim($currentDocument->nom) === 'Bordereau prix unitaire' || trim($currentDocument->nom) === 'Bordereau des prix pour les fournitures à importer' || trim($currentDocument->nom) === 'Programme d\'activités' || trim($currentDocument->nom) === 'Méthodes d\'exécution' || trim($currentDocument->nom) === 'Calendrier d\'exécution' || trim($currentDocument->nom) === 'Description technique des services') {
+            if (trim($currentDocument->nom) === 'Formulaire FIN – 3.1 Situation financière') {
+                $values = $request->validate([
+                    'year_labels' => ['nullable', 'array'],
+                    'year_labels.*' => ['nullable', 'string', 'max:255'],
+                    'total_actif' => ['nullable', 'array'],
+                    'total_actif.*' => ['nullable', 'string', 'max:255'],
+                    'total_passif' => ['nullable', 'array'],
+                    'total_passif.*' => ['nullable', 'string', 'max:255'],
+                    'patrimoine_net' => ['nullable', 'array'],
+                    'patrimoine_net.*' => ['nullable', 'string', 'max:255'],
+                    'disponibilites' => ['nullable', 'array'],
+                    'disponibilites.*' => ['nullable', 'string', 'max:255'],
+                    'engagements' => ['nullable', 'array'],
+                    'engagements.*' => ['nullable', 'string', 'max:255'],
+                    'recettes_totales' => ['nullable', 'array'],
+                    'recettes_totales.*' => ['nullable', 'string', 'max:255'],
+                    'benefices_avant_impots' => ['nullable', 'array'],
+                    'benefices_avant_impots.*' => ['nullable', 'string', 'max:255'],
+                    'commentaire_complementaire' => ['nullable', 'string', 'max:4000'],
+                ]);
+
+                $content = json_encode($values, JSON_UNESCAPED_UNICODE);
+                if ($content === false) {
+                    $content = json_encode($values, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+                }
+
+                $dossierDocument->update([
+                    'content' => $content,
+                    'statut' => 'complete',
+                ]);
+            }
+
+            if (trim($currentDocument->nom) === 'Formulaire FIN 3.3') {
+                $values = $request->validate([
+                    'source_financement' => ['nullable', 'array'],
+                    'source_financement.*' => ['nullable', 'string', 'max:1000'],
+                    'montant_fcfa' => ['nullable', 'array'],
+                    'montant_fcfa.*' => ['nullable', 'string', 'max:255'],
+                ]);
+
+                $content = json_encode($values, JSON_UNESCAPED_UNICODE);
+                if ($content === false) {
+                    $content = json_encode($values, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+                }
+
+                // Remove rows that are fully empty (both source and montant empty)
+                if (!empty($values['source_financement']) && is_array($values['source_financement'])) {
+                    $filteredSources = [];
+                    $filteredMontants = [];
+                    $max = max(count($values['source_financement']), count($values['montant_fcfa'] ?? []));
+                    for ($i = 0; $i < $max; $i++) {
+                        $s = isset($values['source_financement'][$i]) ? trim((string)$values['source_financement'][$i]) : '';
+                        $m = isset($values['montant_fcfa'][$i]) ? trim((string)$values['montant_fcfa'][$i]) : '';
+                        if ($s !== '' || $m !== '') {
+                            $filteredSources[] = $s;
+                            $filteredMontants[] = $m;
+                        }
+                    }
+                    $values['source_financement'] = $filteredSources;
+                    $values['montant_fcfa'] = $filteredMontants;
+                }
+
+                $dossierDocument->update([
+                    'content' => $content,
+                    'statut' => 'complete',
+                ]);
+            }
+
+            if (trim($currentDocument->nom) === 'Formulaire MTC/FIN – 3.5 : Marchés de fournitures/services en cours') {
+                $values = $request->validate([
+                    'intitule' => ['nullable', 'array'],
+                    'intitule.*' => ['nullable', 'string', 'max:2000'],
+                    'autorite_contact' => ['nullable', 'array'],
+                    'autorite_contact.*' => ['nullable', 'string', 'max:2000'],
+                    'valeur_restante' => ['nullable', 'array'],
+                    'valeur_restante.*' => ['nullable', 'string', 'max:255'],
+                    'date_achevement' => ['nullable', 'array'],
+                    'date_achevement.*' => ['nullable', 'string', 'max:255'],
+                    'montant_mensuel' => ['nullable', 'array'],
+                    'montant_mensuel.*' => ['nullable', 'string', 'max:255'],
+                ]);
+
+                // Supprimer les lignes entièrement vides
+                if (!empty($values['intitule']) && is_array($values['intitule'])) {
+                    $filteredIntitules = [];
+                    $filteredAutorites = [];
+                    $filteredValeurs = [];
+                    $filteredDates = [];
+                    $filteredMontants = [];
+                    $max = max(
+                        count($values['intitule']),
+                        count($values['autorite_contact'] ?? []),
+                        count($values['valeur_restante'] ?? []),
+                        count($values['date_achevement'] ?? []),
+                        count($values['montant_mensuel'] ?? [])
+                    );
+                    for ($i = 0; $i < $max; $i++) {
+                        $int = isset($values['intitule'][$i]) ? trim((string)$values['intitule'][$i]) : '';
+                        $aut = isset($values['autorite_contact'][$i]) ? trim((string)$values['autorite_contact'][$i]) : '';
+                        $val = isset($values['valeur_restante'][$i]) ? trim((string)$values['valeur_restante'][$i]) : '';
+                        $date = isset($values['date_achevement'][$i]) ? trim((string)$values['date_achevement'][$i]) : '';
+                        $mont = isset($values['montant_mensuel'][$i]) ? trim((string)$values['montant_mensuel'][$i]) : '';
+                        if ($int !== '' || $aut !== '' || $val !== '' || $date !== '' || $mont !== '') {
+                            $filteredIntitules[] = $int;
+                            $filteredAutorites[] = $aut;
+                            $filteredValeurs[] = $val;
+                            $filteredDates[] = $date;
+                            $filteredMontants[] = $mont;
+                        }
+                    }
+                    $values['intitule'] = $filteredIntitules;
+                    $values['autorite_contact'] = $filteredAutorites;
+                    $values['valeur_restante'] = $filteredValeurs;
+                    $values['date_achevement'] = $filteredDates;
+                    $values['montant_mensuel'] = $filteredMontants;
+                }
+
+                $content = json_encode($values, JSON_UNESCAPED_UNICODE);
+                if ($content === false) {
+                    $content = json_encode($values, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+                }
+
+                $dossierDocument->update([
+                    'content' => $content,
+                    'statut' => 'complete',
+                ]);
+            }
+
+            if (trim($currentDocument->nom) === 'Formulaire EXP – 4.1 : Expérience générale de fournitures/services') {
+                $values = $request->validate([
+                    'mois_depart' => ['nullable', 'array'],
+                    'mois_depart.*' => ['nullable', 'string', 'max:50'],
+                    'mois_final' => ['nullable', 'array'],
+                    'mois_final.*' => ['nullable', 'string', 'max:50'],
+                    'identification' => ['nullable', 'array'],
+                    'identification.*' => ['nullable', 'string', 'max:4000'],
+                    'role_candidat' => ['nullable', 'array'],
+                    'role_candidat.*' => ['nullable', 'string', 'max:1000'],
+                ]);
+
+                // Filter out fully empty rows
+                if (!empty($values['identification']) && is_array($values['identification'])) {
+                    $filteredDepart = [];
+                    $filteredFinal = [];
+                    $filteredIdent = [];
+                    $filteredRole = [];
+                    $max = max(
+                        count($values['mois_depart'] ?? []),
+                        count($values['mois_final'] ?? []),
+                        count($values['identification'] ?? []),
+                        count($values['role_candidat'] ?? [])
+                    );
+                    for ($i = 0; $i < $max; $i++) {
+                        $d = isset($values['mois_depart'][$i]) ? trim((string)$values['mois_depart'][$i]) : '';
+                        $f = isset($values['mois_final'][$i]) ? trim((string)$values['mois_final'][$i]) : '';
+                        $ident = isset($values['identification'][$i]) ? trim((string)$values['identification'][$i]) : '';
+                        $role = isset($values['role_candidat'][$i]) ? trim((string)$values['role_candidat'][$i]) : '';
+                        if ($d !== '' || $f !== '' || $ident !== '' || $role !== '') {
+                            $filteredDepart[] = $d;
+                            $filteredFinal[] = $f;
+                            $filteredIdent[] = $ident;
+                            $filteredRole[] = $role;
+                        }
+                    }
+                    $values['mois_depart'] = $filteredDepart;
+                    $values['mois_final'] = $filteredFinal;
+                    $values['identification'] = $filteredIdent;
+                    $values['role_candidat'] = $filteredRole;
+                }
+
+                $content = json_encode($values, JSON_UNESCAPED_UNICODE);
+                if ($content === false) {
+                    $content = json_encode($values, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+                }
+
+                $dossierDocument->update([
+                    'content' => $content,
+                    'statut' => 'complete',
+                ]);
+
+                $this->syncExp41ToQualificationMarches($dossier, $values);
+            }
+
+            if (trim($currentDocument->nom) === 'Formulaire EXP – 4.2 a) Expérience spécifique de fournitures/services') {
+                $values = $request->validate([
+                    'numero_marche' => ['nullable','array'],
+                    'numero_marche.*' => ['nullable','string','max:255'],
+                    'identification' => ['nullable','array'],
+                    'identification.*' => ['nullable','string','max:4000'],
+                    'date_attribution' => ['nullable','array'],
+                    'date_attribution.*' => ['nullable','string','max:255'],
+                    'date_achevement' => ['nullable','array'],
+                    'date_achevement.*' => ['nullable','string','max:255'],
+                    'role' => ['nullable','array'],
+                    'role.*' => ['nullable','string','max:255'],
+                    'montant_total' => ['nullable','array'],
+                    'montant_total.*' => ['nullable','string','max:255'],
+                    'participation' => ['nullable','array'],
+                    'participation.*' => ['nullable','string','max:50'],
+                    'montant_part' => ['nullable','array'],
+                    'montant_part.*' => ['nullable','string','max:255'],
+                    'monnaie' => ['nullable','array'],
+                    'monnaie.*' => ['nullable','string','max:20'],
+                    'autorite_nom' => ['nullable','array'],
+                    'autorite_nom.*' => ['nullable','string','max:4000'],
+                    'autorite_adresse' => ['nullable','array'],
+                    'autorite_adresse.*' => ['nullable','string','max:4000'],
+                    'autorite_telephone' => ['nullable','array'],
+                    'autorite_telephone.*' => ['nullable','string','max:255'],
+                    'autorite_email' => ['nullable','array'],
+                    'autorite_email.*' => ['nullable','string','max:255'],
+                    'nom_signataire' => ['nullable','string','max:255'],
+                    'fonction_signataire' => ['nullable','string','max:255'],
+                ]);
+
+                // Filter out fully empty rows
+                if (!empty($values['identification']) && is_array($values['identification'])) {
+                    $filtered = [];
+                    $max = max(
+                        count($values['numero_marche'] ?? []),
+                        count($values['identification'] ?? []),
+                        count($values['date_attribution'] ?? []),
+                        count($values['date_achevement'] ?? []),
+                        count($values['role'] ?? []),
+                        count($values['montant_total'] ?? []),
+                        count($values['participation'] ?? []),
+                        count($values['monnaie'] ?? []),
+                        count($values['autorite_nom'] ?? [])
+                    );
+
+                    $outNumero = [];
+                    $outIdent = [];
+                    $outDateAttr = [];
+                    $outDateAch = [];
+                    $outRole = [];
+                    $outMontant = [];
+                    $outPart = [];
+                    $outMontPart = [];
+                    $outMonnaie = [];
+                    $outAutoriteNom = [];
+                    $outAutoriteAdresse = [];
+                    $outAutoriteTel = [];
+                    $outAutoriteEmail = [];
+
+                    for ($i = 0; $i < $max; $i++) {
+                        $num = isset($values['numero_marche'][$i]) ? trim((string)$values['numero_marche'][$i]) : '';
+                        $ident = isset($values['identification'][$i]) ? trim((string)$values['identification'][$i]) : '';
+                        $attr = isset($values['date_attribution'][$i]) ? trim((string)$values['date_attribution'][$i]) : '';
+                        $ach = isset($values['date_achevement'][$i]) ? trim((string)$values['date_achevement'][$i]) : '';
+                        $role = isset($values['role'][$i]) ? trim((string)$values['role'][$i]) : '';
+                        $mont = isset($values['montant_total'][$i]) ? trim((string)$values['montant_total'][$i]) : '';
+                        $part = isset($values['participation'][$i]) ? trim((string)$values['participation'][$i]) : '';
+                        $mon = isset($values['monnaie'][$i]) ? trim((string)$values['monnaie'][$i]) : '';
+                        $an = isset($values['autorite_nom'][$i]) ? trim((string)$values['autorite_nom'][$i]) : '';
+                        $aa = isset($values['autorite_adresse'][$i]) ? trim((string)$values['autorite_adresse'][$i]) : '';
+                        $at = isset($values['autorite_telephone'][$i]) ? trim((string)$values['autorite_telephone'][$i]) : '';
+                        $ae = isset($values['autorite_email'][$i]) ? trim((string)$values['autorite_email'][$i]) : '';
+
+                        if ($num !== '' || $ident !== '' || $attr !== '' || $ach !== '' || $role !== '' || $mont !== '' || $part !== '' || $an !== '') {
+                            $outNumero[] = $num;
+                            $outIdent[] = $ident;
+                            $outDateAttr[] = $attr;
+                            $outDateAch[] = $ach;
+                            $outRole[] = $role;
+                            $outMontant[] = $mont;
+                            $outPart[] = $part;
+                            $outMontPart[] = isset($values['montant_part'][$i]) ? trim((string)$values['montant_part'][$i]) : '';
+                            $outMonnaie[] = $mon;
+                            $outAutoriteNom[] = $an;
+                            $outAutoriteAdresse[] = $aa;
+                            $outAutoriteTel[] = $at;
+                            $outAutoriteEmail[] = $ae;
+                        }
+                    }
+
+                    $values['numero_marche'] = $outNumero;
+                    $values['identification'] = $outIdent;
+                    $values['date_attribution'] = $outDateAttr;
+                    $values['date_achevement'] = $outDateAch;
+                    $values['role'] = $outRole;
+                    $values['montant_total'] = $outMontant;
+                    $values['participation'] = $outPart;
+                    $values['montant_part'] = $outMontPart ?? [];
+                    $values['monnaie'] = $outMonnaie;
+                    $values['autorite_nom'] = $outAutoriteNom;
+                    $values['autorite_adresse'] = $outAutoriteAdresse;
+                    $values['autorite_telephone'] = $outAutoriteTel;
+                    $values['autorite_email'] = $outAutoriteEmail;
+                }
+
+                $content = json_encode($values, JSON_UNESCAPED_UNICODE);
+                if ($content === false) {
+                    $content = json_encode($values, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+                }
+
+                $dossierDocument->update([
+                    'content' => $content,
+                    'statut' => 'complete',
+                ]);
+            }
+
+            if (trim($currentDocument->nom) === 'Formulaire EXP – 4.2 b) (suite) Expérience spécifique de fournitures/services dans les activités principales (suite)') {
+                $values = $request->validate([
+                    'description_activites' => ['nullable', 'string', 'max:8000'],
+                ]);
+
+                $content = json_encode($values, JSON_UNESCAPED_UNICODE);
+                if ($content === false) {
+                    $content = json_encode($values, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+                }
+
+                $dossierDocument->update([
+                    'content' => $content,
+                    'statut' => 'complete',
+                ]);
+            }
+
+            if (trim($currentDocument->nom) === 'Formulaire ANT-2 : Formulaire renseignant sur les antécédents de marchés non exécutés, de litiges en instance et d\'antécédents de litiges') {
+                $values = $request->validate([
+                    'marche_non_execute_since_year' => ['nullable', 'string', 'max:50'],
+                    'marches_non_execute_since_year' => ['nullable', 'string', 'max:50'],
+                    'marches_non_executes' => ['nullable', 'array'],
+                    'marches_non_executes.*.annee' => ['nullable', 'string', 'max:50'],
+                    'marches_non_executes.*.fraction' => ['nullable', 'string', 'max:255'],
+                    'marches_non_executes.*.identification' => ['nullable', 'string', 'max:2000'],
+                    'marches_non_executes.*.montant_fcfa' => ['nullable', 'string', 'max:255'],
+                    'litiges_since_year' => ['nullable', 'string', 'max:50'],
+                    'litiges_en_instance_rows' => ['nullable', 'array'],
+                    'litiges_en_instance_rows.*.annee' => ['nullable', 'string', 'max:50'],
+                    'litiges_en_instance_rows.*.montant_reclamation' => ['nullable', 'string', 'max:255'],
+                    'litiges_en_instance_rows.*.identification_marche' => ['nullable', 'string', 'max:2000'],
+                    'litiges_en_instance_rows.*.montant_total' => ['nullable', 'string', 'max:255'],
+                    'antecedents_litiges' => ['nullable', 'string', 'max:4000'],
+                    'autres_details' => ['nullable', 'string', 'max:4000'],
+                ]);
+
+                if (!empty($values['marches_non_executes']) && is_array($values['marches_non_executes'])) {
+                    $values['marches_non_executes'] = array_values(array_filter($values['marches_non_executes'], function ($row) {
+                        return !empty(trim($row['annee'] ?? '')) || !empty(trim($row['fraction'] ?? '')) || !empty(trim($row['identification'] ?? '')) || !empty(trim($row['montant_fcfa'] ?? ''));
+                    }));
+                }
+
+                if (!empty($values['litiges_en_instance_rows']) && is_array($values['litiges_en_instance_rows'])) {
+                    $values['litiges_en_instance_rows'] = array_values(array_filter($values['litiges_en_instance_rows'], function ($row) {
+                        return !empty(trim($row['annee'] ?? '')) || !empty(trim($row['montant_reclamation'] ?? '')) || !empty(trim($row['identification_marche'] ?? '')) || !empty(trim($row['montant_total'] ?? ''));
+                    }));
+                }
+
+                $content = json_encode($values, JSON_UNESCAPED_UNICODE);
+                if ($content === false) {
+                    $content = json_encode($values, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+                }
+
+                $dossierDocument->update([
+                    'content' => $content,
+                    'statut' => 'complete',
+                ]);
+            }
+
+            // Handle FIN 3.4 (a) - Attestation de capacité financière
+            if (trim($currentDocument->nom) === 'Formulaire FIN 3.4 (a) Modèle d\'attestation de capacité financière') {
+                // Files are handled separately below, mark as in progress until files processed
+                $dossierDocument->update(['statut' => 'en_cours']);
+            }
+
+            // Handle FIN 3.4 (b) - Lettre de confirmation
+            if (trim($currentDocument->nom) === 'Formulaire FIN 3.4 (b) Modèle de lettre de confirmation de la capacité financière') {
+                // Files are handled separately below, mark as in progress until files processed
+                $dossierDocument->update(['statut' => 'en_cours']);
+            }
+
+                if ($currentDocument->type_formulaire === 'bordereau' || trim($currentDocument->nom) === 'Bordereau prix unitaire' || trim($currentDocument->nom) === 'Bordereau des prix pour les fournitures à importer' || trim($currentDocument->nom) === 'Programme d\'activités' || trim($currentDocument->nom) === 'Méthodes d\'exécution' || trim($currentDocument->nom) === 'Calendrier d\'exécution' || trim($currentDocument->nom) === 'Description technique des fournitures/services') {
                 $isProgramme = trim($currentDocument->nom) === "Programme d'activités";
                 $isMethodes = trim($currentDocument->nom) === "Méthodes d'exécution";
                 $isCalendrier = trim($currentDocument->nom) === "Calendrier d'exécution";
-                $isDescriptionTechnique = trim($currentDocument->nom) === "Description technique des services";
+                $isDescriptionTechnique = trim($currentDocument->nom) === "Description technique des fournitures/services";
                 $isBordereauFournitures = trim($currentDocument->nom) === "Bordereau des prix pour les fournitures à importer";
+                $isBordereauFournituresBenin = trim($currentDocument->nom) === "Bordereau des prix pour les fournitures fabriquées au Bénin";
+                $isBordereauFournituresDejaImportees = trim($currentDocument->nom) === "Bordereau des prix des fournitures, déjà importées";
                 $isBordereauPrixCalendrier = trim($currentDocument->nom) === "Bordereau des prix et calendrier d'exécution des services connexes";
                 $isListesServicesConnexes = trim($currentDocument->nom) === "Listes des services connexes et calendrier de réalisation";
                 $isListesFournituersLivraison = trim($currentDocument->nom) === "Listes des Fournitures et Calendrier de livraison";
@@ -667,6 +1564,7 @@ class DossierController extends Controller
                 $rules = [
                     'sections' => ['required', 'array', 'min:1'],
                     'sections.*.titre' => ['nullable', 'string', 'max:255'],
+                    'sections.*.designation_label' => ['nullable', 'string', 'max:255'],
                     'sections.*.lignes' => ['required', 'array', 'min:1'],
                     'sections.*.lignes.*.designation' => ['nullable', 'string', 'max:1000'],
                     'sections.*.lignes.*.prix_unitaire' => ['nullable', 'numeric'],
@@ -718,6 +1616,29 @@ class DossierController extends Controller
                     ]);
                 }
 
+                if ($isBordereauFournituresBenin) {
+                    $rules = array_merge($rules, [
+                        'sections.*.lignes.*.quantite' => ['nullable', 'numeric'],
+                        'sections.*.lignes.*.date_prestation' => ['nullable', 'string', 'max:255'],
+                        'sections.*.lignes.*.transport' => ['nullable', 'numeric'],
+                        'sections.*.lignes.*.cout_main_oeuvre_locale' => ['nullable', 'string', 'max:255'],
+                        'sections.*.lignes.*.taxe_vente' => ['nullable', 'numeric'],
+                        'variante' => ['nullable', 'string', 'max:255'],
+                    ]);
+                }
+
+                if ($isBordereauFournituresDejaImportees) {
+                    $rules = array_merge($rules, [
+                        'sections.*.lignes.*.quantite' => ['nullable', 'numeric'],
+                        'sections.*.lignes.*.date_prestation' => ['nullable', 'string', 'max:255'],
+                        'sections.*.lignes.*.site' => ['nullable', 'string', 'max:255'],
+                        'sections.*.lignes.*.droits_douane' => ['nullable', 'numeric'],
+                        'sections.*.lignes.*.transport' => ['nullable', 'numeric'],
+                        'sections.*.lignes.*.taxe_vente' => ['nullable', 'numeric'],
+                        'variante' => ['nullable', 'string', 'max:255'],
+                    ]);
+                }
+
                 if ($isBordereauPrixCalendrier) {
                     $rules = array_merge($rules, [
                         'sections.*.lignes.*.quantite' => ['nullable', 'numeric'],
@@ -747,6 +1668,10 @@ class DossierController extends Controller
                     ]);
                 }
 
+                if ($request->has('sections')) {
+                    $request->merge(['sections' => $this->normalizeBordereauNumbers($request->input('sections', []))]);
+                }
+
                 $values = $request->validate($rules);
 
                 $oldBordereaux = Bordereau::where('dossier_document_id', $dossierDocument->id)->get();
@@ -760,6 +1685,7 @@ class DossierController extends Controller
                     $bordereau = Bordereau::create([
                         'dossier_document_id' => $dossierDocument->id,
                         'titre' => trim($section['titre'] ?? '') !== '' ? $section['titre'] : $currentDocument->nom,
+                        'designation_label' => trim($section['designation_label'] ?? '') !== '' ? $section['designation_label'] : null,
                     ]);
 
                     foreach ($section['lignes'] as $ligne) {
@@ -784,6 +1710,63 @@ class DossierController extends Controller
                                 'montant' => $montant,
                                 'date_prestation' => $datePrestation,
                                 'cout_benin' => $coutBenin,
+                            ]);
+                            $validLineCreated = true;
+                            continue;
+                        }
+
+                        if ($isBordereauFournituresBenin) {
+                            $datePrestation = trim($ligne['date_prestation'] ?? '');
+                            $quantite = !empty($ligne['quantite']) ? (float) $ligne['quantite'] : 0;
+                            $transport = !empty($ligne['transport']) ? (float) $ligne['transport'] : 0;
+                            $coutMainOeuvreLocale = trim($ligne['cout_main_oeuvre_locale'] ?? '');
+                            $taxeVente = !empty($ligne['taxe_vente']) ? (float) $ligne['taxe_vente'] : 0;
+                            $montant = $price * max(1, $quantite);
+
+                            if ($designation === '' && $price <= 0 && $datePrestation === '') {
+                                continue;
+                            }
+
+                            BordereauLigne::create([
+                                'bordereau_id' => $bordereau->id,
+                                'designation' => $designation,
+                                'quantite' => $quantite,
+                                'prix_unitaire' => $price,
+                                'montant' => $montant,
+                                'date_prestation' => $datePrestation,
+                                'transport' => $transport,
+                                'cout_main_oeuvre_locale' => $coutMainOeuvreLocale,
+                                'taxe_vente' => $taxeVente,
+                            ]);
+                            $validLineCreated = true;
+                            continue;
+                        }
+
+                        if ($isBordereauFournituresDejaImportees) {
+                            $datePrestation = trim($ligne['date_prestation'] ?? '');
+                            $site = trim($ligne['site'] ?? '');
+                            $quantite = !empty($ligne['quantite']) ? (float) $ligne['quantite'] : 0;
+                            $droitsDouane = !empty($ligne['droits_douane']) ? (float) $ligne['droits_douane'] : 0;
+                            $transport = !empty($ligne['transport']) ? (float) $ligne['transport'] : 0;
+                            $taxeVente = !empty($ligne['taxe_vente']) ? (float) $ligne['taxe_vente'] : 0;
+                            $prixNet = $price - $droitsDouane;
+                            $montant = $prixNet * max(1, $quantite);
+
+                            if ($designation === '' && $price <= 0 && $datePrestation === '') {
+                                continue;
+                            }
+
+                            BordereauLigne::create([
+                                'bordereau_id' => $bordereau->id,
+                                'designation' => $designation,
+                                'site' => $site,
+                                'quantite' => $quantite,
+                                'prix_unitaire' => $price,
+                                'droits_douane' => $droitsDouane,
+                                'montant' => $montant,
+                                'date_prestation' => $datePrestation,
+                                'transport' => $transport,
+                                'taxe_vente' => $taxeVente,
                             ]);
                             $validLineCreated = true;
                             continue;
@@ -1026,8 +2009,96 @@ class DossierController extends Controller
                     }
                 }
 
+                if ($isBordereauFournituresBenin || $isBordereauFournituresDejaImportees) {
+                    $dossierDocument->update([
+                        'content' => json_encode([
+                            'variante' => trim($values['variante'] ?? ''),
+                        ], JSON_UNESCAPED_UNICODE),
+                    ]);
+                }
+
                 if ($validLineCreated) {
                     $dossierDocument->update(['statut' => 'complete']);
+                }
+            }
+
+            if (trim($currentDocument->nom) === 'Plan de charge') {
+                $values = $request->validate([
+                    'plan_charge_candidat' => ['nullable', 'string', 'max:255'],
+                    'plan_charge_rows' => ['nullable', 'array'],
+                    'plan_charge_rows.*.nature' => ['nullable', 'string', 'max:1000'],
+                    'plan_charge_rows.*.marche' => ['nullable', 'string', 'max:1000'],
+                    'plan_charge_rows.*.delai' => ['nullable', 'string', 'max:255'],
+                    'plan_charge_rows.*.date_demarrage' => ['nullable', 'string', 'max:255'],
+                    'plan_charge_rows.*.date_fin' => ['nullable', 'string', 'max:255'],
+                    'plan_charge_rows.*.taux_physique' => ['nullable', 'string', 'max:255'],
+                    'plan_charge_rows.*.taux_financier' => ['nullable', 'string', 'max:255'],
+                    'plan_charge_rows.*.autorite' => ['nullable', 'string', 'max:1000'],
+                    'plan_charge_rows.*.observations' => ['nullable', 'string', 'max:1000'],
+                ]);
+
+                $content = json_encode($values, JSON_UNESCAPED_UNICODE);
+                if ($content === false) {
+                    $content = json_encode($values, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+                }
+
+                $dossierDocument->update(['content' => $content, 'statut' => 'complete']);
+            }
+            if (trim($currentDocument->nom) === 'Lettre de soumission') {
+                // Champs alignés sur ce que le gabarit PDF (lettre_soumission_pdf_content)
+                // utilise réellement : les clauses e) à l) y sont désormais un texte légal
+                // fixe (identique pour tous les dossiers, conforme au modèle DRP), donc
+                // elles ne sont plus des champs de formulaire ; "point_a" ne porte plus que
+                // le numéro d'addenda et "point_b" que le délai d'exécution.
+                $values = $request->validate([
+                    'date' => ['required', 'date'],
+                    'destinataire' => ['nullable', 'string', 'max:1000'],
+                    'point_a' => ['nullable', 'string', 'max:1000'],
+                    'point_b' => ['nullable', 'string', 'max:1000'],
+                    'montant_ht_calendrier' => ['nullable', 'string', 'max:255'],
+                    'montant_ttc_calendrier' => ['nullable', 'string', 'max:255'],
+                    'montant_ht_services' => ['nullable', 'string', 'max:255'],
+                    'montant_ttc_services' => ['nullable', 'string', 'max:255'],
+                    'montant_ht_total' => ['nullable', 'string', 'max:255'],
+                    'montant_ht_lettres' => ['nullable', 'string', 'max:255'],
+                    'montant_chiffres' => ['nullable', 'string', 'max:255'],
+                    'montant_lettres' => ['nullable', 'string', 'max:255'],
+                    'tva_valeur' => ['nullable', 'string', 'max:255'],
+                    'rabais' => ['nullable', 'string', 'max:4000'],
+                ]);
+
+                $content = json_encode($values, JSON_UNESCAPED_UNICODE);
+                if ($content === false) {
+                    $content = json_encode($values, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+                }
+
+                $dossierDocument->update(['content' => $content]);
+
+                try {
+                    $pdfData = array_merge($values, [
+                        'entreprise' => $dossier->entreprise,
+                        'dossier' => $dossier,
+                    ]);
+
+                    $html = view('documents.lettre_soumission_pdf', $pdfData)->render();
+                    $dompdf = new Dompdf(['isRemoteEnabled' => true]);
+                    $dompdf->loadHtml($html);
+                    $dompdf->setPaper('A4', 'portrait');
+                    $dompdf->render();
+
+                    $output = $dompdf->output();
+                    $filename = 'dossiers/documents/dossier_' . $dossier->id . '_lettre_soumission_' . time() . '.pdf';
+                    Storage::disk('public')->put($filename, $output);
+
+                    DocumentFichier::create([
+                        'dossier_document_id' => $dossierDocument->id,
+                        'chemin_fichier' => $filename,
+                        'utilisateur_id' => auth()->id(),
+                    ]);
+
+                    $dossierDocument->update(['statut' => 'complete']);
+                } catch (\Throwable $e) {
+                    // ignore and continue with normal flow
                 }
             }
 
@@ -1071,8 +2142,20 @@ class DossierController extends Controller
                 }
             }
 
-            $nextIndex = $currentIndex + 1;
-            if ($nextIndex >= $uploadQueue->count()) {
+            $nextIndex = null;
+            for ($i = $currentIndex + 1; $i < $uploadQueue->count(); $i++) {
+                $nextDoc = $uploadQueue->get($i);
+                $nextDocRec = DossierDocument::where('dossier_id', $dossier->id)
+                    ->where('type_document_id', $nextDoc->id)
+                    ->first();
+
+                if (!$nextDocRec || $nextDocRec->statut !== 'complete') {
+                    $nextIndex = $i;
+                    break;
+                }
+            }
+
+            if ($nextIndex === null) {
                 $dossier->statut = 'termine';
                 $dossier->save();
                 Session::forget($sessionKeyDocs);
@@ -1094,6 +2177,27 @@ class DossierController extends Controller
             'selectedDocumentIds' => $selectedDocumentIds,
             'globalChiffres' => $globalChiffres,
         ]);
+    }
+
+    /**
+     * Lit un fichier Excel/CSV envoyé depuis un formulaire step6 et retourne
+     * ses lignes brutes (en-têtes + données) pour pré-remplir un tableau
+     * dynamique côté client. Le candidat garde la main : rien n'est enregistré
+     * ici, l'utilisateur relit/corrige avant de soumettre le formulaire.
+     */
+    public function importTableau(Request $request)
+    {
+        $request->validate([
+            'fichier' => ['required', 'file', 'max:10240', 'mimes:csv,txt,xlsx'],
+        ]);
+
+        try {
+            $result = \App\Support\SpreadsheetImport::parse($request->file('fichier'));
+        } catch (\Throwable $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return response()->json($result);
     }
 
     /**
@@ -1165,14 +2269,10 @@ class DossierController extends Controller
             'signataires'
         ]);
 
-        $excludedDocNames = [
-            'Déclaration de garantie',
-            "Déclaration de garantie d'offre",
-            "Declaration de garantie d'offre",
-        ];
-
-        $documents = $dossier->documents->filter(function ($doc) use ($excludedDocNames) {
-            return $doc->typeDocument && !in_array(trim($doc->typeDocument->nom), $excludedDocNames, true);
+        // Le sommaire et le PDF final doivent reprendre tous les documents sélectionnés
+        // dans le dossier, sans exclure "Déclaration de garantie d'offre" ni aucun autre.
+        $documents = $dossier->documents->filter(function ($doc) {
+            return $doc->typeDocument !== null;
         })->sortBy('ordre')->values();
 
         // Préparer le data URI de l'image/PDF de la page de garde pour l'inclure dans le HTML
@@ -1187,11 +2287,33 @@ class DossierController extends Controller
             }
         }
 
-        $pdfAttachmentsExist = $documents->flatMap(function ($doc) {
-            return $doc->fichiers ?? collect();
-        })->filter(function ($f) {
-            return strtolower(pathinfo($f->chemin_fichier, PATHINFO_EXTENSION)) === 'pdf';
-        })->isNotEmpty();
+        $pdfAttachmentsExist = $documents->contains(function ($doc) {
+            $fichiers = $doc->fichiers ?? collect();
+            $pdfAttachments = $fichiers->filter(function ($f) {
+                return strtolower(pathinfo($f->chemin_fichier, PATHINFO_EXTENSION)) === 'pdf';
+            });
+            $imageAttachments = $fichiers->filter(function ($f) {
+                $ext = strtolower(pathinfo($f->chemin_fichier, PATHINFO_EXTENSION));
+                return in_array($ext, ['png', 'jpg', 'jpeg', 'gif'], true);
+            });
+            $otherAttachments = $fichiers->filter(function ($f) {
+                $ext = strtolower(pathinfo($f->chemin_fichier, PATHINFO_EXTENSION));
+                return !in_array($ext, ['png', 'jpg', 'jpeg', 'gif', 'pdf'], true);
+            });
+
+            $docName = trim($doc->typeDocument->nom ?? '');
+            return $pdfAttachments->isNotEmpty()
+                && $imageAttachments->isEmpty()
+                && $otherAttachments->isEmpty()
+                && $doc->valeurs->isEmpty()
+                && $doc->bordereau->isEmpty()
+                && empty($doc->content)
+                && !in_array($docName, [
+                    "Déclaration de garantie d'offre",
+                    'Declaration de garantie d\'offre',
+                    'Formulaire ELI – 1.1 : Formulaire de renseignements sur le candidat',
+                ], true);
+        });
 
         if (!$pdfAttachmentsExist) {
             $html = view('dossiers.pdf', compact('dossier', 'pageGardeDataUri', 'documents'))->render();
@@ -1212,9 +2334,13 @@ class DossierController extends Controller
                     $dossier->save();
                 } catch (\Throwable $e) {}
 
-                return response($output, 200)->header('Content-Type', 'application/pdf');
+                return response($output, 200)
+                    ->header('Content-Type', 'application/pdf')
+                    ->header('Content-Disposition', 'inline; filename="dossier_' . $dossier->id . '.pdf"');
             } catch (\Throwable $e) {
-                return view('dossiers.pdf', compact('dossier', 'pageGardeDataUri', 'documents'));
+                \Illuminate\Support\Facades\Log::error('Échec de la génération du PDF du dossier #' . $dossier->id . ' : ' . $e->getMessage(), ['exception' => $e]);
+                return redirect()->route('dossiers.show', $dossier->id)
+                    ->with('error', 'La génération du PDF a échoué : ' . $e->getMessage());
             }
         }
 
@@ -1272,8 +2398,17 @@ class DossierController extends Controller
                     && !in_array(trim($doc->typeDocument->nom), [
                         "Déclaration de garantie d'offre",
                         'Declaration de garantie d\'offre',
-                        'Formulaire de renseignements sur le candidat',
+                        'Formulaire ELI – 1.1 : Formulaire de renseignements sur le candidat',
                     ], true);
+
+                // Une pièce "upload uniquement" sans aucun fichier joint ni contenu
+                // n'a rien à afficher : on évite de générer une page vide pour elle.
+                $hasNothingToShow = $doc->typeDocument
+                    && \App\Models\TypeDocument::isUploadOnlyName($doc->typeDocument->nom, $doc->typeDocument->type_formulaire)
+                    && $doc->fichiers->isEmpty()
+                    && $doc->valeurs->isEmpty()
+                    && $doc->bordereau->isEmpty()
+                    && empty($doc->content);
 
                 $htmlTitle = view('dossiers.pdf', compact('dossier', 'pageGardeDataUri'))->with([
                     'documents' => collect([$doc]),
@@ -1288,14 +2423,17 @@ class DossierController extends Controller
                 $filesToMerge[] = $titleTemp;
                 $tempFiles[] = $titleTemp;
 
-                if (!$skipHtmlDocPage) {
+                if (!$skipHtmlDocPage && !$hasNothingToShow) {
                     $htmlDoc = view('dossiers.pdf', compact('dossier', 'pageGardeDataUri'))->with([
                         'documents' => collect([$doc]),
                         'renderMode' => 'doc',
                     ])->render();
+                    $docOrientation = $doc->typeDocument && in_array(trim($doc->typeDocument->nom), $this->getLandscapeTableDocNames(), true)
+                        ? 'landscape'
+                        : 'portrait';
                     $dompdfDoc = new Dompdf(['isRemoteEnabled' => true]);
                     $dompdfDoc->loadHtml($htmlDoc);
-                    $dompdfDoc->setPaper('A4', 'portrait');
+                    $dompdfDoc->setPaper('A4', $docOrientation);
                     $dompdfDoc->render();
                     $docTemp = tempnam(sys_get_temp_dir(), 'dossier_doc_') . '.pdf';
                     file_put_contents($docTemp, $dompdfDoc->output());
@@ -1303,10 +2441,12 @@ class DossierController extends Controller
                     $tempFiles[] = $docTemp;
                 }
 
-                foreach ($pdfAttachments as $f) {
-                    $path = storage_path('app/public/' . ltrim($f->chemin_fichier, '/'));
-                    if (file_exists($path)) {
-                        $filesToMerge[] = $path;
+                if ($skipHtmlDocPage) {
+                    foreach ($pdfAttachments as $f) {
+                        $path = storage_path('app/public/' . ltrim($f->chemin_fichier, '/'));
+                        if (file_exists($path)) {
+                            $filesToMerge[] = $path;
+                        }
                     }
                 }
             }
@@ -1321,10 +2461,15 @@ class DossierController extends Controller
             } catch (\Throwable $e) {}
 
             if (file_exists($finalFull)) {
-                return response()->file($finalFull, ['Content-Type' => 'application/pdf']);
+                return response()->file($finalFull, [
+                    'Content-Type' => 'application/pdf',
+                    'Content-Disposition' => 'inline; filename="dossier_' . $dossier->id . '.pdf"',
+                ]);
             }
         } catch (\Throwable $e) {
-            return view('dossiers.pdf', compact('dossier', 'pageGardeDataUri', 'documents'));
+            \Illuminate\Support\Facades\Log::error('Échec de la fusion du PDF du dossier #' . $dossier->id . ' : ' . $e->getMessage(), ['exception' => $e]);
+            return redirect()->route('dossiers.show', $dossier->id)
+                ->with('error', 'La génération du PDF a échoué : ' . $e->getMessage());
         } finally {
             foreach ($tempFiles as $tempFile) {
                 if (file_exists($tempFile)) {
@@ -1362,18 +2507,108 @@ class DossierController extends Controller
                 continue;
             }
 
-            $pageCount = $pdf->setSourceFile($file);
-            for ($pageNo = 1; $pageNo <= $pageCount; $pageNo++) {
-                $tplIdx = $pdf->importPage($pageNo);
-                $specs = $pdf->getTemplateSize($tplIdx);
-                $orientation = $specs['orientation'] ?? ($specs['width'] > $specs['height'] ? 'L' : 'P');
-                $pdf->AddPage($orientation, [$specs['width'], $specs['height']]);
-                $pdf->useTemplate($tplIdx);
+            try {
+                $pageCount = $pdf->setSourceFile($file);
+                for ($pageNo = 1; $pageNo <= $pageCount; $pageNo++) {
+                    $tplIdx = $pdf->importPage($pageNo);
+                    $specs = $pdf->getTemplateSize($tplIdx);
+                    $orientation = $specs['orientation'] ?? ($specs['width'] > $specs['height'] ? 'L' : 'P');
+                    $pdf->AddPage($orientation, [$specs['width'], $specs['height']]);
+                    $pdf->useTemplate($tplIdx);
+                }
+            } catch (\Throwable $e) {
+                // Le parseur FPDI gratuit ne supporte pas toutes les techniques de
+                // compression PDF (courant pour les scans). On rabat alors sur une
+                // conversion en image de chaque page, pour pouvoir quand même
+                // inclure ce fichier dans le dossier fusionné.
+                $this->appendPdfAsImages($pdf, $file);
             }
         }
 
         // Sauvegarder le PDF fusionné
         $pdf->Output('F', $outputFull);
+    }
+
+    /**
+     * Ajoute chaque page d'un PDF au document FPDI en cours sous forme d'image
+     * (via Ghostscript), pour les PDF que le parseur gratuit de FPDI ne sait pas
+     * lire directement (techniques de compression non supportées).
+     */
+    private function appendPdfAsImages(\setasign\Fpdi\Fpdi $pdf, string $file): void
+    {
+        $gsPath = $this->findGhostscriptExecutable();
+        if (!$gsPath) {
+            return;
+        }
+
+        $prefix = uniqid('gs_merge_', true);
+        $outputPattern = sys_get_temp_dir() . DIRECTORY_SEPARATOR . $prefix . '_%03d.png';
+
+        $cmd = '"' . str_replace('\\', '/', $gsPath) . '" -q -dNOPAUSE -dBATCH -dSAFER -sDEVICE=png16m -r150 '
+            . '-sOutputFile="' . str_replace('\\', '/', $outputPattern) . '" "' . str_replace('\\', '/', $file) . '" 2>&1';
+        exec($cmd, $cmdOutput, $returnCode);
+
+        $pages = glob(sys_get_temp_dir() . DIRECTORY_SEPARATOR . $prefix . '_*.png');
+        sort($pages);
+
+        foreach ($pages as $imagePath) {
+            $size = @getimagesize($imagePath);
+            if (!$size) {
+                @unlink($imagePath);
+                continue;
+            }
+
+            [$widthPx, $heightPx] = $size;
+            $widthMm = $widthPx / 150 * 25.4;
+            $heightMm = $heightPx / 150 * 25.4;
+            $orientation = $widthMm > $heightMm ? 'L' : 'P';
+
+            $pdf->AddPage($orientation, [$widthMm, $heightMm]);
+            $pdf->Image($imagePath, 0, 0, $widthMm, $heightMm);
+
+            @unlink($imagePath);
+        }
+    }
+
+    /**
+     * Recherche l'exécutable Ghostscript sur le système (Windows/Linux).
+     */
+    private function findGhostscriptExecutable(): ?string
+    {
+        $commands = [
+            'where gswin64c 2>nul',
+            'where gswin32c 2>nul',
+            'where gs 2>nul',
+            'which gswin64c 2>/dev/null',
+            'which gswin32c 2>/dev/null',
+            'which gs 2>/dev/null',
+        ];
+
+        foreach ($commands as $command) {
+            $result = trim((string) shell_exec($command));
+            if ($result !== '') {
+                return explode(PHP_EOL, $result)[0];
+            }
+        }
+
+        $commonPaths = [
+            'C:/Program Files/gs/*/bin/gswin64c.exe',
+            'C:/Program Files/gs/*/bin/gswin64.exe',
+            'C:/Program Files/gs/*/bin/gs.exe',
+            'C:/Program Files (x86)/gs/*/bin/gswin32c.exe',
+            'C:/Program Files (x86)/gs/*/bin/gswin32.exe',
+            'C:/Program Files (x86)/gs/*/bin/gs.exe',
+        ];
+
+        foreach ($commonPaths as $pattern) {
+            foreach (glob($pattern) as $candidate) {
+                if (file_exists($candidate)) {
+                    return $candidate;
+                }
+            }
+        }
+
+        return null;
     }
 
     private function normalizeDocumentOrders(Dossier $dossier): void
@@ -1415,9 +2650,8 @@ class DossierController extends Controller
         $this->normalizeDocumentOrders($dossier);
         $dossier->load(['documents.typeDocument', 'documents.fichiers', 'entreprise', 'typeDossier']);
 
-        $excludedName = 'Lettre de soumission';
         $uploadableDocs = $dossier->documents
-            ->filter(fn ($doc) => $doc->typeDocument && $doc->typeDocument->nom !== $excludedName)
+            ->filter(fn ($doc) => $doc->typeDocument)
             ->sortBy('ordre')
             ->values();
 
@@ -1444,9 +2678,8 @@ class DossierController extends Controller
         $this->normalizeDocumentOrders($dossier);
         $dossier->load(['documents.typeDocument', 'documents.fichiers', 'typeDossier']);
 
-        $excludedName = 'Lettre de soumission';
         $uploadableDocs = $dossier->documents
-            ->filter(fn ($doc) => $doc->typeDocument && $doc->typeDocument->nom !== $excludedName)
+            ->filter(fn ($doc) => $doc->typeDocument)
             ->sortBy('ordre')
             ->values();
 
@@ -1493,14 +2726,36 @@ class DossierController extends Controller
     {
         $pieceNames = $this->getDocumentPieceNames();
 
+        $bordereauNames = [
+            'Bordereau prix unitaire',
+            'Bordereau des prix pour les fournitures à importer',
+            'Bordereau des prix des fournitures, déjà importées',
+            'Bordereau des prix pour les fournitures fabriquées au Bénin',
+            'Bordereau des prix et calendrier d\'exécution des services connexes',
+            'Listes des services connexes et calendrier de réalisation',
+            'Listes des Fournitures et Calendrier de livraison',
+            'Tableau de résumé des bordereaux de prix',
+            'Cadres de sous détails des prix unitaire',
+            'Programme d\'activités',
+            'Méthodes d\'exécution',
+            'Calendrier d\'exécution',
+            'Description technique des fournitures/services',
+        ];
+
+        foreach ($pieceNames as $name) {
+            $type = in_array($name, $bordereauNames, true) ? 'bordereau' : 'formulaire';
+            TypeDocument::firstOrCreate(['nom' => $name], ['type_formulaire' => $type]);
+        }
+
         $documentsByName = TypeDocument::whereIn('nom', $pieceNames)->get()->keyBy('nom');
         $documents = collect($pieceNames)
             ->map(fn ($name) => $documentsByName->get($name))
             ->filter();
 
+        $selectedTypeIds = $dossier->documents()->pluck('type_document_id')->filter()->all();
         $signataires = Signataire::orderBy('nom')->orderBy('prenom')->get();
 
-        return view('dossiers.create.step5', compact('dossier', 'documents', 'signataires'));
+        return view('dossiers.create.step5', compact('dossier', 'documents', 'signataires', 'selectedTypeIds'));
     }
 
     public function manageUsers(Dossier $dossier)
@@ -1532,18 +2787,81 @@ class DossierController extends Controller
     }
 
     /**
+     * Formulaire de modification des informations du dossier saisies à l'étape 4
+     * (page de garde, sommaire, dates, etc.).
+     */
+    public function editInfos(Dossier $dossier)
+    {
+        return view('dossiers.edit_infos', compact('dossier'));
+    }
+
+    public function updateInfos(Request $request, Dossier $dossier)
+    {
+        $data = $request->validate([
+            'nom_dossier' => ['required', 'string', 'max:255'],
+            'titre_dossier' => ['nullable', 'string', 'max:255'],
+            'republique' => ['nullable', 'string', 'max:255'],
+            'ministere' => ['nullable', 'string', 'max:255'],
+            'direction' => ['nullable', 'string', 'max:255'],
+            'services_projet' => ['nullable', 'string', 'max:255'],
+            'destinataires' => ['nullable', 'string'],
+            'reference_dossier' => ['nullable', 'string', 'max:255'],
+            'ref' => ['nullable', 'string', 'max:255'],
+            'date_lancement' => ['nullable', 'date'],
+            'date_soumission' => ['nullable', 'date'],
+            'type_offre' => ['nullable', 'string', 'max:255'],
+            'lots' => ['nullable', 'string'],
+            'titre_lot' => ['nullable', 'string', 'max:255'],
+            'autres_details' => ['nullable', 'string'],
+            'mois_depot' => ['nullable', 'string', 'max:255'],
+            'annee_depot' => ['nullable', 'digits:4'],
+            'reference_step' => ['nullable', 'string', 'max:255'],
+            'source_financement' => ['nullable', 'string', 'max:255'],
+            'gestion' => ['nullable', 'string', 'max:255'],
+            'imputation_budgetaire' => ['nullable', 'string', 'max:255'],
+            'accord_pret' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $dossier->update($data);
+
+        return redirect()->route('dossiers.show', $dossier)->with('success', 'Informations du dossier mises à jour.');
+    }
+
+    /**
      * Liste des dossiers
      */
-    public function index()
+    public function index(Request $request)
     {
-        if (auth()->user()->isAdminOrDirecteur()) {
-            $dossiers = Dossier::with(['entreprise', 'typeDossier', 'documents'])->orderBy('created_at', 'desc')->get();
-        } else {
-            $userDossiers = auth()->user()->dossiers()->with(['entreprise', 'typeDossier', 'documents'])->orderBy('created_at', 'desc')->get();
-            $dossiers = $userDossiers->isNotEmpty()
-                ? $userDossiers
-                : Dossier::with(['entreprise', 'typeDossier', 'documents'])->orderBy('created_at', 'desc')->get();
+        $search = trim($request->query('search', ''));
+
+        $query = auth()->user()->isAdminOrDirecteur()
+            ? Dossier::with(['entreprise', 'typeDossier', 'documents'])
+            : auth()->user()->dossiers()->with(['entreprise', 'typeDossier', 'documents']);
+
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $q->where('nom_dossier', 'like', "%{$search}%")
+                    ->orWhere('lot', 'like', "%{$search}%")
+                    ->orWhere('public_prive', 'like', "%{$search}%")
+                    ->orWhere('statut', 'like', "%{$search}%")
+                    ->orWhereHas('entreprise', function ($q2) use ($search) {
+                        $q2->where('nom', 'like', "%{$search}%")
+                            ->orWhere('sigle', 'like', "%{$search}%");
+                    })
+                    ->orWhereHas('typeDossier', function ($q2) use ($search) {
+                        $q2->where('nom', 'like', "%{$search}%");
+                    });
+
+                try {
+                    $date = \Carbon\Carbon::parse($search);
+                    $q->orWhereDate('created_at', $date->toDateString());
+                } catch (\Exception $e) {
+                    // ignore invalid date formats
+                }
+            });
         }
+
+        $dossiers = $query->orderBy('created_at', 'desc')->get();
 
         // For each dossier, compute resume info (index and document type ids) so list can offer direct "Continuer"
         $resumeInfo = [];

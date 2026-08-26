@@ -5,6 +5,7 @@
             $oldSections = $bordereaux->map(function ($bordereau) {
                 return [
                     'titre' => $bordereau->titre,
+                    'designation_label' => $bordereau->designation_label,
                     'lignes' => $bordereau->lignes->map(function ($ligne) {
                         return [
                             'designation' => $ligne->designation,
@@ -15,10 +16,15 @@
             })->toArray();
         }
 
+        if (empty($oldSections) && !empty($prefillSections)) {
+            $oldSections = $prefillSections;
+        }
+
         if (empty($oldSections)) {
             $oldSections = [
                 [
                     'titre' => '',
+                    'designation_label' => '',
                     'lignes' => [
                         ['designation' => '', 'prix_unitaire' => ''],
                     ],
@@ -27,8 +33,10 @@
         }
     @endphp
 
-    <div class="mb-3">
+    <div class="mb-3" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
         <button type="button" id="addBordereauSection" class="btn btn-secondary">Ajouter un tableau</button>
+        <button type="button" id="importTableauBtn" class="btn btn-outline-secondary">Importer depuis un fichier (Excel/CSV)</button>
+        <span id="importTableauStatus" style="font-size:0.8rem;"></span>
     </div>
 
     <div id="bordereauSections">
@@ -49,7 +57,9 @@
                         <thead>
                             <tr>
                                 <th style="border:1px solid #ccc; padding:8px; width:5%;">N°</th>
-                                <th style="border:1px solid #ccc; padding:8px; width:70%;">Désignation des services<br><span style="font-size:10px; color:#555;">(Liste des équipements à maintenir)</span></th>
+                                <th style="border:1px solid #ccc; padding:8px; width:70%;">
+                                    <input type="text" class="form-control wizard-input" style="font-weight:700;" name="sections[{{ $sectionIndex }}][designation_label]" placeholder="Désignation des produits" value="{{ $section['designation_label'] ?? '' }}">
+                                </th>
                                 <th style="border:1px solid #ccc; padding:8px; width:25%;">Prix unitaire Hors TVA (FCFA)</th>
                                 <th style="border:1px solid #ccc; padding:8px; width:5%;"></th>
                             </tr>
@@ -158,7 +168,9 @@
                         <thead>
                             <tr>
                                 <th style="border:1px solid #ccc; padding:8px; width:5%;">N°</th>
-                                <th style="border:1px solid #ccc; padding:8px; width:70%;">Désignation des services<br><span style="font-size:10px; color:#555;">(Liste des équipements à maintenir)</span></th>
+                                <th style="border:1px solid #ccc; padding:8px; width:70%;">
+                                    <input type="text" class="form-control wizard-input" style="font-weight:700;" name="sections[${sectionIndex}][designation_label]" placeholder="Désignation des produits" value="">
+                                </th>
                                 <th style="border:1px solid #ccc; padding:8px; width:25%;">Prix unitaire Hors TVA (FCFA)</th>
                                 <th style="border:1px solid #ccc; padding:8px; width:5%;"></th>
                             </tr>
@@ -238,5 +250,18 @@
         });
 
         updateSectionIndexes();
+
+        if (window.DaoTableImport) {
+            window.DaoTableImport.setup({
+                buttonId: 'importTableauBtn',
+                statusId: 'importTableauStatus',
+                sectionsContainerId: 'bordereauSections',
+                importUrl: '{{ route('dossiers.importTableau') }}',
+                fieldSynonyms: {
+                    designation: ['designation des services', 'designation', 'description', 'objet'],
+                    prix_unitaire: ['prix unitaire'],
+                },
+            });
+        }
     })();
 </script>

@@ -46,6 +46,17 @@ class Dossier extends Model
         'annee_depot',
         'date_soumission',
         'statut',
+        'source_financement',
+        'gestion',
+        'imputation_budgetaire',
+        'accord_pret',
+        'destinataire_adresse',
+        'prmp_titre',
+        'prmp_nom',
+        'prmp_telephone',
+        'prmp_email',
+        'institution_nom',
+        'secretariat_adresse',
     ];
 
     protected $casts = [

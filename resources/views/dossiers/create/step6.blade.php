@@ -358,7 +358,7 @@
             <div class="wizard-header">
             <div class="wizard-badge">Etape 6 sur 6</div>
             <h1 class="wizard-title">Pieces jointes</h1>
-            <p class="wizard-subtitle">Ajoutez les pieces selectionnees (hors lettre de soumission).</p>
+            <p class="wizard-subtitle">Ajoutez les pieces selectionnees.</p>
         </div>
 
         <div class="wizard-body">
@@ -370,6 +370,21 @@
             <div class="wizard-alert">
                 <strong>{{ $dossier->nom_dossier }}</strong> - {{ $dossier->typeDossier->nom }}
             </div>
+
+            @if(session('error'))
+                <div class="alert alert-danger" style="margin-bottom:16px;">
+                    {{ session('error') }}
+                </div>
+            @endif
+            @if($errors->any())
+                <div class="alert alert-danger" style="margin-bottom:16px;">
+                    <ul style="margin:0; padding-left:18px;">
+                        @foreach($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
 
             <div class="card mb-4">
                 <div class="card-header">
@@ -391,7 +406,7 @@
                 </div>
             </div>
 
-            <form action="{{ route('dossiers.step6', $dossier->id) }}" method="POST" enctype="multipart/form-data">
+            <form action="{{ route('dossiers.step6', ['dossierId' => $dossier->id, 'current_index' => $currentIndex]) }}" method="POST" enctype="multipart/form-data">
                 @csrf
                 <input type="hidden" name="upload_step" value="1">
                 <input type="hidden" name="current_index" value="{{ $currentIndex }}">
@@ -407,190 +422,209 @@
                         <div class="card-body">
                             <label class="wizard-label">{{ $currentDocument->nom }}</label>
 
+                            @php
+                                // Pièces "bordereau" partageant une colonne Désignation : si l'une
+                                // d'elles est déjà remplie dans ce dossier, on pré-remplit les autres
+                                // avec les mêmes désignations tant qu'elles sont encore vides.
+                                $bordereauFamilyNames = [
+                                    'Bordereau prix unitaire',
+                                    'Bordereau des prix pour les fournitures à importer',
+                                    'Bordereau des prix des fournitures, déjà importées',
+                                    'Bordereau des prix pour les fournitures fabriquées au Bénin',
+                                    'Bordereau des prix et calendrier d\'exécution des services connexes',
+                                    'Listes des services connexes et calendrier de réalisation',
+                                    'Listes des Fournitures et Calendrier de livraison',
+                                    'Cadres de sous détails des prix unitaire',
+                                    'Programme d\'activités',
+                                    'Méthodes d\'exécution',
+                                    'Calendrier d\'exécution',
+                                    'Description technique des fournitures/services',
+                                ];
+
+                                $sharedDesignationPrefill = collect();
+                                if (in_array(trim($currentDocument->nom), $bordereauFamilyNames, true)) {
+                                    $bordereauSiblingCandidates = $dossier->documents
+                                        ->filter(function ($d) use ($currentDocument, $bordereauFamilyNames) {
+                                            return $d->typeDocument
+                                                && $d->type_document_id !== $currentDocument->id
+                                                && in_array(trim($d->typeDocument->nom), $bordereauFamilyNames, true)
+                                                && $d->bordereau->contains(fn ($b) => $b->lignes->isNotEmpty());
+                                        })
+                                        ->sortBy(function ($d) use ($bordereauFamilyNames) {
+                                            return array_search(trim($d->typeDocument->nom), $bordereauFamilyNames, true);
+                                        });
+
+                                    // Préfère une source qui a aussi renseigné quantité et date
+                                    // (une simple "Bordereau prix unitaire", plus sommaire, ne les
+                                    // contient pas et ne doit pas priver les autres champs de pré-remplissage).
+                                    $bordereauSiblingSource = $bordereauSiblingCandidates->first(function ($d) {
+                                        return $d->bordereau->contains(function ($b) {
+                                            return $b->lignes->contains(function ($l) {
+                                                return !empty($l->quantite) && !empty($l->date_prestation);
+                                            });
+                                        });
+                                    }) ?? $bordereauSiblingCandidates->first();
+
+                                    if ($bordereauSiblingSource) {
+                                        $sharedDesignationPrefill = $bordereauSiblingSource->bordereau->map(function ($bordereau) {
+                                            return [
+                                                'titre' => $bordereau->titre,
+                                                'lignes' => $bordereau->lignes->map(function ($ligne) {
+                                                    return [
+                                                        'designation' => $ligne->designation,
+                                                        'unite_physique' => $ligne->unite_physique,
+                                                        'quantite' => $ligne->quantite,
+                                                        'prix_unitaire' => $ligne->prix_unitaire,
+                                                        'site' => $ligne->site,
+                                                        'date_prestation' => $ligne->date_prestation,
+                                                    ];
+                                                })->toArray(),
+                                            ];
+                                        });
+                                    }
+                                }
+                            @endphp
+
+                            <script src="{{ asset('js/table-import.js') }}"></script>
+
+                            @if(App\Models\TypeDocument::isReferenceLineName($currentDocument->nom) || $currentDocument->type_formulaire === 'libre')
+                                @php
+                                    $dossierDocumentForRef = $dossier->documents->firstWhere('type_document_id', $currentDocument->id);
+                                    $refModelValue = old('reference_model', $dossierDocumentForRef->reference_model ?? App\Models\TypeDocument::defaultReferenceModelFor($currentDocument->nom));
+                                @endphp
+                                <div class="wizard-field" style="margin-bottom:16px; border:1px solid #d1d5db; padding:12px; background:#f9fafb;">
+                                    <label class="wizard-label" for="reference_model">Modèle d'affichage de la référence (numéro) dans le PDF</label>
+                                    <select id="reference_model" name="reference_model" class="form-control wizard-input">
+                                        @foreach(App\Support\ReferenceLine::labels() as $modelKey => $modelLabel)
+                                            <option value="{{ $modelKey }}" {{ $refModelValue === $modelKey ? 'selected' : '' }}>{{ $modelLabel }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                            @endif
+
                             @if(trim($currentDocument->nom) === "Déclaration de garantie d'offre")
                                 {{-- Afficher le formulaire de déclaration inline pour step6 --}}
-                                @include('documents.partials.declaration_form_step6', ['dossier' => $dossier, 'docId' => $currentDocument->id])
-                            @elseif(trim($currentDocument->nom) === 'Formulaire de renseignements sur le candidat')
+                                @php
+                                    $dossierDocument = $dossier->documents->firstWhere('type_document_id', $currentDocument->id);
+                                @endphp
+                                @include('documents.partials.declaration_form_step6', ['dossier' => $dossier, 'docId' => $currentDocument->id, 'dossierDocument' => $dossierDocument])
+                            @elseif(trim($currentDocument->nom) === 'Formulaire de qualification')
+                                {{-- Afficher le formulaire de qualification inline pour step6 --}}
+                                @include('documents.partials.formulaire_qualification_form_step6', ['dossier' => $dossier, 'docId' => $currentDocument->id])
+                            @elseif(trim($currentDocument->nom) === 'Formulaire ELI – 1.1 : Formulaire de renseignements sur le candidat')
                                 @include('documents.partials.formulaire_renseignements_candidat_form_step6', ['dossier' => $dossier, 'docId' => $currentDocument->id])
+                            @elseif(trim($currentDocument->nom) === 'Lettre de soumission')
+                                @php
+                                    $dossierDocument = $dossier->documents->firstWhere('type_document_id', $currentDocument->id);
+                                @endphp
+                                @include('documents.partials.lettre_soumission_form_step6', ['dossier' => $dossier, 'docId' => $currentDocument->id, 'dossierDocument' => $dossierDocument])
+                            @elseif(trim($currentDocument->nom) === 'Formulaire FIN – 3.1 Situation financière')
+                                @include('documents.partials.formulaire_fin_form_step6', ['dossier' => $dossier, 'docId' => $currentDocument->id])
+                            @elseif(trim($currentDocument->nom) === 'Formulaire FIN 3.3')
+                                @include('documents.partials.formulaire_fin_3_3_form_step6', ['dossier' => $dossier, 'docId' => $currentDocument->id])
+                            @elseif(trim($currentDocument->nom) === 'Formulaire FIN 3.4 (a) Modèle d\'attestation de capacité financière')
+                                @include('documents.partials.formulaire_fin_3_4_a_form_step6', ['dossier' => $dossier, 'docId' => $currentDocument->id])
+                            @elseif(trim($currentDocument->nom) === 'Formulaire FIN 3.4 (b) Modèle de lettre de confirmation de la capacité financière')
+                                @include('documents.partials.formulaire_fin_3_4_b_form_step6', ['dossier' => $dossier, 'docId' => $currentDocument->id])
+                            @elseif(trim($currentDocument->nom) === 'Formulaire MTC/FIN – 3.5 : Marchés de fournitures/services en cours')
+                                @include('documents.partials.formulaire_mtc_fin_3_5_form_step6', ['dossier' => $dossier, 'docId' => $currentDocument->id])
+                            @elseif(trim($currentDocument->nom) === 'Formulaire EXP – 4.1 : Expérience générale de fournitures/services')
+                                @include('documents.partials.formulaire_exp_4_1_form_step6', ['dossier' => $dossier, 'docId' => $currentDocument->id])
+                            @elseif(trim($currentDocument->nom) === 'Formulaire EXP – 4.2 a) Expérience spécifique de fournitures/services')
+                                @include('documents.partials.formulaire_exp_4_2_a_form_step6', ['dossier' => $dossier, 'docId' => $currentDocument->id, 'formTitle' => 'Formulaire EXP – 4.2 a) : Expérience spécifique de fournitures/services'])
+                            @elseif(trim($currentDocument->nom) === 'Formulaire EXP – 4.2 b) (suite) Expérience spécifique de fournitures/services dans les activités principales (suite)')
+                                @include('documents.partials.formulaire_exp_4_2_b_form_step6', ['dossier' => $dossier, 'docId' => $currentDocument->id])
+                            @elseif(trim($currentDocument->nom) === 'Formulaire ANT-2 : Formulaire renseignant sur les antécédents de marchés non exécutés, de litiges en instance et d\'antécédents de litiges')
+                                @include('documents.partials.formulaire_antecedents_form_step6', ['dossier' => $dossier, 'docId' => $currentDocument->id])
                             @elseif(trim($currentDocument->nom) === 'Chiffre d\'affaires annuel moyen des activités de services')
                                 @include('documents.partials.chiffre_affaires_form_step6', ['dossier' => $dossier, 'docId' => $currentDocument->id])
+                            @elseif(trim($currentDocument->nom) === 'Liste du personnel affecté à l\'exécution du marché')
+                                @php
+                                    $dossierDocument = $dossier->documents->firstWhere('type_document_id', $currentDocument->id);
+                                @endphp
+
+                                @include('documents.partials.liste_personnel_affecte_form_step6', ['dossier' => $dossier, 'docId' => $currentDocument->id, 'dossierDocument' => $dossierDocument])
+                            @elseif(trim($currentDocument->nom) === 'Formulaire de divulgation des bénéficiaires effectifs')
+                                @php
+                                    $dossierDocument = $dossier->documents->firstWhere('type_document_id', $currentDocument->id);
+                                @endphp
+
+                                @include('documents.partials.formulaire_divulgation_beneficiaires_form_step6', ['dossier' => $dossier, 'docId' => $currentDocument->id, 'dossierDocument' => $dossierDocument])
                             @elseif(trim($currentDocument->nom) === 'Programme d\'activités')
                                 @php
                                     $dossierDocument = $dossier->documents->firstWhere('type_document_id', $currentDocument->id);
                                     $existingBordereaux = $dossierDocument ? $dossierDocument->bordereau : collect();
-
-                                    // Pré-remplir avec les désignations et prix unitaires du bordereau de prix unitaire si aucun bordereau programme n'existe
-                                    $existingBordereauxEmpty = is_array($existingBordereaux)
-                                        ? empty($existingBordereaux)
-                                        : (is_object($existingBordereaux) && method_exists($existingBordereaux, 'isEmpty') ? $existingBordereaux->isEmpty() : empty($existingBordereaux));
-                                    if ($existingBordereauxEmpty) {
-                                        $bordereauPrixDoc = $dossier->documents->firstWhere('typeDocument.nom', 'Bordereau prix unitaire');
-                                        $bordereauPrixBordereaux = $bordereauPrixDoc ? $bordereauPrixDoc->bordereau : collect();
-
-                                        if ($bordereauPrixBordereaux->count() > 0) {
-                                            $existingBordereaux = $bordereauPrixBordereaux->map(function ($bordereau) {
-                                                return [
-                                                    'titre' => $bordereau->titre,
-                                                    'lignes' => $bordereau->lignes->map(function ($ligne) {
-                                                        return [
-                                                            'designation' => $ligne->designation,
-                                                            'unite_physique' => '',
-                                                            'quantite' => 1,
-                                                            'prix_unitaire' => $ligne->prix_unitaire,
-                                                            'montant' => '',
-                                                            'site' => '',
-                                                            'date_prestation' => '',
-                                                        ];
-                                                    })->toArray(),
-                                                ];
-                                            })->toArray();
-                                        }
-                                    }
                                 @endphp
 
-                                @include('documents.partials.programme_form_step6', ['bordereaux' => $existingBordereaux, 'docId' => $currentDocument->id])
+                                @include('documents.partials.programme_form_step6', ['bordereaux' => $existingBordereaux, 'docId' => $currentDocument->id, 'prefillSections' => $sharedDesignationPrefill->toArray()])
+                            @elseif(trim($currentDocument->nom) === 'Plan de charge')
+                                @php
+                                    $dossierDocument = $dossier->documents->firstWhere('type_document_id', $currentDocument->id);
+                                @endphp
+                                @include('documents.partials.plan_charge_form_step6', ['dossier' => $dossier, 'docId' => $currentDocument->id, 'dossierDocument' => $dossierDocument])
                             @elseif(trim($currentDocument->nom) === 'Méthodes d\'exécution')
                                 @php
                                     $dossierDocument = $dossier->documents->firstWhere('type_document_id', $currentDocument->id);
                                     $existingBordereaux = $dossierDocument ? $dossierDocument->bordereau : collect();
-
-                                    // Pré-remplir avec les désignations, prix unitaires et quantités du Programme d'activités si vide
-                                    $existingBordereauxEmpty = is_array($existingBordereaux)
-                                        ? empty($existingBordereaux)
-                                        : (is_object($existingBordereaux) && method_exists($existingBordereaux, 'isEmpty') ? $existingBordereaux->isEmpty() : empty($existingBordereaux));
-                                    if ($existingBordereauxEmpty) {
-                                        $programmDoc = $dossier->documents->firstWhere('typeDocument.nom', 'Programme d\'activités');
-                                        $programmBordereaux = $programmDoc ? $programmDoc->bordereau : collect();
-
-                                        if ($programmBordereaux->count() > 0) {
-                                            $existingBordereaux = $programmBordereaux->map(function ($bordereau) {
-                                                return [
-                                                    'titre' => $bordereau->titre,
-                                                    'lignes' => $bordereau->lignes->map(function ($ligne) {
-                                                        return [
-                                                            'designation' => $ligne->designation,
-                                                            'prix_unitaire' => $ligne->prix_unitaire,
-                                                            'quantite' => $ligne->quantite,
-                                                            'date_prestation' => '',
-                                                        ];
-                                                    })->toArray(),
-                                                ];
-                                            })->toArray();
-                                        }
-                                    }
                                 @endphp
 
-                                @include('documents.partials.methodes_form_step6', ['bordereaux' => $existingBordereaux, 'docId' => $currentDocument->id])
+                                @include('documents.partials.methodes_form_step6', ['bordereaux' => $existingBordereaux, 'docId' => $currentDocument->id, 'prefillSections' => $sharedDesignationPrefill->toArray()])
                             @elseif(trim($currentDocument->nom) === 'Calendrier d\'exécution')
                                 @php
                                     $dossierDocument = $dossier->documents->firstWhere('type_document_id', $currentDocument->id);
                                     $existingBordereaux = $dossierDocument ? $dossierDocument->bordereau : collect();
-
-                                    // Pré-remplir avec les désignations, prix unitaires et quantités des Méthodes d'exécution si vide
-                                    $existingBordereauxEmpty = is_array($existingBordereaux)
-                                        ? empty($existingBordereaux)
-                                        : (is_object($existingBordereaux) && method_exists($existingBordereaux, 'isEmpty') ? $existingBordereaux->isEmpty() : empty($existingBordereaux));
-                                    if ($existingBordereauxEmpty) {
-                                        $methodesDoc = $dossier->documents->firstWhere('typeDocument.nom', 'Méthodes d\'exécution');
-                                        $methodesBordereaux = $methodesDoc ? $methodesDoc->bordereau : collect();
-
-                                        if ($methodesBordereaux->count() > 0) {
-                                            $existingBordereaux = $methodesBordereaux->map(function ($bordereau) {
-                                                return [
-                                                    'titre' => $bordereau->titre,
-                                                    'lignes' => $bordereau->lignes->map(function ($ligne) {
-                                                        return [
-                                                            'designation' => $ligne->designation,
-                                                            'prix_unitaire' => $ligne->prix_unitaire,
-                                                            'quantite' => (float) ($ligne->quantite ?? 1),
-                                                            'date_prestation' => $ligne->date_prestation ?? '',
-                                                        ];
-                                                    })->toArray(),
-                                                ];
-                                            })->toArray();
-                                        }
-                                    }
-
-                                    if ((is_array($existingBordereaux) && empty($existingBordereaux)) || (is_object($existingBordereaux) && method_exists($existingBordereaux, 'isEmpty') && $existingBordereaux->isEmpty())) {
-                                        $programmeDoc = $dossier->documents->firstWhere('typeDocument.nom', 'Programme d\'activités');
-                                        $programmeBordereaux = $programmeDoc ? $programmeDoc->bordereau : collect();
-
-                                        if ($programmeBordereaux->count() > 0) {
-                                            $existingBordereaux = $programmeBordereaux->map(function ($bordereau) {
-                                                return [
-                                                    'titre' => $bordereau->titre,
-                                                    'lignes' => $bordereau->lignes->map(function ($ligne) {
-                                                        return [
-                                                            'designation' => $ligne->designation,
-                                                            'prix_unitaire' => $ligne->prix_unitaire,
-                                                            'quantite' => (float) ($ligne->quantite ?? 1),
-                                                            'date_prestation' => $ligne->date_prestation ?? '',
-                                                        ];
-                                                    })->toArray(),
-                                                ];
-                                            })->toArray();
-                                        }
-                                    }
                                 @endphp
 
-                                @include('documents.partials.calendrier_form_step6', ['bordereaux' => $existingBordereaux, 'docId' => $currentDocument->id])
-                            @elseif(trim($currentDocument->nom) === 'Description technique des services')
+                                @include('documents.partials.calendrier_form_step6', ['bordereaux' => $existingBordereaux, 'docId' => $currentDocument->id, 'prefillSections' => $sharedDesignationPrefill->toArray()])
+                            @elseif(trim($currentDocument->nom) === 'Description technique des fournitures/services')
                                 @php
                                     $dossierDocument = $dossier->documents->firstWhere('type_document_id', $currentDocument->id);
                                     $existingBordereaux = $dossierDocument ? $dossierDocument->bordereau : collect();
-
-                                    // Pré-remplir avec les désignations du Programme d'activités si vide
-                                    if ((is_array($existingBordereaux) && empty($existingBordereaux)) || (is_object($existingBordereaux) && method_exists($existingBordereaux, 'isEmpty') && $existingBordereaux->isEmpty())) {
-                                        $programmeDoc = $dossier->documents->firstWhere('typeDocument.nom', 'Programme d\'activités');
-                                        $programmeBordereaux = $programmeDoc ? $programmeDoc->bordereau : collect();
-
-                                        if ($programmeBordereaux->count() > 0) {
-                                            $existingBordereaux = $programmeBordereaux->map(function ($bordereau) {
-                                                return [
-                                                    'titre' => $bordereau->titre,
-                                                    'lignes' => $bordereau->lignes->map(function ($ligne) {
-                                                        return [
-                                                            'designation' => $ligne->designation,
-                                                            'specifications_techniques' => '',
-                                                            'specifications_obligatoires' => '',
-                                                            'specifications_proposees' => '',
-                                                        ];
-                                                    })->toArray(),
-                                                ];
-                                            })->toArray();
-                                        }
-                                    }
                                 @endphp
 
-                                @include('documents.partials.description_technique_form_step6', ['bordereaux' => $existingBordereaux, 'docId' => $currentDocument->id])
+                                @include('documents.partials.description_technique_form_step6', ['bordereaux' => $existingBordereaux, 'docId' => $currentDocument->id, 'prefillSections' => $sharedDesignationPrefill->toArray()])
                             @elseif(trim($currentDocument->nom) === 'Bordereau des prix pour les fournitures à importer')
                                 @php
                                     $dossierDocument = $dossier->documents->firstWhere('type_document_id', $currentDocument->id);
                                     $existingBordereaux = $dossierDocument ? $dossierDocument->bordereau : collect();
                                 @endphp
 
-                                @include('documents.partials.bordereau_fournitures_importer_form_step6', ['bordereaux' => $existingBordereaux, 'docId' => $currentDocument->id])
+                                @include('documents.partials.bordereau_fournitures_importer_form_step6', ['bordereaux' => $existingBordereaux, 'docId' => $currentDocument->id, 'prefillSections' => $sharedDesignationPrefill->toArray()])
+                            @elseif(trim($currentDocument->nom) === 'Bordereau des prix des fournitures, déjà importées')
+                                @php
+                                    $dossierDocument = $dossier->documents->firstWhere('type_document_id', $currentDocument->id);
+                                    $existingBordereaux = $dossierDocument ? $dossierDocument->bordereau : collect();
+                                @endphp
+
+                                @include('documents.partials.bordereau_fournitures_deja_importees_form_step6', ['bordereaux' => $existingBordereaux, 'docId' => $currentDocument->id, 'prefillSections' => $sharedDesignationPrefill->toArray()])
+                            @elseif(trim($currentDocument->nom) === 'Bordereau des prix pour les fournitures fabriquées au Bénin')
+                                @php
+                                    $dossierDocument = $dossier->documents->firstWhere('type_document_id', $currentDocument->id);
+                                    $existingBordereaux = $dossierDocument ? $dossierDocument->bordereau : collect();
+                                @endphp
+
+                                @include('documents.partials.bordereau_fournitures_benin_form_step6', ['bordereaux' => $existingBordereaux, 'docId' => $currentDocument->id, 'prefillSections' => $sharedDesignationPrefill->toArray()])
                             @elseif(trim($currentDocument->nom) === 'Bordereau des prix et calendrier d\'exécution des services connexes')
                                 @php
                                     $dossierDocument = $dossier->documents->firstWhere('type_document_id', $currentDocument->id);
                                     $existingBordereaux = $dossierDocument ? $dossierDocument->bordereau : collect();
                                 @endphp
 
-                                @include('documents.partials.bordereau_prix_calendrier_form_step6', ['bordereaux' => $existingBordereaux, 'docId' => $currentDocument->id])
+                                @include('documents.partials.bordereau_prix_calendrier_form_step6', ['bordereaux' => $existingBordereaux, 'docId' => $currentDocument->id, 'prefillSections' => $sharedDesignationPrefill->toArray()])
                             @elseif(trim($currentDocument->nom) === 'Listes des services connexes et calendrier de réalisation')
                                 @php
                                     $dossierDocument = $dossier->documents->firstWhere('type_document_id', $currentDocument->id);
                                     $existingBordereaux = $dossierDocument ? $dossierDocument->bordereau : collect();
                                 @endphp
 
-                                @include('documents.partials.listes_services_connexes_form_step6', ['bordereaux' => $existingBordereaux, 'docId' => $currentDocument->id])
+                                @include('documents.partials.listes_services_connexes_form_step6', ['bordereaux' => $existingBordereaux, 'docId' => $currentDocument->id, 'prefillSections' => $sharedDesignationPrefill->toArray()])
                             @elseif(trim($currentDocument->nom) === 'Listes des Fournitures et Calendrier de livraison')
                                 @php
                                     $dossierDocument = $dossier->documents->firstWhere('type_document_id', $currentDocument->id);
                                     $existingBordereaux = $dossierDocument ? $dossierDocument->bordereau : collect();
                                 @endphp
 
-                                @include('documents.partials.listes_fournitures_calendrier_livraison_form_step6', ['bordereaux' => $existingBordereaux, 'docId' => $currentDocument->id])
+                                @include('documents.partials.listes_fournitures_calendrier_livraison_form_step6', ['bordereaux' => $existingBordereaux, 'docId' => $currentDocument->id, 'prefillSections' => $sharedDesignationPrefill->toArray()])
                             @elseif(trim($currentDocument->nom) === 'Tableau de résumé des bordereaux de prix')
                                 @php
                                     $dossierDocument = $dossier->documents->firstWhere('type_document_id', $currentDocument->id);
@@ -644,14 +678,29 @@
                                     $existingBordereaux = $dossierDocument ? $dossierDocument->bordereau : collect();
                                 @endphp
 
-                                @include('documents.partials.cadres_sous_details_prix_unitaire_form_step6', ['bordereaux' => $existingBordereaux, 'docId' => $currentDocument->id])
+                                @include('documents.partials.cadres_sous_details_prix_unitaire_form_step6', ['bordereaux' => $existingBordereaux, 'docId' => $currentDocument->id, 'prefillSections' => $sharedDesignationPrefill->toArray()])
                             @elseif($currentDocument->type_formulaire === 'bordereau' || trim($currentDocument->nom) === 'Bordereau prix unitaire')
                                 @php
                                     $dossierDocument = $dossier->documents->firstWhere('type_document_id', $currentDocument->id);
                                     $existingBordereaux = $dossierDocument ? $dossierDocument->bordereau : collect();
                                 @endphp
 
-                                @include('documents.partials.bordereau_form_step6', ['bordereaux' => $existingBordereaux, 'docId' => $currentDocument->id])
+                                @include('documents.partials.bordereau_form_step6', ['bordereaux' => $existingBordereaux, 'docId' => $currentDocument->id, 'prefillSections' => $sharedDesignationPrefill->toArray()])
+                            @elseif(trim($currentDocument->nom) === 'Engagement du soumissionnaire à respecter le code d\'éthique et de déontologie')
+                                @php
+                                    $dossierDocument = $dossier->documents->firstWhere('type_document_id', $currentDocument->id);
+                                    $existingContent = $dossierDocument ? $dossierDocument->content : '';
+                                @endphp
+
+                                @include('documents.partials.engagement_ethique_form_step6', ['docId' => $currentDocument->id, 'existingContent' => $existingContent])
+
+                            @elseif($currentDocument->type_formulaire === 'libre')
+                                @php
+                                    $dossierDocument = $dossier->documents->firstWhere('type_document_id', $currentDocument->id);
+                                @endphp
+
+                                @include('documents.partials.document_libre_form_step6', ['docId' => $currentDocument->id, 'dossierDocument' => $dossierDocument])
+
                             @else
                                 @php
                                     $dossierDocument = $dossier->documents->firstWhere('type_document_id', $currentDocument->id);
@@ -659,6 +708,12 @@
                                 @endphp
 
                                 <label class="wizard-label" for="fichier_{{ $currentDocument->id }}">Fichiers à téléverser</label>
+
+                                @if(trim($currentDocument->nom) === "RCCM" && $existingFiles && $existingFiles->count() > 0)
+                                    <div class="wizard-alert" style="margin-bottom:8px">
+                                        Le registre de commerce téléversé lors de la création de l'entreprise a été ajouté automatiquement. Vous pouvez le supprimer et téléverser un autre document si besoin.
+                                    </div>
+                                @endif
 
                                 @if($existingFiles && $existingFiles->count() > 0)
                                     <div style="margin-bottom:8px">

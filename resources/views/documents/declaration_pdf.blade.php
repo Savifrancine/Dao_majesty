@@ -25,7 +25,9 @@
         $fonction = $fonction ?? '';
         $reference = $reference ?? '';
     @endphp
-    
+
+    @include('documents.partials.majesty_header', ['entreprise' => $entreprise ?? null])
+
     <div class="page">
         <div class="date-box">Date : {{ $date }}</div>
         

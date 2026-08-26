@@ -20,6 +20,7 @@
                     <th>Nom</th>
                     <th>Prénom</th>
                     <th>Fonction</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -28,6 +29,15 @@
                         <td>{{ $s->nom }}</td>
                         <td>{{ $s->prenom ?? '-' }}</td>
                         <td>{{ $s->fonction ?? '-' }}</td>
+                        <td>
+                            <a href="{{ route('signataires.edit', $s) }}" class="btn btn-secondary btn-sm">Modifier</a>
+
+                            <form action="{{ route('signataires.destroy', $s) }}" method="POST" style="display:inline-block; margin-left:6px;" onsubmit="return confirm('Confirmer la suppression ?');">
+                                @csrf
+                                @method('DELETE')
+                                <button class="btn btn-danger btn-sm">Supprimer</button>
+                            </form>
+                        </td>
                     </tr>
                 @endforeach
             </tbody>

@@ -16,7 +16,7 @@
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
             <div><strong>Nom du candidat :</strong><br>{{ $dossier->entreprise->nom }}</div>
             <div><strong>Pays :</strong><br>{{ $dossier->entreprise->pays ?? 'N/A' }}</div>
-            <div><strong>Numéro d'identification :</strong><br>{{ $dossier->entreprise->ifu ?? 'N/A' }}</div>
+            <div><strong>Numéro d'identification :</strong><br>{{ $dossier->entreprise->rccm ?? 'N/A' }}</div>
             <div><strong>Année d'enregistrement :</strong><br>{{ $dossier->entreprise->annee_enregistrement ?? 'N/A' }}</div>
             <div style="grid-column: span 2;"><strong>Adresse officielle :</strong><br>{{ $dossier->entreprise->adresse_officielle ?? $dossier->entreprise->adresse ?? 'N/A' }}</div>
             <div><strong>Responsable :</strong><br>{{ $dossier->entreprise->responsable ?? 'N/A' }}</div>

@@ -27,6 +27,10 @@
             }
         }
 
+        if (empty($oldSections) && !empty($prefillSections)) {
+            $oldSections = $prefillSections;
+        }
+
         if (empty($oldSections)) {
             $oldSections = [
                 ['titre' => '', 'lignes' => [
@@ -36,8 +40,10 @@
         }
     @endphp
 
-    <div class="mb-3">
+    <div class="mb-3" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
         <button type="button" id="addCadreSection" class="btn btn-secondary">Ajouter un tableau</button>
+        <button type="button" id="importTableauBtn" class="btn btn-outline-secondary">Importer depuis un fichier (Excel/CSV)</button>
+        <span id="importTableauStatus" style="font-size:0.8rem;"></span>
     </div>
 
     <div id="cadreSections">
@@ -281,6 +287,27 @@
                 });
             });
             updateSectionIndexes();
+
+            if (window.DaoTableImport) {
+                window.DaoTableImport.setup({
+                    buttonId: 'importTableauBtn',
+                    statusId: 'importTableauStatus',
+                    sectionsContainerId: 'cadreSections',
+                    sectionSelector: '.cadre-section',
+                    linesSelector: '.cadre-lines',
+                    addLineButtonSelector: '.addCadreLine',
+                    importUrl: '{{ route('dossiers.importTableau') }}',
+                    fieldSynonyms: {
+                        designation: ['description', 'designation', 'objet'],
+                        unite: ['unit', 'unite'],
+                        total_materiel: ['total materiel'],
+                        location_amort: ['location amort'],
+                        matiere_frais: ['matiere et frais', 'matiere frais'],
+                        main_oeuvre: ['main d oeuvre', 'main oeuvre'],
+                        prix_vente_htva: ['prix de vente htva', 'prix vente htva'],
+                    },
+                });
+            }
         })();
     </script>
 </div>

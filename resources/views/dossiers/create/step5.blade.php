@@ -425,46 +425,94 @@
                     </select>
                 </div>
 
+                <div class="wizard-field" style="margin-bottom:16px;">
+                    <label for="documentSearch" class="wizard-label">Rechercher un document</label>
+                    <input id="documentSearch" type="search" class="form-control wizard-input" placeholder="Rechercher un document...">
+                </div>
+
                 @php
                     $docsByName = $documents->keyBy('nom');
+                    $selectedTypeIds = $selectedTypeIds ?? [];
                     $pieceNames = [
                         "Déclaration de garantie d'offre",
+                        "Formulaire de qualification",
                         "Lettre de soumission",
                         "RCCM",
-                        "Copie legalisee de l'Extrait du RCCM",
+                        "Relevé d'identité bancaire (RIB)",
+                        "Formulaire de divulgation des bénéficiaires effectifs",
+                        "Pièce d'identité du premier responsable",
+                        "Déclaration de l'autorité contractante",
+                        "Déclaration des Conflits d'Intérêts",
+                        "Procuration spéciale",
+                        "Fiche technique de chaque article, délivrée par le fabricant",
+                        "Copie de l'arrêté du Ministre de la Santé portant autorisation d'importation, de détention et de vente des équipements médicaux",
+                        "Attestation d'identification de statut",
+                        "Attestation de visite de site",
+                        "Attestation de bonne fin",
+                        "Bon de commande et contrats",
+                        "Preuves de propriété des matériels adéquats nécessaire à la bonne exécution du marché",
+                        "Attestation / Preuve de vente des équipements ou des pièces de recharge",
+                        "Attestation / Certificat de formation ou de qualifications en maintenance(sur au moins une équipements)",
+                        "Etats financiers certifiés",
+                        "Attestation de capacité financière",
                         "Copie legalisee de l'Identifiant Fiscal Unique (IFU)",
                         "Attestation de non-faillite datant de moins de trois (03) mois",
                         "Attestation d'imposition ou de situation fiscale en cours de validite",
                         "Attestation de regularite a la CNSS",
-                        "Formulaire de renseignements sur le candidat",
+                        "Formulaire ELI – 1.1 : Formulaire de renseignements sur le candidat",
+                        "Formulaire FIN – 3.1 Situation financière",
+                        "Formulaire FIN 3.3",
+                        "Formulaire FIN 3.4 (a) Modèle d'attestation de capacité financière",
+                        "Formulaire FIN 3.4 (b) Modèle de lettre de confirmation de la capacité financière",
+                        "Formulaire MTC/FIN – 3.5 : Marchés de fournitures/services en cours",
+                        "Formulaire EXP – 4.1 : Expérience générale de fournitures/services",
+                        "Formulaire EXP – 4.2 a) Expérience spécifique de fournitures/services",
+                        "Formulaire EXP – 4.2 a) (suite) Expérience spécifique de fournitures/services dans les activités principales (suite)",
+                        "Formulaire EXP – 4.2 b)  Expérience spécifique de fournitures",
+                        "Formulaire EXP – 4.2 b) (suite) Expérience spécifique de fournitures/services dans les activités principales (suite)",
+                        "Formulaire ANT-2 : Formulaire renseignant sur les antécédents de marchés non exécutés, de litiges en instance et d'antécédents de litiges",
                         "Formulaire MAT",
                         "Formulaire PER",
                         "Liste du personnel affecté à l'exécution du marché",
                         "Chiffre d'affaires annuel moyen des activités de services",
                         "Attestation de non-exclusion de la commande publique",
                         "Engagement du soumissionnaire à respecter le code d'éthique et de déontologie",
+                        "Engagement a respecter le code d'ethique et de deontologie de la commande publique",
                         "Attestation de non-condamnation pour fraude, corruption ou fausse declaration",
                         "Attestation de nationalite ou document de constitution legale de l'entreprise",
                         "Statuts de la societe et PV de nomination du gerant",
                         "Copie du quitus fiscal",
                         "Attestation de situation reguliere vis-a-vis des organismes de credit",
                         "Bordereau prix unitaire",
+                        "Bordereau des prix unitaires pour les prestations de services",
                         "Bordereau des prix pour les fournitures à importer",
+                        "Bordereau des prix des fournitures, déjà importées",
+                        "Bordereau des prix pour les fournitures fabriquées au Bénin",
                         "Bordereau des prix et calendrier d'exécution des services connexes",
                         "Listes des services connexes et calendrier de réalisation",
                         "Listes des Fournitures et Calendrier de livraison",
                         "Tableau de résumé des bordereaux de prix",
                         "Cadres de sous détails des prix unitaire",
                         "Programme d'activités",
+                        "Plan de charge",
                         "Méthodes d'exécution",
                         "Calendrier d'exécution",
-                        "Description technique des services",
+                        "Description technique des fournitures/services",
                     ];
+
+                    $pieceNames = array_values(array_unique(array_merge(
+                        $pieceNames,
+                        App\Models\TypeDocument::whereIn('type_formulaire', ['libre', 'fichier'])->pluck('nom')->all()
+                    )));
                 @endphp
 
                 <div>
                     @foreach($pieceNames as $pieceName)
-                        @php $doc = $docsByName->get($pieceName); @endphp
+                        @php
+                            $doc = $docsByName->get($pieceName);
+                            $isSelected = $doc && in_array($doc->id, $selectedTypeIds, true);
+                        @endphp
+                        @continue($isSelected)
                         <label class="doc-option" for="doc_{{ $doc?->id ?? Str::slug($pieceName) }}">
                             <div class="checkbox-wrapper">
                                 <input
@@ -496,7 +544,7 @@
                     @endforeach
                 </div>
 
-                
+
 
                 <div id="selectedList" class="wizard-alert" style="display: none; margin-top: 16px;">
                     <strong>Pieces selectionnees :</strong>
@@ -517,6 +565,8 @@ const checkboxes = document.querySelectorAll('input[name="documents[]"]');
 const selectedList = document.getElementById('selectedList');
 const documentsList = document.getElementById('documentsList');
 const continueBtn = document.getElementById('continueBtn');
+const searchInput = document.getElementById('documentSearch');
+const docOptions = Array.from(document.querySelectorAll('.doc-option'));
 
 function updateList() {
     const selected = Array.from(checkboxes)
@@ -542,6 +592,18 @@ function updateList() {
     }
 }
 
+function updateSearch() {
+    const query = searchInput.value.trim().toLowerCase();
+
+    docOptions.forEach(option => {
+        const title = option.querySelector('.doc-title')?.textContent.trim().toLowerCase() ?? '';
+        const meta = option.querySelector('.doc-meta')?.textContent.trim().toLowerCase() ?? '';
+        const matches = title.includes(query) || meta.includes(query);
+        option.style.display = matches ? 'flex' : 'none';
+    });
+}
+
 checkboxes.forEach(cb => cb.addEventListener('change', updateList));
+searchInput.addEventListener('input', updateSearch);
 </script>
 @endsection

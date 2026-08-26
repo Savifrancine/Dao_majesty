@@ -420,6 +420,36 @@
                 </div>
 
                 <div class="row">
+                    <div class="col-md-6">
+                        <div class="wizard-field">
+                            <label for="reference_step" class="wizard-label">Ref STEP</label>
+                            <input type="text" name="reference_step" id="reference_step" class="form-control wizard-input" value="{{ old('reference_step') }}">
+                        </div>
+
+                        <div class="wizard-field">
+                            <label for="source_financement" class="wizard-label">Source de financement</label>
+                            <input type="text" name="source_financement" id="source_financement" class="form-control wizard-input" value="{{ old('source_financement') }}">
+                        </div>
+
+                        <div class="wizard-field">
+                            <label for="gestion" class="wizard-label">Gestion</label>
+                            <input type="text" name="gestion" id="gestion" class="form-control wizard-input" value="{{ old('gestion') }}">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="wizard-field">
+                            <label for="imputation_budgetaire" class="wizard-label">Imputation Budgétaire</label>
+                            <input type="text" name="imputation_budgetaire" id="imputation_budgetaire" class="form-control wizard-input" value="{{ old('imputation_budgetaire') }}">
+                        </div>
+
+                        <div class="wizard-field">
+                            <label for="accord_pret" class="wizard-label">Accord de Prêt</label>
+                            <input type="text" name="accord_pret" id="accord_pret" class="form-control wizard-input" value="{{ old('accord_pret') }}">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
                     <div class="col-md-12">
                         <div class="wizard-field">
                             <label for="type_offre" class="wizard-label">Type d'offres</label>
@@ -453,13 +483,34 @@
                     <div class="col-md-6">
                         <div class="wizard-field">
                             <label for="mois_depot" class="wizard-label">Mois de depot</label>
-                            <input type="text" name="mois_depot" id="mois_depot" class="form-control wizard-input" value="{{ old('mois_depot') }}" placeholder="Ex: Septembre">
+                            @php
+                                $moisListe = [
+                                    'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+                                    'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre',
+                                ];
+                                $selectedMois = old('mois_depot');
+                            @endphp
+                            <select name="mois_depot" id="mois_depot" class="form-control wizard-input">
+                                <option value="">-- Sélectionner --</option>
+                                @foreach($moisListe as $moisOption)
+                                    <option value="{{ $moisOption }}" @selected($selectedMois === $moisOption)>{{ $moisOption }}</option>
+                                @endforeach
+                            </select>
                         </div>
                     </div>
                     <div class="col-md-6">
                         <div class="wizard-field">
                             <label for="annee_depot" class="wizard-label">Annee de depot</label>
-                            <input type="number" name="annee_depot" id="annee_depot" class="form-control wizard-input" value="{{ old('annee_depot') }}" placeholder="2025">
+                            @php
+                                $anneeBaseDepot = (int) now()->format('Y');
+                                $selectedAnneeDepot = old('annee_depot');
+                            @endphp
+                            <select name="annee_depot" id="annee_depot" class="form-control wizard-input">
+                                <option value="">-- Sélectionner --</option>
+                                @for($anneeOption = $anneeBaseDepot - 1; $anneeOption <= $anneeBaseDepot + 5; $anneeOption++)
+                                    <option value="{{ $anneeOption }}" @selected((string) $selectedAnneeDepot === (string) $anneeOption)>{{ $anneeOption }}</option>
+                                @endfor
+                            </select>
                         </div>
                     </div>
                 </div>

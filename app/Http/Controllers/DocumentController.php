@@ -85,7 +85,7 @@ class DocumentController extends Controller
             'nom_candidat' => $entreprise?->nom ?? 'MAJESTY SERVICES ET EQUIPEMENTS SARL',
             'groupement_membres' => '',
             'pays_candidat' => $entreprise?->pays ?? 'Benin',
-            'identification_nationale' => $entreprise?->ifu ?? '22339447666',
+            'identification_nationale' => $entreprise?->rccm ?? '22339447666',
             'annee_enregistrement' => $entreprise?->annee_enregistrement ?? '',
             'adresse_officielle' => $entreprise?->adresse_officielle ?? $entreprise?->adresse ?? 'kohebo',
             'nom_representant' => $entreprise?->responsable ?? 'Onésime Tchaby',
@@ -102,57 +102,61 @@ class DocumentController extends Controller
     }
 
     /**
-     * Aperçu HTML d'un document du dossier (DossierDocument).
-     * Récupère les données du document et affiche la preview selon son type.
+     * Aperçu d'un document du dossier (DossierDocument).
+     *
+     * Les pièces "fichier téléversé" (RCCM, attestations, etc.) ouvrent
+     * directement le fichier joint. Les documents générés (formulaires,
+     * bordereaux, déclarations...) sont rendus avec exactement le même
+     * gabarit que celui utilisé pour le PDF final du dossier, afin que
+     * l'aperçu corresponde toujours au document réel.
      */
     public function previewDocument(\App\Models\DossierDocument $document)
     {
-        $dossier = $document->dossier;
+        $document->load(['typeDocument.champs', 'bordereau.lignes', 'valeurs', 'fichiers']);
         $typeDoc = $document->typeDocument;
-        $entreprise = $dossier?->entreprise ?? null;
 
         if (!$typeDoc) {
             return abort(404, 'Type de document non trouvé');
         }
 
-        // Selon le type, charger les données appropriées
-        if ($typeDoc->nom === 'Formulaire de renseignements sur le candidat') {
-            $pdfData = [
-                'nom_candidat' => $entreprise?->nom ?? 'MAJESTY SERVICES ET EQUIPEMENTS SARL',
-                'groupement_membres' => '',
-                'pays_candidat' => $entreprise?->pays ?? 'Benin',
-                'identification_nationale' => $entreprise?->ifu ?? '22339447666',
-                'annee_enregistrement' => $entreprise?->annee_enregistrement ?? '',
-                'adresse_officielle' => $entreprise?->adresse_officielle ?? $entreprise?->adresse ?? 'kohebo',
-                'nom_representant' => $entreprise?->responsable ?? 'Onésime Tchaby',
-                'fonction_representant' => $entreprise?->fonction_responsable ?? 'PDG',
-                'adresse_representant' => '',
-                'telephone_representant' => $entreprise?->telephone ?? '0179779797',
-                'email_representant' => $entreprise?->email ?? '-',
-                'dossier' => $dossier,
-                'entreprise' => $entreprise,
-                'drp_number' => $dossier?->ref ?? 'S_DLCSSA_' . str_pad($dossier?->id ?? 0, 6, '0', STR_PAD_LEFT),
-            ];
-            return view('documents.formulaire_renseignements_candidat_pdf', $pdfData);
-        }
-        
-        if ($typeDoc->nom === 'Déclaration de garantie') {
-            $pdfData = [
-                'societe' => $entreprise?->nom ?? 'Société',
-                'date' => now()->format('Y-m-d'),
-                'declarant' => $entreprise?->responsable ?? 'Déclarant',
-                'fonction' => $entreprise?->fonction_responsable ?? 'Fonction',
-                'reference' => $dossier?->ref ?? '',
-                'signatureDataUri' => null,
-            ];
-            return view('documents.declaration_pdf', $pdfData);
+        if (\App\Models\TypeDocument::isUploadOnlyName($typeDoc->nom, $typeDoc->type_formulaire)) {
+            $file = $document->fichiers()->latest()->first();
+            if ($file && !empty($file->chemin_fichier)) {
+                $path = storage_path('app/public/' . $file->chemin_fichier);
+                if (file_exists($path)) {
+                    return response()->file($path);
+                }
+            }
+
+            return view('documents.preview_generic', [
+                'document' => $document,
+                'typeDoc' => $typeDoc,
+                'message' => 'Aucun fichier joint pour ce document.',
+            ]);
         }
 
-        // Pour les autres types, afficher un message
-        return view('documents.preview_generic', [
-            'document' => $document,
-            'typeDoc' => $typeDoc,
-            'message' => 'Aperçu du document : ' . $typeDoc->nom
-        ]);
+        $dossier = \App\Models\Dossier::with(['entreprise', 'signataires', 'typeDossier'])
+            ->find($document->dossier_id);
+        $pageGardeDataUri = null;
+
+        $html = view('dossiers.pdf', compact('dossier', 'pageGardeDataUri'))->with([
+            'documents' => collect([$document]),
+            'renderMode' => 'doc',
+        ])->render();
+
+        $orientation = \App\Models\TypeDocument::isLandscapeTableName($typeDoc->nom) ? 'landscape' : 'portrait';
+
+        try {
+            $dompdf = new Dompdf(['isRemoteEnabled' => true]);
+            $dompdf->loadHtml($html);
+            $dompdf->setPaper('A4', $orientation);
+            $dompdf->render();
+
+            return response($dompdf->output(), 200)
+                ->header('Content-Type', 'application/pdf')
+                ->header('Content-Disposition', 'inline; filename="apercu.pdf"');
+        } catch (\Throwable $e) {
+            return response($html)->header('Content-Type', 'text/html');
+        }
     }
 }

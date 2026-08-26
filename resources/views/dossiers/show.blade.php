@@ -495,7 +495,10 @@
             @endif
 
             <div class="section-card">
-                <div class="section-title">Informations du dossier</div>
+                <div class="section-header">
+                    <div class="section-title">Informations du dossier</div>
+                    <a href="{{ route('dossiers.editInfos', $dossier) }}" class="btn-action" style="background-color: #3b82f6; color: white;">✎ Modifier les informations</a>
+                </div>
                 <div class="info-grid">
                     <div class="info-item"><strong>Nom:</strong> {{ $dossier->nom_dossier }}</div>
                     <div class="info-item"><strong>Type:</strong> {{ $dossier->typeDossier->nom }}</div>
@@ -590,7 +593,7 @@
                             <tbody>
                                 @php
                                     $uploadable = $dossier->documents->filter(function($dd){
-                                        return $dd->typeDocument && $dd->typeDocument->nom !== 'Lettre de soumission';
+                                        return $dd->typeDocument;
                                     })->sortBy('ordre')->values();
                                     $uploadableTypeIds = $uploadable->pluck('type_document_id');
                                 @endphp

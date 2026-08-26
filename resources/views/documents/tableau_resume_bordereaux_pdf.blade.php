@@ -12,6 +12,8 @@
     </style>
     </head>
 <body>
+    @include('documents.partials.majesty_header', ['entreprise' => $entreprise ?? null])
+
     <h3 style="text-align:center;">TABLEAU DE RESUME DES BORDEREAUX DE PRIX</h3>
     <br>
     <table>

@@ -13,6 +13,7 @@ class Bordereau extends Model
     protected $fillable = [
         'dossier_document_id',
         'titre',
+        'designation_label',
         'column_defs',
     ];
 

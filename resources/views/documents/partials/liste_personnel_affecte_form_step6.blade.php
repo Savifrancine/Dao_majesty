@@ -1,7 +1,7 @@
 <div id="liste-personnel-step6">
-    <div class="wizard-field" style="margin-bottom: 18px;">
+    <div class="wizard-field" style="margin-bottom: 12px;">
         <p class="wizard-label">Liste du personnel affecté à l'exécution du marché</p>
-        <p style="font-size:0.95rem;color:#475569;">Ajoutez le personnel avec le poste et le nom. Vous pouvez ajouter jusqu'à 8 lignes.</p>
+        <p style="font-size:0.95rem;color:#475569;">Saisissez la désignation du poste puis le nom. Utilisez le bouton pour ajouter/supprimer des lignes.</p>
     </div>
 
     @php
@@ -19,70 +19,101 @@
         }
     @endphp
 
-    <div id="personnelRows" style="display:grid; gap:12px;">
-        @foreach(range(1, max(6, count($existingPersonnel))) as $index)
+    <div id="personnelRows" style="display:flex; flex-direction:column; gap:12px;">
+        @foreach(range(1, max(3, count($existingPersonnel))) as $index)
             @php
                 $row = $existingPersonnel[$index - 1] ?? ['poste' => '', 'nom' => ''];
             @endphp
-            <div class="card mb-3 personnel-row" style="padding:16px;">
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <label class="wizard-label" for="personnel_{{ $index }}_poste">Poste</label>
-                        <input type="text" id="personnel_{{ $index }}_poste" name="personnel[{{ $index }}][poste]" class="form-control wizard-input" value="{{ old('personnel.' . $index . '.poste', $row['poste']) }}">
+            <div class="personnel-row-box" style="border:1px solid #000; padding:10px; display:flex; gap:12px; align-items:flex-start;">
+                <div style="width:40px; text-align:center; font-weight:700;">{{ $index }}.</div>
+                <div style="flex:1;">
+                    <div style="font-weight:700;">
+                        Désignation du poste :
+                        <input type="text" name="personnel[{{ $index }}][poste]" value="{{ old('personnel.' . $index . '.poste', $row['poste']) }}" class="form-control" style="display:inline-block; width:70%; border:none; border-bottom:1px solid #000; padding:2px 6px; margin-left:8px;">
                     </div>
-                    <div class="col-md-6">
-                        <label class="wizard-label" for="personnel_{{ $index }}_nom">Nom et prénom</label>
-                        <input type="text" id="personnel_{{ $index }}_nom" name="personnel[{{ $index }}][nom]" class="form-control wizard-input" value="{{ old('personnel.' . $index . '.nom', $row['nom']) }}">
+                    <div style="margin-top:8px; font-style:italic; color:#333;">
+                        Nom :
+                        <input type="text" name="personnel[{{ $index }}][nom]" value="{{ old('personnel.' . $index . '.nom', $row['nom']) }}" class="form-control" style="display:inline-block; width:60%; border:none; border-bottom:1px solid #000; padding:2px 6px; margin-left:8px;">
                     </div>
+                </div>
+                <div style="width:80px; display:flex; flex-direction:column; gap:6px; align-items:center;">
+                    <button type="button" class="btn btn-sm btn-outline-danger remove-personnel">Supprimer</button>
                 </div>
             </div>
         @endforeach
     </div>
 
-    <button type="button" class="btn btn-primary-custom" id="addPersonnelRow" style="margin-bottom:16px;">
-        Ajouter une ligne
-    </button>
+    <div style="margin-top:10px; display:flex; gap:8px;">
+        <button type="button" class="btn btn-primary-custom" id="addPersonnelRow">Ajouter une ligne</button>
+        <button type="button" class="btn btn-secondary" id="resetPersonnelRows">Réinitialiser</button>
+    </div>
 </div>
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const rowsContainer = document.getElementById('personnelRows');
         const addButton = document.getElementById('addPersonnelRow');
+        const resetButton = document.getElementById('resetPersonnelRows');
 
-        function getNextIndex() {
-            return rowsContainer.querySelectorAll('.personnel-row').length + 1;
+        function refreshRemoveHandlers() {
+            rowsContainer.querySelectorAll('.remove-personnel').forEach(btn => {
+                btn.removeEventListener('click', onRemoveClick);
+                btn.addEventListener('click', onRemoveClick);
+            });
         }
 
-        function createRow(index) {
+        function onRemoveClick(e) {
+            const row = e.target.closest('.personnel-row-box');
+            if (!row) return;
+            row.remove();
+            renumberRows();
+        }
+
+        function renumberRows() {
+            const rows = rowsContainer.querySelectorAll('.personnel-row-box');
+            rows.forEach((r, i) => {
+                const idx = i + 1;
+                r.querySelector('div[style*="width:40px"]').textContent = idx + '.';
+                // update input names
+                const poste = r.querySelector('input[name^="personnel"][name$="[poste]"]');
+                const nom = r.querySelector('input[name^="personnel"][name$="[nom]"]');
+                if (poste) poste.name = `personnel[${idx}][poste]`;
+                if (nom) nom.name = `personnel[${idx}][nom]`;
+            });
+        }
+
+        function createRow(index, poste = '', nom = '') {
             const wrapper = document.createElement('div');
-            wrapper.className = 'card mb-3 personnel-row';
-            wrapper.style.padding = '16px';
+            wrapper.className = 'personnel-row-box';
+            wrapper.style.cssText = 'border:1px solid #000; padding:10px; display:flex; gap:12px; align-items:flex-start;';
             wrapper.innerHTML = `
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <label class="wizard-label" for="personnel_${index}_poste">Poste</label>
-                        <input type="text" id="personnel_${index}_poste" name="personnel[${index}][poste]" class="form-control wizard-input">
-                    </div>
-                    <div class="col-md-6">
-                        <label class="wizard-label" for="personnel_${index}_nom">Nom et prénom</label>
-                        <input type="text" id="personnel_${index}_nom" name="personnel[${index}][nom]" class="form-control wizard-input">
-                    </div>
+                <div style="width:40px; text-align:center; font-weight:700;">${index}.</div>
+                <div style="flex:1;">
+                    <div style="font-weight:700;">Désignation du poste : <input type="text" name="personnel[${index}][poste]" value="${poste}" class="form-control" style="display:inline-block; width:70%; border:none; border-bottom:1px solid #000; padding:2px 6px; margin-left:8px;"></div>
+                    <div style="margin-top:8px; font-style:italic; color:#333;">Nom : <input type="text" name="personnel[${index}][nom]" value="${nom}" class="form-control" style="display:inline-block; width:60%; border:none; border-bottom:1px solid #000; padding:2px 6px; margin-left:8px;"></div>
                 </div>
+                <div style="width:80px; display:flex; flex-direction:column; gap:6px; align-items:center;"><button type="button" class="btn btn-sm btn-outline-danger remove-personnel">Supprimer</button></div>
             `;
             return wrapper;
         }
 
         addButton.addEventListener('click', function() {
-            const currentRows = rowsContainer.querySelectorAll('.personnel-row');
-            if (currentRows.length >= 12) {
-                return;
-            }
-            rowsContainer.appendChild(createRow(currentRows.length + 1));
+            const currentRows = rowsContainer.querySelectorAll('.personnel-row-box');
+            const next = currentRows.length + 1;
+            rowsContainer.appendChild(createRow(next));
+            refreshRemoveHandlers();
         });
 
-        // Mark existing rows
-        rowsContainer.querySelectorAll('.card.mb-3').forEach(function(card) {
-            card.classList.add('personnel-row');
+        resetButton.addEventListener('click', function() {
+            // remove all and add three empty rows
+            rowsContainer.innerHTML = '';
+            for (let i = 1; i <= 3; i++) {
+                rowsContainer.appendChild(createRow(i));
+            }
+            refreshRemoveHandlers();
         });
+
+        // attach remove handlers initially
+        refreshRemoveHandlers();
     });
 </script>

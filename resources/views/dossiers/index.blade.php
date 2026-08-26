@@ -55,6 +55,24 @@
         <a href="{{ route('dossiers.create') }}" class="btn btn-success">➕ Créer un nouveau dossier</a>
     </div>
 
+    <form method="GET" action="{{ route('dossiers.index') }}" class="mb-4">
+        <div class="input-group shadow-sm rounded overflow-hidden">
+            <input
+                type="search"
+                name="search"
+                class="form-control border-0"
+                placeholder="Rechercher par nom, entreprise, type, statut ou date (JJ/MM/AAAA)"
+                value="{{ request('search') }}"
+                aria-label="Rechercher des dossiers"
+            />
+            <button class="btn btn-outline-secondary" type="submit">Recherche</button>
+        </div>
+    </form>
+
+    @if(request('search'))
+        <div class="mb-3 text-secondary">Résultats pour « {{ request('search') }} » : {{ $dossiers->count() }} dossier(s)</div>
+    @endif
+
     @if($dossiers->count() > 0)
         <div class="table-card table-responsive">
             <table class="table table-hover align-middle mb-0">

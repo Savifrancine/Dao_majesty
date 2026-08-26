@@ -389,6 +389,37 @@
                             <option value="{{ $entreprise->id }}">{{ $entreprise->nom }} @if($entreprise->sigle)({{ $entreprise->sigle }})@endif</option>
                         @endforeach
                     </select>
+
+                    <div class="mt-3">
+                        <h5>Entreprises existantes</h5>
+                        @if($entreprises->isEmpty())
+                            <p>Aucune entreprise enregistrée.</p>
+                        @else
+                            <table class="table table-sm table-bordered">
+                                <thead>
+                                    <tr>
+                                        <th>Nom</th>
+                                        <th>Sigle</th>
+                                        <th>Pays</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach($entreprises as $ent)
+                                        <tr>
+                                            <td>{{ $ent->nom }}</td>
+                                            <td>{{ $ent->sigle ?? '-' }}</td>
+                                            <td>{{ $ent->pays ?? '-' }}</td>
+                                            <td>
+                                                <a href="{{ route('entreprises.edit', $ent) }}" class="btn btn-sm btn-secondary">Modifier</a>
+                                                <button type="button" class="btn btn-sm btn-danger delete-entreprise-btn" data-url="{{ route('entreprises.destroy', $ent) }}">Supprimer</button>
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        @endif
+                    </div>
                     @error('entreprise_id')
                         <div class="invalid-feedback d-block">{{ $message }}</div>
                     @enderror
@@ -433,7 +464,9 @@
                         <div class="col-md-6">
                             <div class="wizard-field">
                                 <label for="new_pays" class="wizard-label">Pays</label>
-                                <input type="text" class="form-control wizard-input" id="new_pays" name="new_pays">
+                                <select class="form-control wizard-input" id="new_pays" name="new_pays">
+                                    @include('partials.pays_options', ['selectedPays' => old('new_pays')])
+                                </select>
                             </div>
                         </div>
                         <div class="col-md-6">
@@ -479,9 +512,6 @@
                         </div>
                     </div>
 
-                        <!-- duplicate old block removed -->
-                    </div>
-
                     <button type="button" class="btn btn-primary-custom btn-sm" id="saveNewEntreprise">Creer cette entreprise</button>
                 </div>
 
@@ -499,6 +529,36 @@
 </div>
 
 <script>
+document.querySelectorAll('.delete-entreprise-btn').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        if (!confirm('Confirmer la suppression de cette entreprise ?')) return;
+        
+        const url = this.getAttribute('data-url');
+        
+        // Use fetch instead of form submission to avoid conflicts
+        fetch(url, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            }
+        }).then(response => {
+            if (response.ok) {
+                location.reload();
+            } else {
+                alert('Erreur lors de la suppression');
+            }
+        }).catch(err => {
+            console.error(err);
+            alert('Erreur réseau');
+        });
+    });
+});
+
 document.getElementById('toggleNewEntreprise').addEventListener('click', function(e) {
     e.preventDefault();
     const form = document.getElementById('newEntrepriseForm');

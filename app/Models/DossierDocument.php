@@ -16,6 +16,7 @@ class DossierDocument extends Model
         'ordre',
         'statut',
         'content',
+        'reference_model',
     ];
 
     /**

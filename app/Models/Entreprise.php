@@ -18,6 +18,7 @@ class Entreprise extends Model
         'logo',
         'pays',
         'ifu',
+        'rccm',
         'registre_path',
         'adresse_officielle',
         'annee_enregistrement',

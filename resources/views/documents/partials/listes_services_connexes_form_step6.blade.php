@@ -56,6 +56,10 @@
             }
         }
 
+        if (empty($oldSections) && !empty($prefillSections)) {
+            $oldSections = $prefillSections;
+        }
+
         if (empty($oldSections)) {
             $oldSections = [
                 [
@@ -68,8 +72,10 @@
         }
     @endphp
 
-    <div class="mb-3">
+    <div class="mb-3" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
         <button type="button" id="addBordereauSection" class="btn btn-secondary">Ajouter un tableau</button>
+        <button type="button" id="importTableauBtn" class="btn btn-outline-secondary">Importer depuis un fichier (Excel/CSV)</button>
+        <span id="importTableauStatus" style="font-size:0.8rem;"></span>
     </div>
 
     <div id="bordereauSections">
@@ -291,5 +297,22 @@
         });
 
         updateSectionIndexes();
+
+        if (window.DaoTableImport) {
+            window.DaoTableImport.setup({
+                buttonId: 'importTableauBtn',
+                statusId: 'importTableauStatus',
+                sectionsContainerId: 'bordereauSections',
+                importUrl: '{{ route('dossiers.importTableau') }}',
+                fieldSynonyms: {
+                    designation: ['description du service', 'description', 'designation', 'objet'],
+                    quantite: ['quantite', 'qte'],
+                    unite_physique: ['unite physique', 'unite'],
+                    site: ['site ou lieu', 'site', 'lieu'],
+                    date_prestation_plus_tot: ['plus tot'],
+                    date_prestation_plus_tard: ['plus tard'],
+                },
+            });
+        }
     })();
 </script>
