@@ -31,6 +31,15 @@ Route::get('/storage/{path}', function (string $path) {
     return Storage::disk('public')->response($path);
 })->where('path', '.*');
 
+// Temporary test: same logic, different URL prefix, to check whether
+// "storage" specifically is being intercepted before reaching Laravel.
+Route::get('/media-files/{path}', function (string $path) {
+    return response()->json([
+        'path' => $path,
+        'exists' => Storage::disk('public')->exists($path),
+    ]);
+})->where('path', '.*');
+
 Route::get('/', function () {
     return view('welcome');
 });
