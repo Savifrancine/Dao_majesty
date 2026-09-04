@@ -8,6 +8,14 @@ use App\Http\Controllers\DaoController;
 
 // Some hosts won't let Apache follow the public/storage symlink (403), so
 // public storage files are served through Laravel instead when needed.
+Route::get('/reset-opcache-xyz', function () {
+    if (function_exists('opcache_reset')) {
+        opcache_reset();
+        return 'OPcache reset: OK';
+    }
+    return 'OPcache not available';
+});
+
 Route::get('/storage/{path}', function (string $path) {
     if (request()->query('debug') === '1') {
         return response()->json([
