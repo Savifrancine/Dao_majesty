@@ -22,14 +22,13 @@ class DatabaseSeeder extends Seeder
             TypesDocumentsSeeder::class,
         ]);
 
-        // User::factory(10)->create();
-
-        User::factory()->create([
-            'name' => 'Test User',
+        Utilisateur::create([
+            'nom' => 'Test',
+            'prenom' => 'User',
             'email' => 'test@example.com',
             'mot_de_passe' => Hash::make('password'),
             'role' => 'employe',
-            'actif' => true
+            'actif' => true,
         ]);
     }
 }
