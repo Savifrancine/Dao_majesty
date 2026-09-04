@@ -8,36 +8,14 @@ use App\Http\Controllers\DaoController;
 
 // Some hosts won't let Apache follow the public/storage symlink (403), so
 // public storage files are served through Laravel instead when needed.
-Route::get('/reset-opcache-xyz', function () {
-    if (function_exists('opcache_reset')) {
-        opcache_reset();
-        return 'OPcache reset: OK';
-    }
-    return 'OPcache not available';
-});
-
-Route::get('/storage/{path}', function (string $path) {
-    if (request()->query('debug') === '1') {
-        return response()->json([
-            'path' => $path,
-            'storage_path' => storage_path(),
-            'disk_root' => Storage::disk('public')->path(''),
-            'exists' => Storage::disk('public')->exists($path),
-        ]);
-    }
-
+// LWS blocks any URL starting with /storage/ before it reaches the app
+// (probably a blanket WAF rule for PHP frameworks), so public disk files
+// are served under /media-files/ instead. See config/filesystems.php,
+// where the 'public' disk's URL is set to match.
+Route::get('/media-files/{path}', function (string $path) {
     abort_unless(Storage::disk('public')->exists($path), 404);
 
     return Storage::disk('public')->response($path);
-})->where('path', '.*');
-
-// Temporary test: same logic, different URL prefix, to check whether
-// "storage" specifically is being intercepted before reaching Laravel.
-Route::get('/media-files/{path}', function (string $path) {
-    return response()->json([
-        'path' => $path,
-        'exists' => Storage::disk('public')->exists($path),
-    ]);
 })->where('path', '.*');
 
 Route::get('/', function () {

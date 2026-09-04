@@ -56,7 +56,7 @@
             <label for="registre" class="form-label">Registre de commerce (PDF/JPG/PNG)</label>
             <input id="registre" name="registre" type="file" class="form-control">
             @if(!empty($entreprise->registre_path))
-                <p class="mt-2">Fichier actuel: <a href="{{ asset('storage/' . ltrim($entreprise->registre_path, '/')) }}" target="_blank">Voir</a></p>
+                <p class="mt-2">Fichier actuel: <a href="{{ asset('media-files/' . ltrim($entreprise->registre_path, '/')) }}" target="_blank">Voir</a></p>
             @endif
         </div>
 
