@@ -9,6 +9,15 @@ use App\Http\Controllers\DaoController;
 // Some hosts won't let Apache follow the public/storage symlink (403), so
 // public storage files are served through Laravel instead when needed.
 Route::get('/storage/{path}', function (string $path) {
+    if (request()->query('debug') === '1') {
+        return response()->json([
+            'path' => $path,
+            'storage_path' => storage_path(),
+            'disk_root' => Storage::disk('public')->path(''),
+            'exists' => Storage::disk('public')->exists($path),
+        ]);
+    }
+
     abort_unless(Storage::disk('public')->exists($path), 404);
 
     return Storage::disk('public')->response($path);
