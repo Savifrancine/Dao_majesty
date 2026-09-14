@@ -41,9 +41,7 @@ return [
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),
-            // Not /storage: some hosts (LWS) block that URL prefix outright.
-            // See routes/web.php for the route that actually serves these.
-            'url' => rtrim(env('APP_URL', 'http://localhost'), '/').'/media-files',
+            'url' => rtrim(env('ASSET_URL') ?: env('APP_URL', 'http://localhost'), '/').'/storage',
             'visibility' => 'public',
             'throw' => false,
             'report' => false,

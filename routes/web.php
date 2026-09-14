@@ -8,14 +8,25 @@ use App\Http\Controllers\DaoController;
 
 // Some hosts won't let Apache follow the public/storage symlink (403), so
 // public storage files are served through Laravel instead when needed.
-// LWS blocks any URL starting with /storage/ before it reaches the app
-// (probably a blanket WAF rule for PHP frameworks), so public disk files
-// are served under /media-files/ instead. See config/filesystems.php,
-// where the 'public' disk's URL is set to match.
+// LWS blocks any URL starting with /storage/, /build/ or /js/ before it
+// reaches the app (a blanket WAF rule aimed at PHP framework conventions),
+// so ALL assets are served under the safe /media-files/ prefix instead.
+// ASSET_URL=/media-files in .env makes every asset()/@vite() call generate
+// URLs under this prefix automatically, keeping 'storage/...', 'build/...'
+// and 'js/...' paths in the code unchanged.
 Route::get('/media-files/{path}', function (string $path) {
-    abort_unless(Storage::disk('public')->exists($path), 404);
+    if (str_starts_with($path, 'storage/')) {
+        $storagePath = substr($path, strlen('storage/'));
+        abort_unless(Storage::disk('public')->exists($storagePath), 404);
 
-    return Storage::disk('public')->response($path);
+        return Storage::disk('public')->response($storagePath);
+    }
+
+    $publicRoot = realpath(public_path());
+    $file = realpath(public_path($path));
+    abort_unless($file && $publicRoot && str_starts_with($file, $publicRoot.DIRECTORY_SEPARATOR) && is_file($file), 404);
+
+    return response()->file($file);
 })->where('path', '.*');
 
 Route::get('/', function () {

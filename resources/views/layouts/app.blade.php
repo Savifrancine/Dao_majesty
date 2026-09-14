@@ -410,7 +410,7 @@
         <nav class="navbar navbar-expand-md navbar-light bg-white shadow-sm">
             <div class="container">
                 <a class="navbar-brand" href="@auth{{ route('home') }}@else{{ url('/') }}@endauth">
-                    <img src="{{ asset('media-files/logo.jpeg') }}" alt="Logo" width="36" height="36" class="d-inline-block align-text-top me-2">
+                    <img src="{{ asset('storage/logo.jpeg') }}" alt="Logo" width="36" height="36" class="d-inline-block align-text-top me-2">
                     Majesty
                 </a>
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="{{ __('Toggle navigation') }}">

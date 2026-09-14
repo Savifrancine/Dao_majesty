@@ -720,7 +720,7 @@
                                         <div style="font-weight:700;margin-bottom:6px">Fichiers existants</div>
                                         @foreach($existingFiles as $f)
                                             <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
-                                                <a href="{{ asset('media-files/' . $f->chemin_fichier) }}" target="_blank">{{ basename($f->chemin_fichier) }}</a>
+                                                <a href="{{ asset('storage/' . $f->chemin_fichier) }}" target="_blank">{{ basename($f->chemin_fichier) }}</a>
                                                 <label style="font-size:0.9rem;color:#b91c1c"><input type="checkbox" name="delete_file_ids[]" value="{{ $f->id }}"> Supprimer</label>
                                             </div>
                                         @endforeach
