@@ -197,35 +197,11 @@
             
             <div class="sig-row" style="margin-top: 16px;">
                 <div class="sig-text">
-                    <div><strong>Signé</strong></div>
+                    <div><strong>Signature</strong></div>
                     <br><br>
                     <div style="margin-top: 20px;">
                         <strong>Fait à</strong> {{ $formulaireMat->lieu_fait ?? 'Cotonou' }} <strong>le</strong> {{ $formulaireMat->date_fait ? $formulaireMat->date_fait->format('d/m/Y') : '' }}
                     </div>
-                </div>
-                
-                <div class="sig-block">
-                    <div class="sig-title">Signature</div>
-                    @if(!empty($signataireDataUri))
-                        <img src="{{ $signataireDataUri }}" class="sig-image" />
-                    @endif
-                </div>
-                
-                <div class="sig-block">
-                    <div class="sig-title">Cachet</div>
-                    @if($signataire && !empty($signataire->cachet_path))
-                        @php
-                            $cachetPath = storage_path('app/public/' . ltrim($signataire->cachet_path, '/'));
-                            $cachetData = null;
-                            if (file_exists($cachetPath)) {
-                                $mime = mime_content_type($cachetPath) ?: 'image/png';
-                                $cachetData = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($cachetPath));
-                            }
-                        @endphp
-                        @if($cachetData)
-                            <img src="{{ $cachetData }}" class="sig-image" />
-                        @endif
-                    @endif
                 </div>
             </div>
         </div>
