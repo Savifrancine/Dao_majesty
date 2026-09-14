@@ -486,6 +486,15 @@
                             @endphp
 
                             <script src="{{ asset('js/table-import.js') }}"></script>
+                            <script>
+                                document.addEventListener('DOMContentLoaded', function () {
+                                    if (window.DaoTableImport && window.DaoTableImport.setupCrossTableFill) {
+                                        window.DaoTableImport.setupCrossTableFill(
+                                            @json($sharedDesignationPrefill->pluck('lignes')->flatten(1)->values())
+                                        );
+                                    }
+                                });
+                            </script>
 
                             @if(App\Models\TypeDocument::isReferenceLineName($currentDocument->nom) || $currentDocument->type_formulaire === 'libre')
                                 @php

@@ -101,7 +101,53 @@
         });
     }
 
+    // Remplissage automatique inter-tableaux : quand une désignation saisie
+    // dans un tableau correspond à une déjà connue ailleurs dans le dossier
+    // (import initial ou autre document déjà rempli), les champs vides de la
+    // ligne (quantité, prix unitaire, unité, site, date...) sont complétés.
+    function buildPrefillIndex(lines) {
+        const index = {};
+        (lines || []).forEach((line) => {
+            const key = normalize(line.designation);
+            if (!key) return;
+            const known = index[key] || {};
+            Object.keys(line).forEach((field) => {
+                if (field === 'designation') return;
+                const value = line[field];
+                if (value !== null && value !== undefined && value !== '' && known[field] === undefined) {
+                    known[field] = value;
+                }
+            });
+            index[key] = known;
+        });
+        return index;
+    }
+
+    function setupCrossTableFill(lines) {
+        const index = buildPrefillIndex(lines);
+        if (Object.keys(index).length === 0) return;
+
+        document.addEventListener('blur', (event) => {
+            const target = event.target;
+            if (!target.matches || !target.matches('[name*="[designation]"]')) return;
+
+            const match = index[normalize(target.value)];
+            const row = target.closest('tr');
+            if (!match || !row) return;
+
+            Object.keys(match).forEach((field) => {
+                const input = row.querySelector(`[name*="[${field}]"]`);
+                if (input && !input.value) {
+                    input.value = match[field];
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            });
+        }, true);
+    }
+
     window.DaoTableImport = {
+        setupCrossTableFill,
         setup(options) {
             const { buttonId, statusId, sectionsContainerId, fieldSynonyms, importUrl } = options;
             const selectors = {
