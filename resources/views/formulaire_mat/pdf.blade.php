@@ -139,7 +139,7 @@
             <!-- Pièce de matériel -->
             <tr>
                 <td class="label">Pièce de matériel :</td>
-                <td class="content">
+                <td class="content" colspan="2">
                     <strong>{{ strtoupper($formulaireMat->piece_materiel ?? '') }}</strong>
                 </td>
             </tr>
@@ -159,7 +159,7 @@
             <!-- Position courante -->
             <tr>
                 <td class="label" style="vertical-align: top;">Position<br>courante</td>
-                <td class="content">
+                <td class="content" colspan="2">
                     <strong>Localisation présente :</strong> {{ $formulaireMat->localisation ?? '-' }}
                     <div style="margin-top: 6px;"><strong>Détails sur les engagements courants :</strong></div>
                     <div style="margin-top: 4px; padding: 6px; background: #fafafa; border: 1px solid #ddd; min-height: 40px;">
@@ -171,7 +171,7 @@
             <!-- Provenance -->
             <tr>
                 <td class="label" style="vertical-align: top;">Provenance</td>
-                <td class="content">
+                <td class="content" colspan="2">
                     <strong>Indiquer la provenance du matériel :</strong><br><br>
                     <div style="margin-top: 4px;">
                         <span class="checkbox @if($formulaireMat->provenance === 'en_possession') checked @endif"></span> en possession
