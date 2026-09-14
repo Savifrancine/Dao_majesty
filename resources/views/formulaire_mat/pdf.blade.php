@@ -146,15 +146,14 @@
             
             <!-- Renseignement sur le matériel -->
             <tr>
-                <td class="label" rowspan="2" style="vertical-align: top;">Renseignement<br>sur le matériel</td>
+                <td class="label" style="vertical-align: top; border-bottom: none;">Renseignement<br>sur le matériel</td>
                 <td style="width: 40%;"><strong>Nom du fabricant :</strong> {{ $formulaireMat->fabricant ?? '-' }}</td>
                 <td style="width: 40%;"><strong>Modèle et puissance :</strong> {{ $formulaireMat->modele_puissance ?? '-' }}</td>
             </tr>
             <tr>
-                <td colspan="2">
-                    <strong>Capacité / Série de clés différentes taille :</strong> {{ $formulaireMat->capacite ?? '-' }}
-                    <span style="float: right;"><strong>Année de fabrication :</strong> {{ $formulaireMat->annee_fabrication ?? '-' }}</span>
-                </td>
+                <td class="label" style="border-top: none;">&nbsp;</td>
+                <td><strong>Capacité / Série de clés différentes taille :</strong> {{ $formulaireMat->capacite ?? '-' }}</td>
+                <td><strong>Année de fabrication :</strong> {{ $formulaireMat->annee_fabrication ?? '-' }}</td>
             </tr>
             
             <!-- Position courante -->
