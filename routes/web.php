@@ -6,8 +6,6 @@ use Illuminate\Http\Request;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\DaoController;
 
-// Some hosts won't let Apache follow the public/storage symlink (403), so
-// public storage files are served through Laravel instead when needed.
 // LWS blocks any URL starting with /storage/, /build/ or /js/ before it
 // reaches the app (a blanket WAF rule aimed at PHP framework conventions),
 // so ALL assets are served under the safe /media-files/ prefix instead.
@@ -26,7 +24,22 @@ Route::get('/media-files/{path}', function (string $path) {
     $file = realpath(public_path($path));
     abort_unless($file && $publicRoot && str_starts_with($file, $publicRoot.DIRECTORY_SEPARATOR) && is_file($file), 404);
 
-    return response()->file($file);
+    $mimeTypes = [
+        'css' => 'text/css',
+        'js' => 'application/javascript',
+        'mjs' => 'application/javascript',
+        'json' => 'application/json',
+        'svg' => 'image/svg+xml',
+        'woff' => 'font/woff',
+        'woff2' => 'font/woff2',
+        'ttf' => 'font/ttf',
+        'map' => 'application/json',
+    ];
+    $extension = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+
+    return response()->file($file, isset($mimeTypes[$extension])
+        ? ['Content-Type' => $mimeTypes[$extension]]
+        : []);
 })->where('path', '.*');
 
 Route::get('/', function () {
