@@ -150,8 +150,8 @@
                 <td class="content">
                     <div style="display: table; width: 100%;">
                         <div style="display: table-row;">
-                            <div style="display: table-cell; width: 50%; padding-right: 6px;"><strong>Nom du fabricant :</strong> {{ $formulaireMat->fabricant ?? '-' }}</div>
-                            <div style="display: table-cell; width: 50%;"><strong>Modèle et puissance :</strong> {{ $formulaireMat->modele_puissance ?? '-' }}</div>
+                            <div style="display: table-cell; width: 50%; padding: 0 6px 4px 0; border-right: 1px solid #000; border-bottom: 1px solid #000;"><strong>Nom du fabricant :</strong> {{ $formulaireMat->fabricant ?? '-' }}</div>
+                            <div style="display: table-cell; width: 50%; padding: 0 0 4px 6px; border-bottom: 1px solid #000;"><strong>Modèle et puissance :</strong> {{ $formulaireMat->modele_puissance ?? '-' }}</div>
                         </div>
                     </div>
                     <div style="margin-top: 6px;">
