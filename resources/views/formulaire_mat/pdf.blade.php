@@ -146,18 +146,14 @@
             
             <!-- Renseignement sur le matériel -->
             <tr>
-                <td class="label" style="vertical-align: top;">Renseignement<br>sur le matériel</td>
-                <td class="content">
-                    <table style="width: 100%; border-collapse: collapse;">
-                        <tr>
-                            <td style="width: 50%; padding: 0 6px 4px 0; border: none; border-right: 1px solid #000; border-bottom: 1px solid #000;"><strong>Nom du fabricant :</strong> {{ $formulaireMat->fabricant ?? '-' }}</td>
-                            <td style="width: 50%; padding: 0 0 4px 6px; border: none; border-bottom: 1px solid #000;"><strong>Modèle et puissance :</strong> {{ $formulaireMat->modele_puissance ?? '-' }}</td>
-                        </tr>
-                    </table>
-                    <div style="margin-top: 6px;">
-                        <strong>Capacité / Série de clés différentes taille :</strong> {{ $formulaireMat->capacite ?? '-' }}
-                        <span style="float: right;"><strong>Année de fabrication :</strong> {{ $formulaireMat->annee_fabrication ?? '-' }}</span>
-                    </div>
+                <td class="label" rowspan="2" style="vertical-align: top;">Renseignement<br>sur le matériel</td>
+                <td style="width: 40%;"><strong>Nom du fabricant :</strong> {{ $formulaireMat->fabricant ?? '-' }}</td>
+                <td style="width: 40%;"><strong>Modèle et puissance :</strong> {{ $formulaireMat->modele_puissance ?? '-' }}</td>
+            </tr>
+            <tr>
+                <td colspan="2">
+                    <strong>Capacité / Série de clés différentes taille :</strong> {{ $formulaireMat->capacite ?? '-' }}
+                    <span style="float: right;"><strong>Année de fabrication :</strong> {{ $formulaireMat->annee_fabrication ?? '-' }}</span>
                 </td>
             </tr>
             
