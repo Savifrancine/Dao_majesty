@@ -148,15 +148,16 @@
             <tr>
                 <td class="label" style="vertical-align: top;">Renseignement<br>sur le matériel</td>
                 <td class="content">
-                    <table class="inner-table">
-                        <tr>
-                            <td style="width: 25%;"><strong>Nom du fabricant :</strong> {{ $formulaireMat->fabricant ?? '-' }}</td>
-                            <td style="width: 25%;"><strong>Modèle et puissance :</strong> {{ $formulaireMat->modele_puissance ?? '-' }}</td>
-                        </tr>
-                        <tr>
-                            <td colspan="2"><strong>Capacité / Série de clés différentes taille :</strong> {{ $formulaireMat->capacite ?? '-' }} <span style="float: right;"><strong>Année de fabrication :</strong> {{ $formulaireMat->annee_fabrication ?? '-' }}</span></td>
-                        </tr>
-                    </table>
+                    <div style="display: table; width: 100%;">
+                        <div style="display: table-row;">
+                            <div style="display: table-cell; width: 50%; padding-right: 6px;"><strong>Nom du fabricant :</strong> {{ $formulaireMat->fabricant ?? '-' }}</div>
+                            <div style="display: table-cell; width: 50%;"><strong>Modèle et puissance :</strong> {{ $formulaireMat->modele_puissance ?? '-' }}</div>
+                        </div>
+                    </div>
+                    <div style="margin-top: 6px;">
+                        <strong>Capacité / Série de clés différentes taille :</strong> {{ $formulaireMat->capacite ?? '-' }}
+                        <span style="float: right;"><strong>Année de fabrication :</strong> {{ $formulaireMat->annee_fabrication ?? '-' }}</span>
+                    </div>
                 </td>
             </tr>
             
@@ -207,8 +208,6 @@
                     <div class="sig-title">Signature</div>
                     @if(!empty($signataireDataUri))
                         <img src="{{ $signataireDataUri }}" class="sig-image" />
-                    @else
-                        <div class="sig-line" style="margin-bottom: 6px;"></div>
                     @endif
                 </div>
                 
@@ -225,11 +224,7 @@
                         @endphp
                         @if($cachetData)
                             <img src="{{ $cachetData }}" class="sig-image" />
-                        @else
-                            <div class="sig-line" style="margin-bottom: 6px;"></div>
                         @endif
-                    @else
-                        <div class="sig-line" style="margin-bottom: 6px;"></div>
                     @endif
                 </div>
             </div>
