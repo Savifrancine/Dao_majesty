@@ -304,7 +304,7 @@
                 $isFormulaire = strcasecmp(trim($doc->typeDocument->type_formulaire ?? ''), 'formulaire') === 0;
             @endphp
             {{-- Display uploaded image files immediately after title for non-form and non-upload-only documents only --}}
-            @if(!$isPermat && $doc->fichiers && $doc->fichiers->count() > 0 && !($isExp42 || $isUploadOnly) && !(strcasecmp(trim($doc->typeDocument->nom), 'Formulaire FIN 3.4 (a) Modèle d\'attestation de capacité financière') === 0 || strcasecmp(trim($doc->typeDocument->nom), 'Formulaire FIN 3.4 (b) Modèle de lettre de confirmation de la capacité financière') === 0))
+            @if(!$isPermat && $doc->fichiers && $doc->fichiers->count() > 0 && !$isExp42 &&!(strcasecmp(trim($doc->typeDocument->nom), 'Formulaire FIN 3.4 (a) Modèle d\'attestation de capacité financière') === 0 || strcasecmp(trim($doc->typeDocument->nom), 'Formulaire FIN 3.4 (b) Modèle de lettre de confirmation de la capacité financière') === 0))
                 <div style="margin-top:10px; margin-bottom:10px;">
                     @foreach($doc->fichiers as $f)
                         @php
@@ -656,6 +656,7 @@
                 @endphp
                 <div style="font-size:12px; line-height:1.5; margin-top:10px;">
                     <div style="text-align:right; font-weight:700;">Date : {{ $qDate }}</div>
+                    <div style="text-align:right; font-weight:700; margin-bottom:10px;">{!! $qReferenceLine !!}</div>
                     <div style="text-align:center; font-weight:700; font-size:14px; margin:10px 0 16px;">FORMULAIRE DE QUALIFICATION</div>
 
                     <p style="text-align:justify;">Nous soussignés, <strong>{{ $qSociete }}</strong>, certifions l'exactitude des informations ci-après, attestant que nous remplissons les conditions de qualifications requises pour exécuter le Marché, fixées par l'Autorité contractante, à savoir :</p>
@@ -667,8 +668,6 @@
                             'marches' => $qualificationVals['marches'] ?? [],
                         ])->render() !!}
                     </div>
-
-                    <div style="margin-top:20px; font-size:10px;">{!! $qReferenceLine !!}</div>
                 </div>
             @elseif($isLettreSoumission)
                 @php
