@@ -2287,35 +2287,12 @@ class DossierController extends Controller
             }
         }
 
-        $pdfAttachmentsExist = $documents->contains(function ($doc) {
-            $fichiers = $doc->fichiers ?? collect();
-            $pdfAttachments = $fichiers->filter(function ($f) {
-                return strtolower(pathinfo($f->chemin_fichier, PATHINFO_EXTENSION)) === 'pdf';
-            });
-            $imageAttachments = $fichiers->filter(function ($f) {
-                $ext = strtolower(pathinfo($f->chemin_fichier, PATHINFO_EXTENSION));
-                return in_array($ext, ['png', 'jpg', 'jpeg', 'gif'], true);
-            });
-            $otherAttachments = $fichiers->filter(function ($f) {
-                $ext = strtolower(pathinfo($f->chemin_fichier, PATHINFO_EXTENSION));
-                return !in_array($ext, ['png', 'jpg', 'jpeg', 'gif', 'pdf'], true);
-            });
-
-            $docName = trim($doc->typeDocument->nom ?? '');
-            return $pdfAttachments->isNotEmpty()
-                && $imageAttachments->isEmpty()
-                && $otherAttachments->isEmpty()
-                && $doc->valeurs->isEmpty()
-                && $doc->bordereau->isEmpty()
-                && (empty($doc->content) || \App\Models\TypeDocument::isExp42Name($docName))
-                && !in_array($docName, [
-                    "Déclaration de garantie d'offre",
-                    'Declaration de garantie d\'offre',
-                    'Formulaire ELI – 1.1 : Formulaire de renseignements sur le candidat',
-                ], true);
+        $needsMerge = $documents->contains(function ($doc) {
+            $plan = $this->attachmentPlan($doc);
+            return $plan['pdfs']->isNotEmpty() || $plan['others']->isNotEmpty();
         });
 
-        if (!$pdfAttachmentsExist) {
+        if (!$needsMerge) {
             $html = view('dossiers.pdf', compact('dossier', 'pageGardeDataUri', 'documents'))->render();
 
             try {
@@ -2376,30 +2353,18 @@ class DossierController extends Controller
             $tempFiles[] = $summaryTemp;
 
             foreach ($documents as $doc) {
-                $pdfAttachments = $doc->fichiers->filter(function ($f) {
-                    return strtolower(pathinfo($f->chemin_fichier, PATHINFO_EXTENSION)) === 'pdf';
-                });
+                $plan = $this->attachmentPlan($doc);
                 $imageAttachments = $doc->fichiers->filter(function ($f) {
                     $ext = strtolower(pathinfo($f->chemin_fichier, PATHINFO_EXTENSION));
                     return in_array($ext, ['png', 'jpg', 'jpeg', 'gif'], true);
                 });
-                $otherAttachments = $doc->fichiers->filter(function ($f) {
-                    $ext = strtolower(pathinfo($f->chemin_fichier, PATHINFO_EXTENSION));
-                    return !in_array($ext, ['png', 'jpg', 'jpeg', 'gif', 'pdf'], true);
-                });
 
-                $skipHtmlDocPage = $pdfAttachments->isNotEmpty()
+                $skipHtmlDocPage = $plan['pdfs']->isNotEmpty()
                     && $imageAttachments->isEmpty()
-                    && $otherAttachments->isEmpty()
+                    && $plan['others']->isEmpty()
                     && $doc->valeurs->isEmpty()
                     && $doc->bordereau->isEmpty()
-                    && (empty($doc->content) || \App\Models\TypeDocument::isExp42Name(trim($doc->typeDocument->nom ?? '')))
-                    && $doc->typeDocument
-                    && !in_array(trim($doc->typeDocument->nom), [
-                        "Déclaration de garantie d'offre",
-                        'Declaration de garantie d\'offre',
-                        'Formulaire ELI – 1.1 : Formulaire de renseignements sur le candidat',
-                    ], true);
+                    && $doc->typeDocument;
 
                 // Une pièce "upload uniquement" sans aucun fichier joint ni contenu
                 // n'a rien à afficher : on évite de générer une page vide pour elle.
@@ -2441,13 +2406,11 @@ class DossierController extends Controller
                     $tempFiles[] = $docTemp;
                 }
 
-                if ($skipHtmlDocPage) {
-                    foreach ($pdfAttachments as $f) {
-                        $path = storage_path('app/public/' . ltrim($f->chemin_fichier, '/'));
-                        if (file_exists($path)) {
-                            $filesToMerge[] = $path;
-                        }
-                    }
+                foreach ($plan['pdfs'] as $f) {
+                    $filesToMerge[] = ['file' => storage_path('app/public/' . ltrim($f->chemin_fichier, '/')), 'label' => $doc->typeDocument->nom];
+                }
+                if ($plan['others']->isNotEmpty()) {
+                    $filesToMerge[] = ['placeholder' => true, 'label' => $doc->typeDocument->nom];
                 }
             }
 
@@ -2501,35 +2464,6 @@ class DossierController extends Controller
             }
         }
 
-        $classify = function ($doc) {
-            $fichiers = $doc->fichiers ?? collect();
-            return [
-                'pdf' => $fichiers->filter(fn($f) => strtolower(pathinfo($f->chemin_fichier, PATHINFO_EXTENSION)) === 'pdf'),
-                'image' => $fichiers->filter(fn($f) => in_array(strtolower(pathinfo($f->chemin_fichier, PATHINFO_EXTENSION)), ['png', 'jpg', 'jpeg', 'gif'], true)),
-                'other' => $fichiers->filter(fn($f) => !in_array(strtolower(pathinfo($f->chemin_fichier, PATHINFO_EXTENSION)), ['png', 'jpg', 'jpeg', 'gif', 'pdf'], true)),
-            ];
-        };
-
-        $excludedFromSkip = [
-            "Déclaration de garantie d'offre",
-            'Declaration de garantie d\'offre',
-            'Formulaire ELI – 1.1 : Formulaire de renseignements sur le candidat',
-        ];
-
-        $allDocuments = $dossier->documents()->with(['typeDocument', 'fichiers', 'valeurs', 'bordereau'])->get();
-
-        $pdfAttachmentsExist = $allDocuments->contains(function ($doc) use ($classify, $excludedFromSkip) {
-            $groups = $classify($doc);
-            $docName = trim(optional($doc->typeDocument)->nom ?? '');
-            return $groups['pdf']->isNotEmpty()
-                && $groups['image']->isEmpty()
-                && $groups['other']->isEmpty()
-                && $doc->valeurs->isEmpty()
-                && $doc->bordereau->isEmpty()
-                && (empty($doc->content) || TypeDocument::isExp42Name($docName))
-                && !in_array($docName, $excludedFromSkip, true);
-        });
-
         $tempFiles = [];
         $filesToMerge = [];
 
@@ -2547,22 +2481,18 @@ class DossierController extends Controller
             $filesToMerge[] = $titleTemp;
             $tempFiles[] = $titleTemp;
 
-            $skipHtmlDocPage = false;
-            $pdfAttachments = collect();
+            $plan = $this->attachmentPlan($document);
+            $docName = trim(optional($document->typeDocument)->nom ?? '');
+            $imageAttachments = $document->fichiers->filter(function ($f) {
+                $ext = strtolower(pathinfo($f->chemin_fichier, PATHINFO_EXTENSION));
+                return in_array($ext, ['png', 'jpg', 'jpeg', 'gif'], true);
+            });
 
-            if ($pdfAttachmentsExist) {
-                $groups = $classify($document);
-                $pdfAttachments = $groups['pdf'];
-                $docName = trim(optional($document->typeDocument)->nom ?? '');
-
-                $skipHtmlDocPage = $groups['pdf']->isNotEmpty()
-                    && $groups['image']->isEmpty()
-                    && $groups['other']->isEmpty()
-                    && $document->valeurs->isEmpty()
-                    && $document->bordereau->isEmpty()
-                    && (empty($document->content) || TypeDocument::isExp42Name($docName))
-                    && !in_array($docName, $excludedFromSkip, true);
-            }
+            $skipHtmlDocPage = $plan['pdfs']->isNotEmpty()
+                && $imageAttachments->isEmpty()
+                && $plan['others']->isEmpty()
+                && $document->valeurs->isEmpty()
+                && $document->bordereau->isEmpty();
 
             $hasNothingToShow = $document->typeDocument
                 && TypeDocument::isUploadOnlyName($document->typeDocument->nom, $document->typeDocument->type_formulaire)
@@ -2589,13 +2519,11 @@ class DossierController extends Controller
                 $tempFiles[] = $docTemp;
             }
 
-            if ($skipHtmlDocPage) {
-                foreach ($pdfAttachments as $f) {
-                    $path = storage_path('app/public/' . ltrim($f->chemin_fichier, '/'));
-                    if (file_exists($path)) {
-                        $filesToMerge[] = $path;
-                    }
-                }
+            foreach ($plan['pdfs'] as $f) {
+                $filesToMerge[] = ['file' => storage_path('app/public/' . ltrim($f->chemin_fichier, '/')), 'label' => $docName];
+            }
+            if ($plan['others']->isNotEmpty()) {
+                $filesToMerge[] = ['placeholder' => true, 'label' => $docName];
             }
 
             $outputTemp = tempnam(sys_get_temp_dir(), 'apercu_merged_') . '.pdf';
@@ -2633,9 +2561,15 @@ class DossierController extends Controller
 
         $pdf = new \setasign\Fpdi\Fpdi();
 
-        foreach ($files as $file) {
+        foreach ($files as $entry) {
+            if (is_array($entry) && !empty($entry['placeholder'])) {
+                $this->addAttachmentPlaceholderPage($pdf, $entry['label']);
+                continue;
+            }
+
+            $file = is_array($entry) ? $entry['file'] : $entry;
+            $label = is_array($entry) ? $entry['label'] : basename($file);
             if (!file_exists($file)) {
-                // ignorer les fichiers manquants
                 continue;
             }
 
@@ -2653,12 +2587,56 @@ class DossierController extends Controller
                 // compression PDF (courant pour les scans). On rabat alors sur une
                 // conversion en image de chaque page, pour pouvoir quand même
                 // inclure ce fichier dans le dossier fusionné.
+                $pagesBefore = $pdf->PageNo();
                 $this->appendPdfAsImages($pdf, $file);
+                if ($pdf->PageNo() === $pagesBefore) {
+                    $this->addAttachmentPlaceholderPage($pdf, $label);
+                }
             }
         }
 
         // Sauvegarder le PDF fusionné
         $pdf->Output('F', $outputFull);
+    }
+
+    /**
+     * Décrit les fichiers d'un document à fusionner : PDF intégrés tels quels
+     * (sauf pour les documents générés à partir de leur contenu) et autres
+     * formats, qui ne peuvent pas être convertis et seront signalés par une page.
+     */
+    private function attachmentPlan(DossierDocument $doc): array
+    {
+        $fichiers = $doc->fichiers ?? collect();
+        $extension = fn ($f) => strtolower(pathinfo($f->chemin_fichier, PATHINFO_EXTENSION));
+        $docName = trim(optional($doc->typeDocument)->nom ?? '');
+        $content = trim((string) $doc->content);
+        $contentIsBlank = $content === '' || in_array($content, ['{}', '[]', 'null'], true);
+        $canMergePdfs = ($contentIsBlank || TypeDocument::isExp42Name($docName))
+            && !in_array($docName, [
+                "Déclaration de garantie d'offre",
+                'Declaration de garantie d\'offre',
+                'Formulaire ELI – 1.1 : Formulaire de renseignements sur le candidat',
+            ], true);
+
+        return [
+            'pdfs' => $canMergePdfs ? $fichiers->filter(fn ($f) => $extension($f) === 'pdf')->values() : collect(),
+            'others' => $fichiers->filter(fn ($f) => !in_array($extension($f), ['png', 'jpg', 'jpeg', 'gif', 'pdf'], true))->values(),
+        ];
+    }
+
+    private function addAttachmentPlaceholderPage(\setasign\Fpdi\Fpdi $pdf, string $label): void
+    {
+        $encode = function (string $text) {
+            return iconv('UTF-8', 'windows-1252//TRANSLIT//IGNORE', $text) ?: $text;
+        };
+
+        $pdf->AddPage('P', 'A4');
+        $pdf->SetFont('Arial', 'B', 14);
+        $pdf->SetY(100);
+        $pdf->MultiCell(0, 8, $encode($label), 0, 'C');
+        $pdf->Ln(6);
+        $pdf->SetFont('Arial', '', 11);
+        $pdf->MultiCell(0, 7, $encode('Pièce jointe non intégrable dans ce PDF (format non pris en charge par le serveur). Le fichier original reste disponible dans le dossier.'), 0, 'C');
     }
 
     /**
