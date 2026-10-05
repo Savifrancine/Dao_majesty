@@ -61,7 +61,4 @@
         </div>
     @endif
 
-    <div style="margin-top:8px;">
-        [insérer toutes autres exigences en précisant la nature des documents justificatifs requis ; par exemple, lorsque le Fournisseur devra fabriquer tout ou partie des fournitures, il sera exigé qu'il apporte la preuve qu'il dispose des moyens techniques et humains nécessaires]
-    </div>
 </div>

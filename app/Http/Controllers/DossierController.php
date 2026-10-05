@@ -2339,6 +2339,9 @@ class DossierController extends Controller
      */
     public function generatePDF(Dossier $dossier)
     {
+        @set_time_limit(300);
+        @ini_set('memory_limit', '1024M');
+
         $dossier->load([
             'documents.typeDocument.champs',
             'documents.bordereau.lignes',
