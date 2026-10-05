@@ -16,6 +16,9 @@ use App\Models\Bordereau;
 use App\Models\BordereauLigne;
 use App\Models\ChiffreAffaire;
 use App\Models\Utilisateur;
+use App\Models\FormulaireExp42A;
+use App\Support\Exp42aPdf;
+use App\Support\MarcheIdentification;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Http\Request;
 use Dompdf\Dompdf;
@@ -25,6 +28,9 @@ use Illuminate\Support\Facades\Log;
 
 class DossierController extends Controller
 {
+    private const EXP41_NOM = 'Formulaire EXP – 4.1 : Expérience générale de fournitures/services';
+    private const EXP42A_NOM = 'Formulaire EXP – 4.2 a) Expérience spécifique de fournitures/services';
+
     /**
      * Afficher le dashboard home avec les dossiers
      */
@@ -355,6 +361,8 @@ class DossierController extends Controller
             'content' => $content,
             'statut' => 'complete',
         ]);
+
+        $this->syncExp42aRecords($dossier);
     }
 
     /**
@@ -436,6 +444,96 @@ class DossierController extends Controller
         $qualificationDoc->update(['content' => $content, 'statut' => 'complete']);
 
         $this->regenerateQualificationPdf($dossier, $qualificationDoc, $existing);
+    }
+
+    /**
+     * Crée ou met à jour un Formulaire EXP – 4.2 a) par marché listé dans l'EXP – 4.1.
+     * Le numéro et l'identification du marché suivent toujours l'EXP – 4.1 ; les
+     * autres champs saisis dans le formulaire sont conservés.
+     */
+    private function syncExp42aRecords(Dossier $dossier): void
+    {
+        $hasExp42a = $dossier->documents()
+            ->whereHas('typeDocument', fn ($q) => $q->where('nom', self::EXP42A_NOM))
+            ->exists();
+        if (!$hasExp42a) {
+            return;
+        }
+
+        $exp41Doc = $dossier->documents()
+            ->whereHas('typeDocument', fn ($q) => $q->where('nom', self::EXP41_NOM))
+            ->first();
+        if (!$exp41Doc || empty($exp41Doc->content)) {
+            return;
+        }
+
+        $decoded = json_decode($exp41Doc->content, true);
+        if (!is_array($decoded)) {
+            return;
+        }
+
+        $identifications = array_values(array_filter(
+            array_map(fn ($ident) => trim((string) $ident), $decoded['identification'] ?? []),
+            fn ($ident) => $ident !== ''
+        ));
+
+        $dossier->loadMissing('entreprise', 'signataires');
+        $entreprise = $dossier->entreprise;
+        $signataire = $dossier->signataires->firstWhere('pivot.role_signataire', 'gerant') ?? $dossier->signataires->first();
+
+        foreach ($identifications as $position => $ident) {
+            $record = FormulaireExp42A::firstOrNew(['dossier_id' => $dossier->id, 'marche_position' => $position]);
+
+            if (!$record->exists) {
+                $record->fill([
+                    'formulaire_type' => 'A',
+                    'utilisateur_id' => auth()->id(),
+                    'entreprise_id' => $dossier->entreprise_id,
+                    'signataire_id' => optional($signataire)->id,
+                    'nom_candidat' => trim(optional($entreprise)->responsable ?? optional($entreprise)->nom ?? '') ?: 'Candidat non renseigné',
+                    'numero_adrp' => (new FormulaireExp42A())->buildNumeroAdrp($dossier),
+                    'nom_signataire' => $signataire ? trim($signataire->nom . ' ' . ($signataire->prenom ?? '')) : null,
+                    'fonction_signataire' => $signataire ? trim($signataire->fonction ?? '') : null,
+                ]);
+            }
+
+            $record->fill([
+                'identification_marche' => $ident,
+                'numero_marche' => MarcheIdentification::parse($ident)['reference'],
+            ])->save();
+        }
+
+        FormulaireExp42A::where('dossier_id', $dossier->id)
+            ->whereNotNull('marche_position')
+            ->where('marche_position', '>=', count($identifications))
+            ->delete();
+    }
+
+    /**
+     * Chemins de fichiers temporaires : un PDF 4.2 a) par marché du dossier.
+     * L'appelant doit les supprimer une fois fusionnés.
+     */
+    private function exp42aPdfPaths(Dossier $dossier): array
+    {
+        $this->syncExp42aRecords($dossier);
+
+        $paths = [];
+        FormulaireExp42A::where('dossier_id', $dossier->id)
+            ->whereNotNull('marche_position')
+            ->orderBy('marche_position')
+            ->get()
+            ->each(function (FormulaireExp42A $record) use (&$paths) {
+                $path = tempnam(sys_get_temp_dir(), 'exp42a_') . '.pdf';
+                file_put_contents($path, Exp42aPdf::render($record));
+                $paths[] = $path;
+            });
+
+        return $paths;
+    }
+
+    private function isExp42aDoc(DossierDocument $doc): bool
+    {
+        return trim(optional($doc->typeDocument)->nom ?? '') === self::EXP42A_NOM;
     }
 
     /**
@@ -1359,6 +1457,7 @@ class DossierController extends Controller
                 ]);
 
                 $this->syncExp41ToQualificationMarches($dossier, $values);
+                $this->syncExp42aRecords($dossier);
             }
 
             if (trim($currentDocument->nom) === 'Formulaire EXP – 4.2 a) Expérience spécifique de fournitures/services') {
@@ -2289,7 +2388,7 @@ class DossierController extends Controller
 
         $needsMerge = $documents->contains(function ($doc) {
             $plan = $this->attachmentPlan($doc);
-            return $plan['pdfs']->isNotEmpty() || $plan['others']->isNotEmpty();
+            return $plan['pdfs']->isNotEmpty() || $plan['others']->isNotEmpty() || $this->isExp42aDoc($doc);
         });
 
         if (!$needsMerge) {
@@ -2366,6 +2465,11 @@ class DossierController extends Controller
                     && $doc->bordereau->isEmpty()
                     && $doc->typeDocument;
 
+                $isExp42a = $this->isExp42aDoc($doc);
+                if ($isExp42a) {
+                    $skipHtmlDocPage = true;
+                }
+
                 // Une pièce "upload uniquement" sans aucun fichier joint ni contenu
                 // n'a rien à afficher : on évite de générer une page vide pour elle.
                 $hasNothingToShow = $doc->typeDocument
@@ -2411,6 +2515,12 @@ class DossierController extends Controller
                 }
                 if ($plan['others']->isNotEmpty()) {
                     $filesToMerge[] = ['placeholder' => true, 'label' => $doc->typeDocument->nom];
+                }
+                if ($isExp42a) {
+                    foreach ($this->exp42aPdfPaths($dossier) as $path) {
+                        $filesToMerge[] = $path;
+                        $tempFiles[] = $path;
+                    }
                 }
             }
 
@@ -2493,6 +2603,9 @@ class DossierController extends Controller
                 && $plan['others']->isEmpty()
                 && $document->valeurs->isEmpty()
                 && $document->bordereau->isEmpty();
+            if ($this->isExp42aDoc($document)) {
+                $skipHtmlDocPage = true;
+            }
 
             $hasNothingToShow = $document->typeDocument
                 && TypeDocument::isUploadOnlyName($document->typeDocument->nom, $document->typeDocument->type_formulaire)
@@ -2524,6 +2637,12 @@ class DossierController extends Controller
             }
             if ($plan['others']->isNotEmpty()) {
                 $filesToMerge[] = ['placeholder' => true, 'label' => $docName];
+            }
+            if ($this->isExp42aDoc($document)) {
+                foreach ($this->exp42aPdfPaths($dossier) as $path) {
+                    $filesToMerge[] = $path;
+                    $tempFiles[] = $path;
+                }
             }
 
             $outputTemp = tempnam(sys_get_temp_dir(), 'apercu_merged_') . '.pdf';
