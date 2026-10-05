@@ -136,11 +136,11 @@
         </tr>
         <tr>
             <td><strong>Date d'attribution :</strong></td>
-            <td colspan="3">{{ optional($formulaireExp42A->date_attribution)->format('d/m/Y') ?? '' }}</td>
+            <td colspan="3">{{ optional($formulaireExp42A->date_attribution)->format('m/Y') ?? '' }}</td>
         </tr>
         <tr>
             <td><strong>Date d'achèvement :</strong></td>
-            <td colspan="3">{{ optional($formulaireExp42A->date_achevement)->format('d/m/Y') ?? '' }}</td>
+            <td colspan="3">{{ optional($formulaireExp42A->date_achevement)->format('m/Y') ?? '' }}</td>
         </tr>
         @php
             $montantTotal = '';

@@ -33,8 +33,8 @@
                             <td style="{{ $cellStyle }}">
                                 <input type="text" name="exp42a[{{ $f->id }}][numero_marche]" value="{{ old("exp42a.$f->id.numero_marche", $f->numero_marche) }}" placeholder="Numéro de marché similaire" class="form-control" style="{{ $inputStyle }}">
                                 <textarea name="exp42a[{{ $f->id }}][identification_marche]" placeholder="Identification du marché (Titre, détails...)" class="form-control" style="{{ $inputStyle }} min-height:60px;">{{ old("exp42a.$f->id.identification_marche", $f->identification_marche) }}</textarea>
-                                <input type="date" name="exp42a[{{ $f->id }}][date_attribution]" value="{{ old("exp42a.$f->id.date_attribution", optional($f->date_attribution)->format('Y-m-d')) }}" class="form-control" style="{{ $inputStyle }}" title="Date d'attribution">
-                                <input type="date" name="exp42a[{{ $f->id }}][date_achevement]" value="{{ old("exp42a.$f->id.date_achevement", optional($f->date_achevement)->format('Y-m-d')) }}" class="form-control" style="{{ $inputStyle }}" title="Date d'achèvement">
+                                <input type="month" name="exp42a[{{ $f->id }}][date_attribution]" value="{{ old("exp42a.$f->id.date_attribution", optional($f->date_attribution)->format('Y-m')) }}" class="form-control" style="{{ $inputStyle }}" title="Mois/année d'attribution">
+                                <input type="month" name="exp42a[{{ $f->id }}][date_achevement]" value="{{ old("exp42a.$f->id.date_achevement", optional($f->date_achevement)->format('Y-m')) }}" class="form-control" style="{{ $inputStyle }}" title="Mois/année d'achèvement">
                             </td>
                             <td style="{{ $cellStyle }}">
                                 <select name="exp42a[{{ $f->id }}][role_marche]" class="form-control" style="{{ $inputStyle }}">

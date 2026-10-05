@@ -472,16 +472,31 @@ class DossierController extends Controller
             return;
         }
 
-        $identifications = array_values(array_filter(
-            array_map(fn ($ident) => trim((string) $ident), $decoded['identification'] ?? []),
-            fn ($ident) => $ident !== ''
-        ));
+        $departs = $decoded['mois_depart'] ?? [];
+        $finals = $decoded['mois_final'] ?? [];
+        $marches = [];
+        foreach ($decoded['identification'] ?? [] as $i => $ident) {
+            $ident = trim((string) $ident);
+            if ($ident !== '') {
+                $marches[] = ['text' => $ident, 'depart' => $departs[$i] ?? '', 'final' => $finals[$i] ?? ''];
+            }
+        }
 
         $dossier->loadMissing('entreprise', 'signataires');
         $entreprise = $dossier->entreprise;
         $signataire = $dossier->signataires->firstWhere('pivot.role_signataire', 'gerant') ?? $dossier->signataires->first();
 
-        foreach ($identifications as $position => $ident) {
+        foreach ($marches as $position => $marche) {
+            $parsed = \App\Support\Exp41Marche::parse($marche['text']);
+            $prefill = [
+                'identification_marche' => $parsed['nom'] !== '' ? $parsed['nom'] : $marche['text'],
+                'numero_marche' => $parsed['reference'],
+                'autorite_nom' => $parsed['autorite_nom'],
+                'autorite_adresse' => $parsed['autorite_adresse'],
+                'date_attribution' => $this->monthToDate($marche['depart']),
+                'date_achevement' => $this->monthToDate($marche['final']),
+            ];
+
             $record = FormulaireExp42A::firstOrNew(['dossier_id' => $dossier->id, 'marche_position' => $position]);
 
             if (!$record->exists) {
@@ -497,16 +512,34 @@ class DossierController extends Controller
                 ]);
             }
 
-            $record->fill([
-                'identification_marche' => $ident,
-                'numero_marche' => MarcheIdentification::parse($ident)['reference'],
-            ])->save();
+            foreach ($prefill as $field => $value) {
+                if (($record->{$field} === null || $record->{$field} === '') && $value !== null && $value !== '') {
+                    $record->{$field} = $value;
+                }
+            }
+            $record->save();
         }
 
         FormulaireExp42A::where('dossier_id', $dossier->id)
             ->whereNotNull('marche_position')
-            ->where('marche_position', '>=', count($identifications))
+            ->where('marche_position', '>=', count($marches))
             ->delete();
+    }
+
+    /**
+     * "2023-05", "05/2023" ou "05-2023" → 1er jour du mois (format date SQL).
+     */
+    private function monthToDate(?string $value): ?string
+    {
+        $value = trim((string) $value);
+        foreach (['Y-m', 'm/Y', 'm-Y'] as $format) {
+            $date = \DateTime::createFromFormat('!' . $format, $value);
+            if ($date && $date->format($format) === $value) {
+                return $date->format('Y-m-01');
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -985,7 +1018,7 @@ class DossierController extends Controller
                     'nombre_marches' => ['nullable','integer','min:0','max:20'],
                     'marches' => ['nullable','array'],
                     'marches.*.annee' => ['nullable','string','max:10'],
-                    'marches.*.nom' => ['nullable','string','max:255'],
+                    'marches.*.nom' => ['nullable','string','max:1000'],
                     'marches.*.reference' => ['nullable','string','max:255'],
                 ]);
 
@@ -1467,8 +1500,8 @@ class DossierController extends Controller
                     'exp42a' => ['nullable', 'array'],
                     'exp42a.*.numero_marche' => ['nullable', 'string', 'max:255'],
                     'exp42a.*.identification_marche' => ['nullable', 'string', 'max:4000'],
-                    'exp42a.*.date_attribution' => ['nullable', 'date'],
-                    'exp42a.*.date_achevement' => ['nullable', 'date'],
+                    'exp42a.*.date_attribution' => ['nullable', 'date_format:Y-m'],
+                    'exp42a.*.date_achevement' => ['nullable', 'date_format:Y-m'],
                     'exp42a.*.role_marche' => ['nullable', 'string', 'max:255'],
                     'exp42a.*.montant_total' => ['nullable', 'string', 'max:255'],
                     'exp42a.*.participation_pourcentage' => ['nullable', 'string', 'max:50'],
@@ -1480,6 +1513,10 @@ class DossierController extends Controller
                 ]);
 
                 foreach ($validated['exp42a'] ?? [] as $id => $data) {
+                    foreach (['date_attribution', 'date_achevement'] as $field) {
+                        $data[$field] = !empty($data[$field]) ? $data[$field] . '-01' : null;
+                    }
+
                     FormulaireExp42A::where('dossier_id', $dossier->id)
                         ->whereNotNull('marche_position')
                         ->whereKey($id)
