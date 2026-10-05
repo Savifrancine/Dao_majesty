@@ -388,6 +388,15 @@
             @endif
             @if(strcasecmp(trim($doc->typeDocument->nom), 'Formulaire EXP – 4.1 : Expérience générale de fournitures/services') === 0)
                 @php
+                    $exp41Ref = trim(preg_replace('/^\s*A?DRP\s*N°\s*/i', '', $dossier->reference_dossier ?? ''));
+                    $exp41RefLine = \App\Support\ReferenceLine::render(
+                        'ADRP N°',
+                        $exp41Ref !== '' ? $exp41Ref : ($dossier->ref ?: 'N/A'),
+                        \App\Support\ReferenceLine::formatDate($dossier),
+                        $dossier->nom_dossier ?? '',
+                        $doc->reference_model ?? \App\Models\TypeDocument::defaultReferenceModelFor($doc->typeDocument->nom),
+                        'du'
+                    );
                     $rowsExp = [];
                     if (!empty($doc->content)) {
                         $decoded = json_decode($doc->content, true);
@@ -411,6 +420,7 @@
                 @endphp
                 <div style="margin-top:10px; font-size:11px; line-height:1.4; page-break-inside:avoid; text-align:center;">
                     <div style="font-weight:700; font-size:15px; margin-bottom:8px;">Formulaire EXP – 4.1 : Expérience générale de fournitures/services</div>
+                    <div style="font-weight:700; font-size:12px; margin-bottom:8px;">{!! $exp41RefLine !!}</div>
                     <div style="width:100%; max-width:100%; margin:10px 0; text-align:left;">
                         <style>
                             .pdf-exp41-table th,

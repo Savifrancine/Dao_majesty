@@ -162,6 +162,7 @@ class TypeDocument extends Model
             'Cadres de sous détails des prix unitaire',
             'Bordereau des prix et calendrier d\'exécution des services connexes',
             'Listes des services connexes et calendrier de réalisation',
+            'Formulaire EXP – 4.1 : Expérience générale de fournitures/services',
         ];
     }
 
