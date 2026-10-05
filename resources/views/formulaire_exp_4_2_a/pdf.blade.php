@@ -93,7 +93,12 @@
             ?? ''
         );
 
-        $numero_adpr_full = $formulaireExp42A->buildNumeroAdrp($dossier);
+        $dossierRef = trim($dossier->reference_dossier ?? $dossier->ref ?? '');
+        $dossierDate = optional($dossier->date_lancement)->format('d/m/Y') ?? '';
+        if ($dossierDate !== '' && str_contains($dossierRef, $dossierDate)) {
+            $dossierDate = '';
+        }
+        $dossierLabel = implode(' - ', array_filter([$dossierRef, $dossierDate, trim($dossier->nom_dossier ?? '')]));
 
         $date_soumission_display = optional($dossier)->date_soumission ? optional($dossier)->date_soumission->format('d/m/Y') : '-';
 
@@ -120,11 +125,14 @@
             <div style="flex:1; text-align:left;"><strong>Nom du candidat :</strong> {{ $companyName }}</div>
             <div style="flex:0 0 220px; text-align:right;"><strong>Date :</strong> {{ $date_soumission_display }}</div>
         </div>
+        <div style="text-align:center; margin-top:6px; margin-left:8px; padding-left:16px;">
+            <strong>{{ $dossierLabel }}</strong>
+        </div>
     </div>
 
     <table class="block-table">
         <tr>
-            <td style="width:35%; vertical-align:top;"><strong>Numéro de marché similaire :</strong> <strong>{!! nl2br(e($formulaireExp42A->numero_marche ?? '')) !!}</strong></td>
+            <td style="width:35%; vertical-align:top;"><strong>Numéro de marché similaire :</strong> {!! nl2br(e($formulaireExp42A->numero_marche ?? '')) !!}</td>
             <td colspan="3" style="vertical-align:top;"><strong>Informations</strong></td>
         </tr>
         <tr>
