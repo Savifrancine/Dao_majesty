@@ -2829,7 +2829,7 @@ class DossierController extends Controller
 
     private function normalizeDocumentOrders(Dossier $dossier): void
     {
-        $documents = $dossier->documents()->orderBy('created_at')->orderBy('id')->get();
+        $documents = $dossier->documents()->orderBy('ordre')->orderBy('created_at')->orderBy('id')->get();
 
         if ($documents->isEmpty()) {
             return;
