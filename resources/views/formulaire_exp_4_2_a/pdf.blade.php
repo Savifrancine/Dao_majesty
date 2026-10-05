@@ -120,14 +120,11 @@
             <div style="flex:1; text-align:left;"><strong>Nom du candidat :</strong> {{ $companyName }}</div>
             <div style="flex:0 0 220px; text-align:right;"><strong>Date :</strong> {{ $date_soumission_display }}</div>
         </div>
-        <div style="text-align:center; margin-top:6px; margin-left:8px; padding-left:16px;">
-            <strong>N° ADRP :</strong> {{ $numero_adpr_full }}
-        </div>
     </div>
 
     <table class="block-table">
         <tr>
-            <td style="width:35%; vertical-align:top;"><strong>Numéro de marché similaire :</strong> {!! nl2br(e($formulaireExp42A->numero_marche ?? '')) !!}</td>
+            <td style="width:35%; vertical-align:top;"><strong>Numéro de marché similaire :</strong> <strong>{!! nl2br(e($formulaireExp42A->numero_marche ?? '')) !!}</strong></td>
             <td colspan="3" style="vertical-align:top;"><strong>Informations</strong></td>
         </tr>
         <tr>
