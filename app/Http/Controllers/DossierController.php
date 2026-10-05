@@ -1460,122 +1460,33 @@ class DossierController extends Controller
                 $this->syncExp42aRecords($dossier);
             }
 
-            if (trim($currentDocument->nom) === 'Formulaire EXP – 4.2 a) Expérience spécifique de fournitures/services') {
-                $values = $request->validate([
-                    'numero_marche' => ['nullable','array'],
-                    'numero_marche.*' => ['nullable','string','max:255'],
-                    'identification' => ['nullable','array'],
-                    'identification.*' => ['nullable','string','max:4000'],
-                    'date_attribution' => ['nullable','array'],
-                    'date_attribution.*' => ['nullable','string','max:255'],
-                    'date_achevement' => ['nullable','array'],
-                    'date_achevement.*' => ['nullable','string','max:255'],
-                    'role' => ['nullable','array'],
-                    'role.*' => ['nullable','string','max:255'],
-                    'montant_total' => ['nullable','array'],
-                    'montant_total.*' => ['nullable','string','max:255'],
-                    'participation' => ['nullable','array'],
-                    'participation.*' => ['nullable','string','max:50'],
-                    'montant_part' => ['nullable','array'],
-                    'montant_part.*' => ['nullable','string','max:255'],
-                    'monnaie' => ['nullable','array'],
-                    'monnaie.*' => ['nullable','string','max:20'],
-                    'autorite_nom' => ['nullable','array'],
-                    'autorite_nom.*' => ['nullable','string','max:4000'],
-                    'autorite_adresse' => ['nullable','array'],
-                    'autorite_adresse.*' => ['nullable','string','max:4000'],
-                    'autorite_telephone' => ['nullable','array'],
-                    'autorite_telephone.*' => ['nullable','string','max:255'],
-                    'autorite_email' => ['nullable','array'],
-                    'autorite_email.*' => ['nullable','string','max:255'],
-                    'nom_signataire' => ['nullable','string','max:255'],
-                    'fonction_signataire' => ['nullable','string','max:255'],
+            if (trim($currentDocument->nom) === self::EXP42A_NOM) {
+                $this->syncExp42aRecords($dossier);
+
+                $validated = $request->validate([
+                    'exp42a' => ['nullable', 'array'],
+                    'exp42a.*.numero_marche' => ['nullable', 'string', 'max:255'],
+                    'exp42a.*.identification_marche' => ['nullable', 'string', 'max:4000'],
+                    'exp42a.*.date_attribution' => ['nullable', 'date'],
+                    'exp42a.*.date_achevement' => ['nullable', 'date'],
+                    'exp42a.*.role_marche' => ['nullable', 'string', 'max:255'],
+                    'exp42a.*.montant_total' => ['nullable', 'string', 'max:255'],
+                    'exp42a.*.participation_pourcentage' => ['nullable', 'string', 'max:50'],
+                    'exp42a.*.montant_part' => ['nullable', 'string', 'max:255'],
+                    'exp42a.*.autorite_nom' => ['nullable', 'string', 'max:4000'],
+                    'exp42a.*.autorite_adresse' => ['nullable', 'string', 'max:4000'],
+                    'exp42a.*.autorite_telephone' => ['nullable', 'string', 'max:255'],
+                    'exp42a.*.autorite_email' => ['nullable', 'string', 'max:255'],
                 ]);
 
-                // Filter out fully empty rows
-                if (!empty($values['identification']) && is_array($values['identification'])) {
-                    $filtered = [];
-                    $max = max(
-                        count($values['numero_marche'] ?? []),
-                        count($values['identification'] ?? []),
-                        count($values['date_attribution'] ?? []),
-                        count($values['date_achevement'] ?? []),
-                        count($values['role'] ?? []),
-                        count($values['montant_total'] ?? []),
-                        count($values['participation'] ?? []),
-                        count($values['monnaie'] ?? []),
-                        count($values['autorite_nom'] ?? [])
-                    );
-
-                    $outNumero = [];
-                    $outIdent = [];
-                    $outDateAttr = [];
-                    $outDateAch = [];
-                    $outRole = [];
-                    $outMontant = [];
-                    $outPart = [];
-                    $outMontPart = [];
-                    $outMonnaie = [];
-                    $outAutoriteNom = [];
-                    $outAutoriteAdresse = [];
-                    $outAutoriteTel = [];
-                    $outAutoriteEmail = [];
-
-                    for ($i = 0; $i < $max; $i++) {
-                        $num = isset($values['numero_marche'][$i]) ? trim((string)$values['numero_marche'][$i]) : '';
-                        $ident = isset($values['identification'][$i]) ? trim((string)$values['identification'][$i]) : '';
-                        $attr = isset($values['date_attribution'][$i]) ? trim((string)$values['date_attribution'][$i]) : '';
-                        $ach = isset($values['date_achevement'][$i]) ? trim((string)$values['date_achevement'][$i]) : '';
-                        $role = isset($values['role'][$i]) ? trim((string)$values['role'][$i]) : '';
-                        $mont = isset($values['montant_total'][$i]) ? trim((string)$values['montant_total'][$i]) : '';
-                        $part = isset($values['participation'][$i]) ? trim((string)$values['participation'][$i]) : '';
-                        $mon = isset($values['monnaie'][$i]) ? trim((string)$values['monnaie'][$i]) : '';
-                        $an = isset($values['autorite_nom'][$i]) ? trim((string)$values['autorite_nom'][$i]) : '';
-                        $aa = isset($values['autorite_adresse'][$i]) ? trim((string)$values['autorite_adresse'][$i]) : '';
-                        $at = isset($values['autorite_telephone'][$i]) ? trim((string)$values['autorite_telephone'][$i]) : '';
-                        $ae = isset($values['autorite_email'][$i]) ? trim((string)$values['autorite_email'][$i]) : '';
-
-                        if ($num !== '' || $ident !== '' || $attr !== '' || $ach !== '' || $role !== '' || $mont !== '' || $part !== '' || $an !== '') {
-                            $outNumero[] = $num;
-                            $outIdent[] = $ident;
-                            $outDateAttr[] = $attr;
-                            $outDateAch[] = $ach;
-                            $outRole[] = $role;
-                            $outMontant[] = $mont;
-                            $outPart[] = $part;
-                            $outMontPart[] = isset($values['montant_part'][$i]) ? trim((string)$values['montant_part'][$i]) : '';
-                            $outMonnaie[] = $mon;
-                            $outAutoriteNom[] = $an;
-                            $outAutoriteAdresse[] = $aa;
-                            $outAutoriteTel[] = $at;
-                            $outAutoriteEmail[] = $ae;
-                        }
-                    }
-
-                    $values['numero_marche'] = $outNumero;
-                    $values['identification'] = $outIdent;
-                    $values['date_attribution'] = $outDateAttr;
-                    $values['date_achevement'] = $outDateAch;
-                    $values['role'] = $outRole;
-                    $values['montant_total'] = $outMontant;
-                    $values['participation'] = $outPart;
-                    $values['montant_part'] = $outMontPart ?? [];
-                    $values['monnaie'] = $outMonnaie;
-                    $values['autorite_nom'] = $outAutoriteNom;
-                    $values['autorite_adresse'] = $outAutoriteAdresse;
-                    $values['autorite_telephone'] = $outAutoriteTel;
-                    $values['autorite_email'] = $outAutoriteEmail;
+                foreach ($validated['exp42a'] ?? [] as $id => $data) {
+                    FormulaireExp42A::where('dossier_id', $dossier->id)
+                        ->whereNotNull('marche_position')
+                        ->whereKey($id)
+                        ->first()?->update($data);
                 }
 
-                $content = json_encode($values, JSON_UNESCAPED_UNICODE);
-                if ($content === false) {
-                    $content = json_encode($values, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
-                }
-
-                $dossierDocument->update([
-                    'content' => $content,
-                    'statut' => 'complete',
-                ]);
+                $dossierDocument->update(['statut' => 'complete']);
             }
 
             if (trim($currentDocument->nom) === 'Formulaire EXP – 4.2 b) (suite) Expérience spécifique de fournitures/services dans les activités principales (suite)') {
