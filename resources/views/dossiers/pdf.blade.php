@@ -304,7 +304,7 @@
                 $isFormulaire = strcasecmp(trim($doc->typeDocument->type_formulaire ?? ''), 'formulaire') === 0;
             @endphp
             {{-- Display uploaded image files immediately after title for non-form and non-upload-only documents only --}}
-            @if(!$isPermat && $doc->fichiers && $doc->fichiers->count() > 0 && !$isExp42 &&!(strcasecmp(trim($doc->typeDocument->nom), 'Formulaire FIN 3.4 (a) Modèle d\'attestation de capacité financière') === 0 || strcasecmp(trim($doc->typeDocument->nom), 'Formulaire FIN 3.4 (b) Modèle de lettre de confirmation de la capacité financière') === 0))
+            @if(!$isPermat && $doc->fichiers && $doc->fichiers->count() > 0 && !$isExp42a &&!(strcasecmp(trim($doc->typeDocument->nom), 'Formulaire FIN 3.4 (a) Modèle d\'attestation de capacité financière') === 0 || strcasecmp(trim($doc->typeDocument->nom), 'Formulaire FIN 3.4 (b) Modèle de lettre de confirmation de la capacité financière') === 0))
                 <div style="margin-top:10px; margin-bottom:10px;">
                     @foreach($doc->fichiers as $f)
                         @php
