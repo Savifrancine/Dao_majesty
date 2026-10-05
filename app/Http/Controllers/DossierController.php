@@ -2265,6 +2265,7 @@ class DossierController extends Controller
             return redirect()->route('dossiers.step6', ['dossierId' => $dossier->id, 'current_index' => $nextIndex]);
         }
 
+        $this->syncExp42aRecords($dossier);
         $globalChiffres = ChiffreAffaire::whereNull('dossier_id')->orderBy('annee')->get();
 
         return view('dossiers.create.step6', [
@@ -3004,6 +3005,7 @@ class DossierController extends Controller
         $uploadQueue = $uploadableDocs->map(fn ($doc) => $doc->typeDocument)->values();
         $selectedDocumentIds = $uploadableDocs->pluck('type_document_id')->values()->all();
         $currentDocument = $uploadQueue->get($resumeIndex);
+        $this->syncExp42aRecords($dossier);
         $globalChiffres = ChiffreAffaire::whereNull('dossier_id')->orderBy('annee')->get();
 
         return view('dossiers.create.step6', [
