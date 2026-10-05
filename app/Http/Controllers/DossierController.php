@@ -2889,6 +2889,14 @@ class DossierController extends Controller
      */
     public function applyStandardOrder(Dossier $dossier)
     {
+        $this->applySommaireStandardOrder($dossier);
+
+        return redirect()->route('dossiers.show', $dossier->id)
+            ->with('success', 'Sommaire classé selon l\'ordre standard.');
+    }
+
+    private function applySommaireStandardOrder(Dossier $dossier): void
+    {
         $rank = [];
         foreach (self::STANDARD_SOMMAIRE as $index => $nom) {
             $rank[$this->normalizeSommaireName($nom)] = $index;
@@ -2914,9 +2922,6 @@ class DossierController extends Controller
                 $doc->update(['ordre' => $index + 1]);
             }
         }
-
-        return redirect()->route('dossiers.show', $dossier->id)
-            ->with('success', 'Sommaire classé selon l\'ordre standard.');
     }
 
     private function normalizeSommaireName(string $nom): string
@@ -2971,6 +2976,7 @@ class DossierController extends Controller
             abort(403, 'Accès refusé');
         }
 
+        $this->applySommaireStandardOrder($dossier);
         $this->normalizeDocumentOrders($dossier);
         $dossier->load(['documents.typeDocument', 'documents.fichiers', 'entreprise', 'typeDossier']);
 
