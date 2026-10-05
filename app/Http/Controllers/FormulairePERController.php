@@ -10,7 +10,7 @@ class FormulairePERController extends Controller
 {
     public function index()
     {
-        $formulaires = FormulairePER::where('utilisateur_id', auth()->id())
+        $formulaires = FormulairePER::when(! auth()->user()->isAdminOrDirecteur(), fn ($q) => $q->where('utilisateur_id', auth()->id()))
             ->orderByDesc('created_at')
             ->paginate(12);
 
@@ -60,7 +60,7 @@ class FormulairePERController extends Controller
     public function edit(FormulairePER $formulaire_per)
     {
         // Vérifier que l'utilisateur est propriétaire du formulaire
-        if ($formulaire_per->utilisateur_id !== auth()->id()) {
+        if (! auth()->user()->isAdminOrDirecteur() && $formulaire_per->utilisateur_id !== auth()->id()) {
             abort(403);
         }
 
@@ -70,7 +70,7 @@ class FormulairePERController extends Controller
     public function update(Request $request, FormulairePER $formulaire_per)
     {
         // Vérifier que l'utilisateur est propriétaire du formulaire
-        if ($formulaire_per->utilisateur_id !== auth()->id()) {
+        if (! auth()->user()->isAdminOrDirecteur() && $formulaire_per->utilisateur_id !== auth()->id()) {
             abort(403);
         }
 
@@ -110,7 +110,7 @@ class FormulairePERController extends Controller
         $this->denyEmployeeDeletion();
 
         // Vérifier que l'utilisateur est propriétaire du formulaire
-        if ($formulaire_per->utilisateur_id !== auth()->id()) {
+        if (! auth()->user()->isAdminOrDirecteur() && $formulaire_per->utilisateur_id !== auth()->id()) {
             abort(403);
         }
 
@@ -122,7 +122,7 @@ class FormulairePERController extends Controller
     public function downloadPDF(FormulairePER $formulaire_per)
     {
         // Vérifier que l'utilisateur est propriétaire du formulaire
-        if ($formulaire_per->utilisateur_id !== auth()->id()) {
+        if (! auth()->user()->isAdminOrDirecteur() && $formulaire_per->utilisateur_id !== auth()->id()) {
             abort(403);
         }
 
@@ -139,7 +139,7 @@ class FormulairePERController extends Controller
     public function show(FormulairePER $formulaire_per)
     {
         // Vérifier que l'utilisateur est propriétaire du formulaire
-        if ($formulaire_per->utilisateur_id !== auth()->id()) {
+        if (! auth()->user()->isAdminOrDirecteur() && $formulaire_per->utilisateur_id !== auth()->id()) {
             abort(403);
         }
 

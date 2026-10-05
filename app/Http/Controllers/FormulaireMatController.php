@@ -12,7 +12,7 @@ class FormulaireMatController extends Controller
     public function index()
     {
         $formulaires = FormulaireMat::with('signataire')
-            ->where('utilisateur_id', auth()->id())
+            ->when(! auth()->user()->isAdminOrDirecteur(), fn ($q) => $q->where('utilisateur_id', auth()->id()))
             ->orderByDesc('created_at')
             ->paginate(12);
 
@@ -172,7 +172,7 @@ class FormulaireMatController extends Controller
 
     private function authorizeForm(FormulaireMat $formulaireMat)
     {
-        if ($formulaireMat->utilisateur_id !== auth()->id()) {
+        if (! auth()->user()->isAdminOrDirecteur() && $formulaireMat->utilisateur_id !== auth()->id()) {
             abort(403);
         }
     }

@@ -13,7 +13,7 @@ class FormulaireExp42AController extends Controller
 {
     public function index()
     {
-        $formulaires = FormulaireExp42A::where('utilisateur_id', auth()->id())
+        $formulaires = FormulaireExp42A::when(! auth()->user()->isAdminOrDirecteur(), fn ($q) => $q->where('utilisateur_id', auth()->id()))
             ->orderByDesc('created_at')
             ->paginate(12);
 
@@ -332,7 +332,7 @@ class FormulaireExp42AController extends Controller
 
     private function authorizeForm(FormulaireExp42A $formulaireExp42A): void
     {
-        if ($formulaireExp42A->utilisateur_id !== auth()->id()) {
+        if (! auth()->user()->isAdminOrDirecteur() && $formulaireExp42A->utilisateur_id !== auth()->id()) {
             abort(403);
         }
     }
