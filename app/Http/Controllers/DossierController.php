@@ -2646,22 +2646,7 @@ class DossierController extends Controller
      */
     private function appendPdfAsImages(\setasign\Fpdi\Fpdi $pdf, string $file): void
     {
-        $gsPath = $this->findGhostscriptExecutable();
-        if (!$gsPath) {
-            return;
-        }
-
-        $prefix = uniqid('gs_merge_', true);
-        $outputPattern = sys_get_temp_dir() . DIRECTORY_SEPARATOR . $prefix . '_%03d.png';
-
-        $cmd = '"' . str_replace('\\', '/', $gsPath) . '" -q -dNOPAUSE -dBATCH -dSAFER -sDEVICE=png16m -r150 '
-            . '-sOutputFile="' . str_replace('\\', '/', $outputPattern) . '" "' . str_replace('\\', '/', $file) . '" 2>&1';
-        exec($cmd, $cmdOutput, $returnCode);
-
-        $pages = glob(sys_get_temp_dir() . DIRECTORY_SEPARATOR . $prefix . '_*.png');
-        sort($pages);
-
-        foreach ($pages as $imagePath) {
+        foreach ($this->renderPdfPagesToPng($file) as $imagePath) {
             $size = @getimagesize($imagePath);
             if (!$size) {
                 @unlink($imagePath);
@@ -2678,6 +2663,57 @@ class DossierController extends Controller
 
             @unlink($imagePath);
         }
+    }
+
+    /**
+     * Convertit chaque page d'un PDF en image PNG (150 dpi) et retourne leurs chemins.
+     * Imagick est essayé en premier : il ne passe pas par exec(), souvent restreint
+     * en contexte web. Ghostscript sert de repli.
+     * @return string[]
+     */
+    private function renderPdfPagesToPng(string $file): array
+    {
+        $prefix = sys_get_temp_dir() . DIRECTORY_SEPARATOR . uniqid('pdfpage_', true);
+
+        if (class_exists(\Imagick::class)) {
+            try {
+                $imagick = new \Imagick();
+                $imagick->setResolution(150, 150);
+                $imagick->readImage($file);
+                $paths = [];
+                foreach ($imagick as $index => $page) {
+                    $path = sprintf('%s_%03d.png', $prefix, $index);
+                    $page->setImageFormat('png');
+                    $page->writeImage($path);
+                    $paths[] = $path;
+                }
+                $imagick->clear();
+                if ($paths) {
+                    return $paths;
+                }
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Rendu PDF via Imagick impossible : ' . $e->getMessage());
+            }
+        }
+
+        $gsPath = $this->findGhostscriptExecutable();
+        if (!$gsPath) {
+            \Illuminate\Support\Facades\Log::warning('Ghostscript introuvable, PDF joint non converti : ' . $file);
+            return [];
+        }
+
+        $outputPattern = $prefix . '_%03d.png';
+        $cmd = '"' . str_replace('\\', '/', $gsPath) . '" -q -dNOPAUSE -dBATCH -dSAFER -sDEVICE=png16m -r150 '
+            . '-sOutputFile="' . str_replace('\\', '/', $outputPattern) . '" "' . str_replace('\\', '/', $file) . '" 2>&1';
+        exec($cmd, $cmdOutput, $returnCode);
+        if ($returnCode !== 0) {
+            \Illuminate\Support\Facades\Log::warning('Ghostscript a échoué (code ' . $returnCode . ') : ' . implode(' ', $cmdOutput));
+        }
+
+        $pages = glob($prefix . '_*.png') ?: [];
+        sort($pages);
+
+        return $pages;
     }
 
     /**
@@ -2702,6 +2738,8 @@ class DossierController extends Controller
         }
 
         $commonPaths = [
+            '/usr/bin/gs',
+            '/usr/local/bin/gs',
             'C:/Program Files/gs/*/bin/gswin64c.exe',
             'C:/Program Files/gs/*/bin/gswin64.exe',
             'C:/Program Files/gs/*/bin/gs.exe',
