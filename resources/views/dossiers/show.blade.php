@@ -590,7 +590,7 @@
                                     <th>Actions</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody id="sommaire-body">
                                 @php
                                     $uploadable = $dossier->documents->filter(function($dd){
                                         return $dd->typeDocument;
@@ -599,13 +599,10 @@
                                 @endphp
 
                                 @foreach($dossier->documents->sortBy('ordre')->values() as $doc)
-                                <tr>
+                                <tr data-id="{{ $doc->id }}">
                                     <td>
-                                        <form action="{{ route('dossiers.moveDocument', ['dossier' => $dossier->id, 'document' => $doc->id]) }}" method="POST" style="display:flex; align-items:center; gap:4px;">
-                                            @csrf
-                                            <input type="number" name="position" min="1" max="{{ $dossier->documents->count() }}" value="{{ $doc->ordre ?? 1 }}" style="width:60px; padding:2px 4px;" aria-label="Position dans le sommaire">
-                                            <button type="submit" class="btn-action" title="Déplacer à cette position">OK</button>
-                                        </form>
+                                        <span class="drag-handle" title="Glisser pour changer l'ordre" style="cursor:grab; touch-action:none; font-size:18px; padding:0 6px; user-select:none;">☰</span>
+                                        <span class="order-pill">#{{ $loop->iteration }}</span>
                                     </td>
                                     <td>
                                         <strong>{{ $doc->typeDocument->nom ?? 'Document' }}</strong>
@@ -650,6 +647,38 @@
                                 @endforeach
                             </tbody>
                         </table>
+                    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.6/Sortable.min.js"></script>
+                    <script>
+                        document.addEventListener('DOMContentLoaded', function () {
+                            var body = document.getElementById('sommaire-body');
+                            if (!body || !window.Sortable) return;
+
+                            var url = @json(route('dossiers.reorderDocuments', $dossier->id));
+                            var token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+                            Sortable.create(body, {
+                                handle: '.drag-handle',
+                                animation: 150,
+                                onEnd: function () {
+                                    var ids = [];
+                                    body.querySelectorAll('tr[data-id]').forEach(function (row, index) {
+                                        ids.push(row.dataset.id);
+                                        row.querySelector('.order-pill').textContent = '#' + (index + 1);
+                                    });
+
+                                    fetch(url, {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': token, 'Accept': 'application/json' },
+                                        body: JSON.stringify({ ids: ids })
+                                    }).then(function (res) {
+                                        if (!res.ok) throw new Error('save failed');
+                                    }).catch(function () {
+                                        alert("L'ordre n'a pas pu être enregistré. Rechargez la page.");
+                                    });
+                                }
+                            });
+                        });
+                    </script>
                     </div>
                 @else
                     <div class="doc-row-empty">
