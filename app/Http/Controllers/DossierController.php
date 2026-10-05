@@ -28,6 +28,38 @@ use Illuminate\Support\Facades\Log;
 
 class DossierController extends Controller
 {
+    private const STANDARD_SOMMAIRE = [
+        'Formulaire ELI – 1.1 : Formulaire de renseignements sur le candidat',
+        'Déclaration de garantie d\'offre',
+        'Attestation d\'identification de statut',
+        'Formulaire de qualification',
+        'Formulaire EXP – 4.1 : Expérience générale de fournitures/services',
+        'Formulaire EXP – 4.2 a) Expérience spécifique de fournitures/services',
+        'Formulaire EXP – 4.2 a) (suite) Expérience spécifique de fournitures/services dans les activités principales (suite)',
+        'Formulaire EXP – 4.2 b) Expérience spécifique de fournitures',
+        'Formulaire EXP – 4.2 b) (suite) Expérience spécifique de fournitures/services dans les activités principales (suite)',
+        'Formulaire ANT-2 : Formulaire renseignant sur les antécédents de marchés non exécutés, de litiges en instance et d\'antécédents de litiges',
+        'Engagement du soumissionnaire à respecter le code d\'éthique et de déontologie',
+        'Listes des Fournitures et Calendrier de livraison',
+        'Description technique des fournitures/services',
+        'Fiche technique de chaque article, délivrée par le fabricant',
+        'Attestation de bonne fin',
+        'Bon de commande et contrats',
+        'Copie de l\'arrêté du Ministre de la Santé portant autorisation d\'importation, de détention et de vente des équipements médicaux',
+        'RCCM',
+        'Copie legalisee de l\'Identifiant Fiscal Unique (IFU)',
+        'Attestation de non-faillite datant de moins de trois (03) mois',
+        'Attestation d\'imposition ou de situation fiscale en cours de validite',
+        'Attestation de regularite a la CNSS',
+        'Attestation de non-exclusion de la commande publique',
+        'Relevé d\'identité bancaire (RIB)',
+        'Formulaire de divulgation des bénéficiaires effectifs',
+        'Pièce d\'identité du premier responsable',
+        'Déclaration de l\'autorité contractante',
+        'Plan de charge',
+        'Formulaire MTC/FIN – 3.5 : Marchés de fournitures/services en cours',
+    ];
+
     private const EXP41_NOM = 'Formulaire EXP – 4.1 : Expérience générale de fournitures/services';
     private const EXP42A_NOM = 'Formulaire EXP – 4.2 a) Expérience spécifique de fournitures/services';
 
@@ -2849,6 +2881,55 @@ class DossierController extends Controller
                 $document->update(['ordre' => $index + 1]);
             }
         }
+    }
+
+    /**
+     * Classe le sommaire selon STANDARD_SOMMAIRE ; les pièces absentes de cette
+     * liste restent à la fin, dans leur ordre actuel.
+     */
+    public function applyStandardOrder(Dossier $dossier)
+    {
+        $rank = [];
+        foreach (self::STANDARD_SOMMAIRE as $index => $nom) {
+            $rank[$this->normalizeSommaireName($nom)] = $index;
+        }
+
+        $documents = $dossier->documents()
+            ->with('typeDocument')
+            ->orderBy('ordre')
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get();
+
+        $known = $documents
+            ->filter(fn ($doc) => isset($rank[$this->normalizeSommaireName(optional($doc->typeDocument)->nom ?? '')]))
+            ->sortBy(fn ($doc) => $rank[$this->normalizeSommaireName($doc->typeDocument->nom)])
+            ->values();
+        $unknown = $documents
+            ->reject(fn ($doc) => isset($rank[$this->normalizeSommaireName(optional($doc->typeDocument)->nom ?? '')]))
+            ->values();
+
+        foreach ($known->concat($unknown)->values() as $index => $doc) {
+            if ((int) $doc->ordre !== $index + 1) {
+                $doc->update(['ordre' => $index + 1]);
+            }
+        }
+
+        return redirect()->route('dossiers.show', $dossier->id)
+            ->with('success', 'Sommaire classé selon l\'ordre standard.');
+    }
+
+    private function normalizeSommaireName(string $nom): string
+    {
+        $lower = mb_strtolower(trim($nom), 'UTF-8');
+        $lower = strtr($lower, [
+            'à' => 'a', 'â' => 'a', 'ä' => 'a',
+            'é' => 'e', 'è' => 'e', 'ê' => 'e', 'ë' => 'e',
+            'î' => 'i', 'ï' => 'i', 'ô' => 'o', 'ö' => 'o',
+            'ù' => 'u', 'û' => 'u', 'ü' => 'u', 'ç' => 'c',
+        ]);
+
+        return trim(preg_replace('/[^a-z0-9]+/', ' ', $lower));
     }
 
     /**

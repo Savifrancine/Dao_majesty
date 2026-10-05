@@ -111,6 +111,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/dossiers/{dossier}/select-documents', [App\Http\Controllers\DossierController::class, 'selectDocuments'])->name('dossiers.selectDocuments');
     Route::delete('/dossiers/{dossier}/document/{document}', [App\Http\Controllers\DossierController::class, 'destroyDocument'])->name('dossiers.destroyDocument');
     Route::post('/dossiers/{dossier}/documents/ordre', [App\Http\Controllers\DossierController::class, 'reorderDocuments'])->name('dossiers.reorderDocuments');
+    Route::post('/dossiers/{dossier}/documents/ordre-standard', [App\Http\Controllers\DossierController::class, 'applyStandardOrder'])->name('dossiers.standardOrder');
 
     // Wizard steps
     Route::get('/dossiers/create', [App\Http\Controllers\DossierController::class, 'create'])->name('dossiers.create');

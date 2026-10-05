@@ -559,9 +559,15 @@
             <div class="section-card">
                 <div class="section-header">
                     <div class="section-title">Sommaire ({{ $dossier->documents->count() }} documents)</div>
-                    <a href="{{ route('dossiers.selectDocuments', $dossier->id) }}" class="btn-add-doc">
-                        ✚ Ajouter des documents
-                    </a>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <form action="{{ route('dossiers.standardOrder', $dossier->id) }}" method="POST" style="display:inline;" onsubmit="return confirm('Classer tout le sommaire selon l\'ordre standard ?');">
+                            @csrf
+                            <button type="submit" class="btn-action" title="Classe les documents selon l'ordre standard">Ordre standard</button>
+                        </form>
+                        <a href="{{ route('dossiers.selectDocuments', $dossier->id) }}" class="btn-add-doc">
+                            ✚ Ajouter des documents
+                        </a>
+                    </div>
                 </div>
                 @if($dossier->documents->count() > 0)
                     <div class="doc-summary">
