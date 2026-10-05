@@ -619,6 +619,7 @@
                     <div style="text-align:right; font-weight:700;">Date : {{ $formattedDateSoumission }}</div>
                     <div style="text-align:right; font-weight:700; margin-bottom:10px;">{{ $drpFormatted }}</div>
 
+                    <div style="font-size:12.5px; line-height:1.45;">
                     <p><strong>A l'attention de {{ strtoupper($attention) }}</strong></p>
 
                     <p><strong>Nous, soussignés, déclarons que :</strong></p>
@@ -640,6 +641,7 @@
                     </ol>
 
                     <p>3. La présente lettre de déclaration de garantie expirera si le marché ne nous est pas attribué, à la première des dates suivantes : (i) lorsque nous recevrons copie de votre notification du nom du soumissionnaire retenu, ou (ii) trente (30) jours suivant l'expiration du délai de validité de notre offre.</p>
+                    </div>
 
                     <p>4. Il est entendu que si nous sommes un groupement d'entreprises, la déclaration de garantie d'offre doit être au nom du groupement qui soumet l'offre. Si le groupement n'a pas été formellement constitué lors du dépôt d'offre, la déclaration de garantie de l'offre doit être au nom de tous les futurs membres du groupement nommés dans la lettre de déclaration.</p>
 
