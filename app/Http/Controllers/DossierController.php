@@ -866,14 +866,14 @@ class DossierController extends Controller
             ->filter(fn ($doc) => !in_array($doc->nom, $autoCompleteNames, true))
             ->values();
 
-        foreach ($orderedSelected as $index => $doc) {
+        foreach ($orderedSelected as $doc) {
             $dossierDocument = DossierDocument::firstOrNew([
                 'dossier_id' => $dossier->id,
                 'type_document_id' => $doc->id,
             ]);
 
-            $dossierDocument->ordre = $index + 1;
             if (! $dossierDocument->exists) {
+                $dossierDocument->ordre = (int) $dossier->documents()->max('ordre') + 1;
                 $dossierDocument->statut = 'vide';
             }
             $dossierDocument->save();
@@ -950,8 +950,8 @@ class DossierController extends Controller
                 'dossier_id' => $dossier->id,
                 'type_document_id' => $currentDocumentId,
             ]);
-            $dossierDocument->ordre = $currentIndex + 1;
             if (! $dossierDocument->exists) {
+                $dossierDocument->ordre = (int) $dossier->documents()->max('ordre') + 1;
                 $dossierDocument->statut = 'vide';
             }
             $dossierDocument->save();
@@ -2321,7 +2321,7 @@ class DossierController extends Controller
         // dans le dossier, sans exclure "Déclaration de garantie d'offre" ni aucun autre.
         $documents = $dossier->documents->filter(function ($doc) {
             return $doc->typeDocument !== null;
-        })->sortBy('ordre')->values();
+        })->sortBy([['ordre', 'asc'], ['id', 'asc']])->values();
 
         // Préparer le data URI de l'image/PDF de la page de garde pour l'inclure dans le HTML
         $pageGardeDataUri = null;
