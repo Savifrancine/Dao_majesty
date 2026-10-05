@@ -95,7 +95,7 @@ class FormulaireExp42A extends Model
             if ($reference !== '') {
                 $parts[] = $reference;
             }
-            if ($dateLancement) {
+            if ($dateLancement && !str_contains($reference, $dateLancement)) {
                 $parts[] = 'du ' . $dateLancement;
             }
             if ($titre !== '') {

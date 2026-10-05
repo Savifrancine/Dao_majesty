@@ -121,7 +121,7 @@
             <div style="flex:0 0 220px; text-align:right;"><strong>Date :</strong> {{ $date_soumission_display }}</div>
         </div>
         <div style="text-align:center; margin-top:6px; margin-left:8px; padding-left:16px;">
-            <strong>N° ADRP :</strong>{{ $numero_adpr_full }}
+            <strong>N° ADRP :</strong> {{ $numero_adpr_full }}
         </div>
     </div>
 
