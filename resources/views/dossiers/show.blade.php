@@ -600,7 +600,13 @@
 
                                 @foreach($dossier->documents->sortBy('ordre')->values() as $doc)
                                 <tr>
-                                    <td><span class="order-pill">#{{ $doc->ordre ?? '—' }}</span></td>
+                                    <td>
+                                        <form action="{{ route('dossiers.moveDocument', ['dossier' => $dossier->id, 'document' => $doc->id]) }}" method="POST" style="display:flex; align-items:center; gap:4px;">
+                                            @csrf
+                                            <input type="number" name="position" min="1" max="{{ $dossier->documents->count() }}" value="{{ $doc->ordre ?? 1 }}" style="width:60px; padding:2px 4px;" aria-label="Position dans le sommaire">
+                                            <button type="submit" class="btn-action" title="Déplacer à cette position">OK</button>
+                                        </form>
+                                    </td>
                                     <td>
                                         <strong>{{ $doc->typeDocument->nom ?? 'Document' }}</strong>
                                     </td>

@@ -2784,6 +2784,37 @@ class DossierController extends Controller
     }
 
     /**
+     * Place un document à la position choisie dans le sommaire, puis renumérote
+     * l'ordre de tous les documents du dossier.
+     */
+    public function moveDocument(Request $request, Dossier $dossier, DossierDocument $document)
+    {
+        abort_unless($document->dossier_id === $dossier->id, 404);
+
+        $position = (int) $request->validate([
+            'position' => ['required', 'integer', 'min:1'],
+        ])['position'];
+
+        $ordered = $dossier->documents()
+            ->where('id', '!=', $document->id)
+            ->orderBy('ordre')
+            ->orderBy('id')
+            ->get()
+            ->all();
+
+        array_splice($ordered, min($position, count($ordered) + 1) - 1, 0, [$document]);
+
+        foreach ($ordered as $index => $doc) {
+            if ((int) $doc->ordre !== $index + 1) {
+                $doc->update(['ordre' => $index + 1]);
+            }
+        }
+
+        return redirect()->route('dossiers.show', $dossier->id)
+            ->with('success', 'Ordre du sommaire mis à jour.');
+    }
+
+    /**
      * Afficher un dossier
      */
     public function show(Dossier $dossier)
