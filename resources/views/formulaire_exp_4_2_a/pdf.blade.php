@@ -6,7 +6,7 @@
     <title>Formulaire EXP – 4.2 a) - {{ optional($formulaireExp42A->entreprise)->nom ?? $formulaireExp42A->nom_candidat ?? 'Formulaire' }}</title>
     <style>
         @page { margin: 12mm 20mm 20mm 20mm; }
-        body { font-family: DejaVu Sans, Calibri, Segoe UI, Arial, Helvetica, sans-serif; color: #222; margin: 0; font-size: 12px; }
+        body { font-family: Helvetica, Arial, sans-serif; color: #222; margin: 0; font-size: 11px; }
         .header-table { width:100%; border-collapse:collapse; margin-bottom:12px; }
         .header-table td { vertical-align:top; }
         .header-logo { width:115px; padding-right:14px; }
