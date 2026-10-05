@@ -95,10 +95,10 @@
 
         $dossierRef = trim($dossier->reference_dossier ?? $dossier->ref ?? '');
         $dossierDate = optional($dossier->date_lancement)->format('d/m/Y') ?? '';
-        if ($dossierDate !== '' && str_contains($dossierRef, $dossierDate)) {
-            $dossierDate = '';
+        $dossierLabel = $dossierRef;
+        if ($dossierDate !== '' && !str_contains($dossierRef, $dossierDate)) {
+            $dossierLabel = trim($dossierRef . ' du ' . $dossierDate);
         }
-        $dossierLabel = implode(' - ', array_filter([$dossierRef, $dossierDate, trim($dossier->nom_dossier ?? '')]));
 
         $date_soumission_display = optional($dossier)->date_soumission ? optional($dossier)->date_soumission->format('d/m/Y') : '-';
 
