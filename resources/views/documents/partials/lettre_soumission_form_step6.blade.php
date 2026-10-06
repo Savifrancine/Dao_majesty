@@ -106,44 +106,44 @@
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:18px;">
             <div>
                 <label class="wizard-label" for="montant_ht_calendrier">Montant HT – fournitures (bordereaux de prix)</label>
-                <input id="montant_ht_calendrier" type="text" name="montant_ht_calendrier" class="form-control wizard-input" readonly value="{{ $value('montant_ht_calendrier', $defaultTotalHtCalendrier) }}">
+                <input id="montant_ht_calendrier" type="text" name="montant_ht_calendrier" class="form-control wizard-input" readonly value="{{ $defaultTotalHtCalendrier }}">
             </div>
             <div>
                 <label class="wizard-label" for="montant_ttc_calendrier">Montant TTC – fournitures (bordereaux de prix)</label>
-                <input id="montant_ttc_calendrier" type="text" name="montant_ttc_calendrier" class="form-control wizard-input" readonly value="{{ $value('montant_ttc_calendrier', $defaultTotalTtcCalendrier) }}">
+                <input id="montant_ttc_calendrier" type="text" name="montant_ttc_calendrier" class="form-control wizard-input" readonly value="{{ $defaultTotalTtcCalendrier }}">
             </div>
         </div>
 
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:18px;">
             <div>
                 <label class="wizard-label" for="montant_ht_services">Montant HT – services connexes</label>
-                <input id="montant_ht_services" type="text" name="montant_ht_services" class="form-control wizard-input" readonly value="{{ $value('montant_ht_services', $defaultTotalHtServices) }}">
+                <input id="montant_ht_services" type="text" name="montant_ht_services" class="form-control wizard-input" readonly value="{{ $defaultTotalHtServices }}">
             </div>
             <div>
                 <label class="wizard-label" for="montant_ttc_services">Montant TTC – services connexes</label>
-                <input id="montant_ttc_services" type="text" name="montant_ttc_services" class="form-control wizard-input" readonly value="{{ $value('montant_ttc_services', $defaultTotalTtcServices) }}">
+                <input id="montant_ttc_services" type="text" name="montant_ttc_services" class="form-control wizard-input" readonly value="{{ $defaultTotalTtcServices }}">
             </div>
         </div>
 
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:18px;">
             <div>
                 <label class="wizard-label" for="montant_ht_total">Total HT (bordereau + services)</label>
-                <input id="montant_ht_total" type="text" name="montant_ht_total" class="form-control wizard-input" readonly value="{{ $value('montant_ht_total', $defaultTotalHt) }}">
+                <input id="montant_ht_total" type="text" name="montant_ht_total" class="form-control wizard-input" readonly value="{{ $defaultTotalHt }}">
             </div>
             <div>
                 <label class="wizard-label" for="montant_ht_lettres">Total HT en lettres</label>
-                <input id="montant_ht_lettres" type="text" name="montant_ht_lettres" class="form-control wizard-input" readonly value="{{ $value('montant_ht_lettres', $defaultTotalHtLettres) }}">
+                <input id="montant_ht_lettres" type="text" name="montant_ht_lettres" class="form-control wizard-input" readonly value="{{ $defaultTotalHtLettres }}">
             </div>
         </div>
 
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:18px;">
             <div>
                 <label class="wizard-label" for="montant_chiffres">Montant total TTC en chiffres</label>
-                <input id="montant_chiffres" type="text" name="montant_chiffres" class="form-control wizard-input" readonly value="{{ $value('montant_chiffres', $defaultTotalTtc) }}">
+                <input id="montant_chiffres" type="text" name="montant_chiffres" class="form-control wizard-input" readonly value="{{ $defaultTotalTtc }}">
             </div>
             <div>
                 <label class="wizard-label" for="montant_lettres">Montant total TTC en lettres</label>
-                <input id="montant_lettres" type="text" name="montant_lettres" class="form-control wizard-input" readonly value="{{ $value('montant_lettres', $defaultTotalTtcLettres) }}">
+                <input id="montant_lettres" type="text" name="montant_lettres" class="form-control wizard-input" readonly value="{{ $defaultTotalTtcLettres }}">
             </div>
         </div>
 
