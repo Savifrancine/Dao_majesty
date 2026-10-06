@@ -24,6 +24,7 @@ class ChiffreAffaireController extends Controller
      */
     public function storeGlobal(Request $request)
     {
+        $this->normalizeMontant($request);
         $data = $request->validate([
             'annee' => 'required|integer',
             'montant' => 'required|numeric',
@@ -37,10 +38,16 @@ class ChiffreAffaireController extends Controller
         return redirect()->route('chiffres.index')->with('success', 'Chiffre global ajouté');
     }
 
+    private function normalizeMontant(Request $request): void
+    {
+        $request->merge(['montant' => str_replace([' ', " ", ','], ['', '', '.'], (string) $request->input('montant'))]);
+    }
+
     public function updateGlobal(Request $request, ChiffreAffaire $chiffre)
     {
         abort_unless($chiffre->dossier_id === null, 404);
 
+        $this->normalizeMontant($request);
         $data = $request->validate([
             'annee' => 'required|integer',
             'montant' => 'required|numeric',

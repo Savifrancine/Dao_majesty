@@ -4,6 +4,17 @@
 <div class="container">
     <h3>Chiffres d'affaires</h3>
 
+    @if(session('success'))
+        <div class="alert alert-success mt-3">{{ session('success') }}</div>
+    @endif
+    @if($errors->any())
+        <div class="alert alert-danger mt-3">
+            @foreach($errors->all() as $error)
+                <div>{{ $error }}</div>
+            @endforeach
+        </div>
+    @endif
+
     <div class="card p-3 mt-3">
         <form id="addChiffreForm" method="POST" action="{{ route('chiffres.store.global') }}" class="row g-2">
             @csrf
