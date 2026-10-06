@@ -30,7 +30,11 @@
         // ailleurs) double-compterait des montants et gonflerait le total soumis.
         // On ne se rabat sur les autres bordereaux "fournitures" que si le dossier
         // n'a pas de Bordereau des prix pour les fournitures à importer chiffré.
-        $calendrierHT = $sumMontantForNames(['Bordereau des prix pour les fournitures à importer']);
+        $calendrierHT = $sumMontantForNames([
+            'Bordereau des prix pour les fournitures à importer',
+            'Bordereau des prix des fournitures, déjà importées',
+            'Bordereau des prix pour les fournitures fabriquées au Bénin',
+        ]);
         if ($calendrierHT <= 0) {
             $calendrierHT = $sumMontantForNames([
                 'Bordereau prix unitaire',
