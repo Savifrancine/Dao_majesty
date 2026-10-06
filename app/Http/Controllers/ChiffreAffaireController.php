@@ -37,6 +37,31 @@ class ChiffreAffaireController extends Controller
         return redirect()->route('chiffres.index')->with('success', 'Chiffre global ajouté');
     }
 
+    public function updateGlobal(Request $request, ChiffreAffaire $chiffre)
+    {
+        abort_unless($chiffre->dossier_id === null, 404);
+
+        $data = $request->validate([
+            'annee' => 'required|integer',
+            'montant' => 'required|numeric',
+            'monnaie' => 'nullable|string',
+        ]);
+
+        $data['monnaie'] = $data['monnaie'] ?? 'F CFA';
+        $chiffre->update($data);
+
+        return redirect()->route('chiffres.index')->with('success', 'Chiffre modifié');
+    }
+
+    public function destroyGlobal(ChiffreAffaire $chiffre)
+    {
+        abort_unless($chiffre->dossier_id === null, 404);
+
+        $chiffre->delete();
+
+        return redirect()->route('chiffres.index')->with('success', 'Chiffre supprimé');
+    }
+
     public function manage(Dossier $dossier)
     {
         $chiffres = $dossier->chiffresAffaires()->orderBy('annee')->get();

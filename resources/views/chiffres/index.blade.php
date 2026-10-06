@@ -29,16 +29,36 @@
         <div id="listArea">
             <h5>Liste des chiffres d'affaires</h5>
             <table class="table table-sm">
-                <thead><tr><th>Année</th><th>Montant</th><th>Monnaie</th></tr></thead>
+                <thead><tr><th>Année</th><th>Montant</th><th>Monnaie</th><th>Actions</th></tr></thead>
                 <tbody>
                     @forelse($chiffres as $c)
                         <tr>
-                            <td>{{ $c->annee }}</td>
-                            <td>{{ number_format($c->montant,0,',',' ') }}</td>
-                            <td>{{ $c->monnaie }}</td>
+                            <td colspan="4">
+                                <div class="d-flex gap-2 align-items-end">
+                                    <form method="POST" action="{{ route('chiffres.update', $c->id) }}" class="d-flex gap-2 align-items-end flex-wrap flex-grow-1 mb-0">
+                                        @csrf
+                                        @method('PUT')
+                                        <div style="width:90px;">
+                                            <input type="number" name="annee" class="form-control form-control-sm" value="{{ $c->annee }}" required>
+                                        </div>
+                                        <div style="flex:1; min-width:140px;">
+                                            <input type="text" name="montant" class="form-control form-control-sm" value="{{ $c->montant + 0 }}" required>
+                                        </div>
+                                        <div style="width:120px;">
+                                            <input type="text" name="monnaie" class="form-control form-control-sm" value="{{ $c->monnaie }}">
+                                        </div>
+                                        <button type="submit" class="btn btn-primary btn-sm">Modifier</button>
+                                    </form>
+                                    <form method="POST" action="{{ route('chiffres.destroy', $c->id) }}" class="mb-0" onsubmit="return confirm('Supprimer ce chiffre ?');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn btn-danger btn-sm">Supprimer</button>
+                                    </form>
+                                </div>
+                            </td>
                         </tr>
                     @empty
-                        <tr><td colspan="3" class="text-center">Aucun chiffre enregistré</td></tr>
+                        <tr><td colspan="4" class="text-center">Aucun chiffre enregistré</td></tr>
                     @endforelse
                 </tbody>
             </table>

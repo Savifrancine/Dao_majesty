@@ -139,6 +139,8 @@ Route::middleware('auth')->group(function () {
     // Chiffres d'affaires (gestion et PDF)
     Route::get('/chiffres', [App\Http\Controllers\ChiffreAffaireController::class, 'index'])->name('chiffres.index');
     Route::post('/chiffres', [App\Http\Controllers\ChiffreAffaireController::class, 'storeGlobal'])->name('chiffres.store.global');
+    Route::put('/chiffres/{chiffre}', [App\Http\Controllers\ChiffreAffaireController::class, 'updateGlobal'])->name('chiffres.update');
+    Route::delete('/chiffres/{chiffre}', [App\Http\Controllers\ChiffreAffaireController::class, 'destroyGlobal'])->name('chiffres.destroy');
     Route::get('/chiffres/pdf/form', [App\Http\Controllers\ChiffreAffaireController::class, 'pdfFormGlobal'])->name('chiffres.pdf.form.global');
     Route::post('/chiffres/pdf', [App\Http\Controllers\ChiffreAffaireController::class, 'generatePdfGlobal'])->name('chiffres.pdf.generate.global');
     Route::get('/dossiers/{dossier}/chiffres', [App\Http\Controllers\ChiffreAffaireController::class, 'manage'])->name('chiffres.manage');
