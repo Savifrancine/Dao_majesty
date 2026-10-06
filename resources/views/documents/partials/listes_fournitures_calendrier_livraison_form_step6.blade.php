@@ -154,9 +154,12 @@
         Ajoutez un ou plusieurs tableaux. Chaque tableau possède son titre propre et ses lignes de désignation, quantité, unité, destination et dates de livraison. Le signataire est placé en fin de document dans le PDF.
     </div>
 
+    <script src="{{ asset('js/bordereau-autofill.js') }}"></script>
     <script>
         (function () {
             const sectionsContainer = document.getElementById('bordereauSections');
+            const autofillKeys = ['site', 'unite_physique', 'date_livraison_plus_tot', 'date_livraison_plus_tard', 'date_livraison_offerte'];
+            window.DaoBordereauAutofill.attach(sectionsContainer, autofillKeys);
             const addSectionButton = document.getElementById('addBordereauSection');
 
             function updateSectionIndexes() {
@@ -193,20 +196,6 @@
 
             // La destination et la date de livraison offerte sont en général les
             // mêmes pour toutes les lignes d'un tableau : ce qui est saisi sur la
-            // première ligne se recopie automatiquement sur les lignes suivantes
-            // (l'utilisateur peut toujours corriger une ligne individuellement après coup).
-            function propagateFirstRowValue(sectionEl, key) {
-                const rows = Array.from(sectionEl.querySelectorAll('.bordereau-lines tr'));
-                if (rows.length < 2) return;
-                const firstField = rows[0].querySelector(`[name*="[${key}]" ]`);
-                if (!firstField) return;
-                const value = firstField.value;
-                rows.slice(1).forEach((row) => {
-                    const field = row.querySelector(`[name*="[${key}]" ]`);
-                    if (field) field.value = value;
-                });
-            }
-
             function createLineRow(sectionIndex, designation = '', quantity = '1', unit = '', site = '', datePlusTot = '', datePlusTard = '', dateOfferte = '') {
                 const row = document.createElement('tr');
                 row.innerHTML = `
@@ -298,8 +287,7 @@
                     tableBody.appendChild(newRow);
                     attachLineEvents(sectionEl, sectionIndex);
                     updateLineIndexes(sectionEl, sectionIndex);
-                    propagateFirstRowValue(sectionEl, 'site');
-                    propagateFirstRowValue(sectionEl, 'date_livraison_offerte');
+                    window.DaoBordereauAutofill.fillNewRow(sectionEl, newRow, autofillKeys);
                 });
 
                 removeSectionButton.addEventListener('click', function () {
@@ -327,21 +315,6 @@
                 attachLineEvents(sectionEl, idx);
             });
 
-            sectionsContainer.addEventListener('input', (event) => {
-                const name = event.target.name || '';
-                const isSite = name.includes('[site]');
-                const isDateOfferte = name.includes('[date_livraison_offerte]');
-                if (!isSite && !isDateOfferte) return;
-
-                const row = event.target.closest('tr');
-                const sectionEl = event.target.closest('.bordereau-section');
-                if (!row || !sectionEl) return;
-
-                const rows = Array.from(sectionEl.querySelectorAll('.bordereau-lines tr'));
-                if (rows[0] !== row) return; // seule la première ligne propage sa valeur
-
-                propagateFirstRowValue(sectionEl, isSite ? 'site' : 'date_livraison_offerte');
-            });
         })();
 
         if (window.DaoTableImport) {

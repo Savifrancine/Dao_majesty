@@ -146,10 +146,13 @@
     </div>
 </div>
 
+<script src="{{ asset('js/bordereau-autofill.js') }}"></script>
 <script>
     (function () {
         const sectionsContainer = document.getElementById('bordereauSections');
         const addSectionButton = document.getElementById('addBordereauSection');
+        const autofillKeys = ['site', 'unite_physique', 'date_prestation_plus_tot', 'date_prestation_plus_tard'];
+        window.DaoBordereauAutofill.attach(sectionsContainer, autofillKeys);
 
         function updateSectionIndexes() {
             Array.from(sectionsContainer.querySelectorAll('.bordereau-section')).forEach((sectionEl, sectionIndex) => {
@@ -280,6 +283,7 @@
                 const row = createLineRow(sectionIndex);
                 tbody.appendChild(row);
                 updateLineIndexes(section, sectionIndex);
+                window.DaoBordereauAutofill.fillNewRow(section, row, autofillKeys);
             }
 
             if (event.target.classList.contains('removeBordereauLine')) {
