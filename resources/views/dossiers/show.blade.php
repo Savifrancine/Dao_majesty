@@ -474,8 +474,16 @@
                             || ($dd->fichiers && $dd->fichiers->count() > 0);
                     });
                 @endphp
-                @if($allComplete)
+                @if($dossier->documents->count() > 0)
                     <a href="{{ route('dossiers.pdf', $dossier) }}" target="_blank" class="btn btn-success-custom">Générer le dossier</a>
+                    @if(! $allComplete)
+                        @php
+                            $incomplete = $dossier->documents->filter(fn ($dd) => $dd->statut !== 'complete' && $dd->fichiers->isEmpty());
+                        @endphp
+                        <div style="width:100%; font-size:13px; color:#92400e; margin-top:6px;">
+                            À compléter avant la finalisation : {{ $incomplete->map(fn ($dd) => $dd->typeDocument->nom ?? 'Document')->implode(' ; ') }}
+                        </div>
+                    @endif
                 @endif
 
                 @if(auth()->check() && auth()->user()->isAdminOrDirecteur())
