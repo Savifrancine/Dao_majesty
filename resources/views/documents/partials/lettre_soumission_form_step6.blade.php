@@ -149,7 +149,7 @@
 
         <div style="margin-bottom:18px;">
             <label class="wizard-label" for="tva_valeur">TVA (valeur)</label>
-            <input id="tva_valeur" type="text" name="tva_valeur" class="form-control wizard-input" readonly value="{{ $value('tva_valeur', $defaultTvaValue) }}">
+            <input id="tva_valeur" type="text" name="tva_valeur" class="form-control wizard-input" readonly value="{{ $defaultTvaValue }}">
         </div>
 
         <div style="margin-bottom:18px;">
