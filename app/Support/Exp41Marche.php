@@ -13,7 +13,7 @@ namespace App\Support;
  */
 class Exp41Marche
 {
-    private const LABELS = 'Nom du march[ée]|March[ée]|Autorit[ée] contractante|Adresse';
+    private const LABELS = 'Nom du march[ée]|March[ée]|Br[èe]ve description|Autorit[ée] contractante|Adresse';
 
     /**
      * @return array{nom: string, reference: string, autorite_nom: string, autorite_adresse: string}
