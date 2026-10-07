@@ -19,9 +19,11 @@ use App\Models\Utilisateur;
 use App\Models\FormulaireExp42A;
 use App\Models\FormulaireExp42B;
 use App\Models\FormulaireExp42ASuite;
+use App\Models\FormulaireExp42BSuite;
 use App\Support\Exp42aPdf;
 use App\Support\Exp42bPdf;
 use App\Support\Exp42aSuitePdf;
+use App\Support\Exp42bSuitePdf;
 use App\Support\MarcheIdentification;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Http\Request;
@@ -68,6 +70,7 @@ class DossierController extends Controller
     private const EXP42A_NOM = 'Formulaire EXP – 4.2 a) Expérience spécifique de fournitures/services';
     private const EXP42B_NOM = 'Formulaire EXP – 4.2 b)  Expérience spécifique de fournitures';
     private const EXP42A_SUITE_NOM = 'Formulaire EXP – 4.2 a) (suite) Expérience spécifique de fournitures/services dans les activités principales (suite)';
+    private const EXP42B_SUITE_NOM = 'Formulaire EXP – 4.2 b) (suite) Expérience spécifique de fournitures/services dans les activités principales (suite)';
 
     /**
      * Afficher le dashboard home avec les dossiers
@@ -403,6 +406,7 @@ class DossierController extends Controller
         $this->syncExp42aRecords($dossier);
         $this->syncExp42bRecords($dossier);
         $this->syncExp42aSuiteRecords($dossier);
+        $this->syncExp42bSuiteRecords($dossier);
     }
 
     /**
@@ -884,6 +888,112 @@ class DossierController extends Controller
     private function isExp42aSuiteDoc(DossierDocument $doc): bool
     {
         return trim(optional($doc->typeDocument)->nom ?? '') === self::EXP42A_SUITE_NOM;
+    }
+
+    /**
+     * Crée ou met à jour un Formulaire EXP – 4.2 b) (suite) par marché. Lié
+     * directement au formulaire b) du même marché, comme 4.2 a) (suite) l'est
+     * à 4.2 a) : numéro, description et montant en sont repris.
+     */
+    private function syncExp42bSuiteRecords(Dossier $dossier): void
+    {
+        $hasExp42bSuite = $dossier->documents()
+            ->whereHas('typeDocument', fn ($q) => $q->where('nom', self::EXP42B_SUITE_NOM))
+            ->exists();
+        if (!$hasExp42bSuite) {
+            return;
+        }
+
+        $marches = $this->marchesForExp42($dossier);
+        if (empty($marches)) {
+            return;
+        }
+
+        $dossier->loadMissing('entreprise', 'signataires');
+        $entreprise = $dossier->entreprise;
+        $signataire = $dossier->signataires->firstWhere('pivot.role_signataire', 'gerant') ?? $dossier->signataires->first();
+
+        $bByPosition = FormulaireExp42B::where('dossier_id', $dossier->id)
+            ->whereNotNull('marche_position')
+            ->get()
+            ->keyBy('marche_position');
+
+        foreach (array_keys($marches) as $position) {
+            $bRecord = $bByPosition->get($position);
+
+            $record = FormulaireExp42BSuite::firstOrNew(['dossier_id' => $dossier->id, 'marche_position' => $position]);
+
+            if (!$record->exists) {
+                $record->fill([
+                    'formulaire_type' => 'B_SUITE',
+                    'utilisateur_id' => auth()->id(),
+                    'entreprise_id' => $dossier->entreprise_id,
+                    'signataire_id' => optional($signataire)->id,
+                    'nom_candidat' => trim(optional($entreprise)->responsable ?? optional($entreprise)->nom ?? '') ?: 'Candidat non renseigné',
+                    'numero_adrp' => (new FormulaireExp42BSuite())->buildNumeroAdrp($dossier),
+                    'nom_signataire' => $signataire ? trim($signataire->nom . ' ' . ($signataire->prenom ?? '')) : null,
+                    'fonction_signataire' => $signataire ? trim($signataire->fonction ?? '') : null,
+                ]);
+            }
+
+            // Le numero de marche est purement derive du formulaire b) : il suit
+            // toujours sa valeur actuelle, sans etre modifiable independamment ici.
+            if ($bRecord) {
+                $record->numero_marche = mb_substr((string) $bRecord->numero_marche, 0, 250);
+            }
+
+            // Pre-remplissage : description = nom du marche (Identification du
+            // marche de 4.2 b)), montant = montant total de 4.2 b), et des
+            // valeurs par defaut usuelles. L'utilisateur reste libre de modifier :
+            // on ne touche jamais un champ deja renseigne.
+            $suitePrefill = [
+                'description_similitude' => $bRecord ? (string) $bRecord->identification_marche : '',
+                'montant' => $bRecord ? (string) $bRecord->montant_total : '',
+                'taille_physique' => 'Etendue',
+                'complexite' => 'Haute',
+                'methodes_technologie' => 'Semblable',
+                'autres_caracteristiques' => 'NEANT',
+            ];
+            foreach ($suitePrefill as $field => $value) {
+                if (($record->{$field} === null || $record->{$field} === '') && $value !== '') {
+                    $record->{$field} = $value;
+                }
+            }
+
+            $record->save();
+        }
+
+        FormulaireExp42BSuite::where('dossier_id', $dossier->id)
+            ->whereNotNull('marche_position')
+            ->where('marche_position', '>=', count($marches))
+            ->delete();
+    }
+
+    /**
+     * Chemins de fichiers temporaires : un PDF 4.2 b) (suite) par marché du dossier.
+     * L'appelant doit les supprimer une fois fusionnés.
+     */
+    private function exp42bSuitePdfPaths(Dossier $dossier): array
+    {
+        $this->syncExp42bSuiteRecords($dossier);
+
+        $paths = [];
+        FormulaireExp42BSuite::where('dossier_id', $dossier->id)
+            ->whereNotNull('marche_position')
+            ->orderBy('marche_position')
+            ->get()
+            ->each(function (FormulaireExp42BSuite $record) use (&$paths) {
+                $path = tempnam(sys_get_temp_dir(), 'exp42b_suite_') . '.pdf';
+                file_put_contents($path, Exp42bSuitePdf::render($record));
+                $paths[] = $path;
+            });
+
+        return $paths;
+    }
+
+    private function isExp42bSuiteDoc(DossierDocument $doc): bool
+    {
+        return trim(optional($doc->typeDocument)->nom ?? '') === self::EXP42B_SUITE_NOM;
     }
 
     /**
@@ -1810,6 +1920,7 @@ class DossierController extends Controller
                 $this->syncExp42aRecords($dossier);
                 $this->syncExp42bRecords($dossier);
                 $this->syncExp42aSuiteRecords($dossier);
+                $this->syncExp42bSuiteRecords($dossier);
             }
 
             if (trim($currentDocument->nom) === self::EXP42A_NOM) {
@@ -1901,20 +2012,27 @@ class DossierController extends Controller
                 $dossierDocument->update(['statut' => 'complete']);
             }
 
-            if (trim($currentDocument->nom) === 'Formulaire EXP – 4.2 b) (suite) Expérience spécifique de fournitures/services dans les activités principales (suite)') {
-                $values = $request->validate([
-                    'description_activites' => ['nullable', 'string', 'max:8000'],
+            if (trim($currentDocument->nom) === self::EXP42B_SUITE_NOM) {
+                $this->syncExp42bSuiteRecords($dossier);
+
+                $validated = $request->validate([
+                    'exp42b_suite' => ['nullable', 'array'],
+                    'exp42b_suite.*.description_similitude' => ['nullable', 'string', 'max:4000'],
+                    'exp42b_suite.*.montant' => ['nullable', 'string', 'max:255'],
+                    'exp42b_suite.*.taille_physique' => ['nullable', 'string', 'max:255'],
+                    'exp42b_suite.*.complexite' => ['nullable', 'string', 'max:255'],
+                    'exp42b_suite.*.methodes_technologie' => ['nullable', 'string', 'max:255'],
+                    'exp42b_suite.*.autres_caracteristiques' => ['nullable', 'string', 'max:255'],
                 ]);
 
-                $content = json_encode($values, JSON_UNESCAPED_UNICODE);
-                if ($content === false) {
-                    $content = json_encode($values, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+                foreach ($validated['exp42b_suite'] ?? [] as $id => $data) {
+                    FormulaireExp42BSuite::where('dossier_id', $dossier->id)
+                        ->whereNotNull('marche_position')
+                        ->whereKey($id)
+                        ->first()?->update($data);
                 }
 
-                $dossierDocument->update([
-                    'content' => $content,
-                    'statut' => 'complete',
-                ]);
+                $dossierDocument->update(['statut' => 'complete']);
             }
 
             if (trim($currentDocument->nom) === 'Formulaire ANT-2 : Formulaire renseignant sur les antécédents de marchés non exécutés, de litiges en instance et d\'antécédents de litiges') {
@@ -2591,6 +2709,7 @@ class DossierController extends Controller
         $this->syncExp42aRecords($dossier);
         $this->syncExp42bRecords($dossier);
         $this->syncExp42aSuiteRecords($dossier);
+        $this->syncExp42bSuiteRecords($dossier);
         $globalChiffres = ChiffreAffaire::whereNull('dossier_id')->orderBy('annee')->get();
 
         return view('dossiers.create.step6', [
@@ -2717,7 +2836,7 @@ class DossierController extends Controller
 
         $needsMerge = $documents->contains(function ($doc) {
             $plan = $this->attachmentPlan($doc);
-            return $plan['pdfs']->isNotEmpty() || $plan['others']->isNotEmpty() || $this->isExp42aDoc($doc) || $this->isExp42bDoc($doc) || $this->isExp42aSuiteDoc($doc);
+            return $plan['pdfs']->isNotEmpty() || $plan['others']->isNotEmpty() || $this->isExp42aDoc($doc) || $this->isExp42bDoc($doc) || $this->isExp42aSuiteDoc($doc) || $this->isExp42bSuiteDoc($doc);
         });
 
         if (!$needsMerge) {
@@ -2797,7 +2916,8 @@ class DossierController extends Controller
                 $isExp42a = $this->isExp42aDoc($doc);
                 $isExp42b = $this->isExp42bDoc($doc);
                 $isExp42aSuite = $this->isExp42aSuiteDoc($doc);
-                if ($isExp42a || $isExp42b || $isExp42aSuite) {
+                $isExp42bSuite = $this->isExp42bSuiteDoc($doc);
+                if ($isExp42a || $isExp42b || $isExp42aSuite || $isExp42bSuite) {
                     $skipHtmlDocPage = true;
                 }
 
@@ -2861,6 +2981,12 @@ class DossierController extends Controller
                 }
                 if ($isExp42aSuite) {
                     foreach ($this->exp42aSuitePdfPaths($dossier) as $path) {
+                        $filesToMerge[] = $path;
+                        $tempFiles[] = $path;
+                    }
+                }
+                if ($isExp42bSuite) {
+                    foreach ($this->exp42bSuitePdfPaths($dossier) as $path) {
                         $filesToMerge[] = $path;
                         $tempFiles[] = $path;
                     }
@@ -2946,7 +3072,7 @@ class DossierController extends Controller
                 && $plan['others']->isEmpty()
                 && $document->valeurs->isEmpty()
                 && $document->bordereau->isEmpty();
-            if ($this->isExp42aDoc($document) || $this->isExp42bDoc($document) || $this->isExp42aSuiteDoc($document)) {
+            if ($this->isExp42aDoc($document) || $this->isExp42bDoc($document) || $this->isExp42aSuiteDoc($document) || $this->isExp42bSuiteDoc($document)) {
                 $skipHtmlDocPage = true;
             }
 
@@ -2995,6 +3121,12 @@ class DossierController extends Controller
             }
             if ($this->isExp42aSuiteDoc($document)) {
                 foreach ($this->exp42aSuitePdfPaths($dossier) as $path) {
+                    $filesToMerge[] = $path;
+                    $tempFiles[] = $path;
+                }
+            }
+            if ($this->isExp42bSuiteDoc($document)) {
+                foreach ($this->exp42bSuitePdfPaths($dossier) as $path) {
                     $filesToMerge[] = $path;
                     $tempFiles[] = $path;
                 }
@@ -3413,6 +3545,7 @@ class DossierController extends Controller
         $this->syncExp42aRecords($dossier);
         $this->syncExp42bRecords($dossier);
         $this->syncExp42aSuiteRecords($dossier);
+        $this->syncExp42bSuiteRecords($dossier);
         $globalChiffres = ChiffreAffaire::whereNull('dossier_id')->orderBy('annee')->get();
 
         return view('dossiers.create.step6', [
