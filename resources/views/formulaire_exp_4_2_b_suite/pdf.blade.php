@@ -77,7 +77,12 @@
                 ?? ''
             );
 
-            $numero_adrp_full = $formulaireExp42BSuite->buildNumeroAdrp($dossier);
+            $dossierRef = trim($dossier->reference_dossier ?? $dossier->ref ?? '');
+            $dossierDate = optional($dossier->date_lancement)->format('d/m/Y') ?? '';
+            $dossierLabel = $dossierRef;
+            if ($dossierDate !== '' && !str_contains($dossierRef, $dossierDate)) {
+                $dossierLabel = trim($dossierRef . ' du ' . $dossierDate);
+            }
 
             $date_soumission_display = optional($dossier)->date_soumission ? optional($dossier)->date_soumission->format('d/m/Y') : '-';
 
@@ -100,7 +105,7 @@
                 <div class="info-field"><strong>Nom du candidat :</strong> {{ $companyName }}</div>
                 <div class="info-field" style="text-align:right;"><strong>Date :</strong> {{ $date_soumission_display }}</div>
             </div>
-            <div style="text-align:center; margin-top:6px;"><strong>N° ADRP :</strong> {{ $numero_adrp_full }}</div>
+            <div style="text-align:center; margin-top:6px;"><strong>{{ $dossierLabel }}</strong></div>
         </div>
 
         <!-- Experience Table (2 columns like screenshot) -->
