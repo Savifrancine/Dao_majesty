@@ -483,8 +483,83 @@ class DossierController extends Controller
     }
 
     /**
-     * Crée ou met à jour un Formulaire EXP – 4.2 a) par marché listé dans l'EXP – 4.1.
-     * Le numéro et l'identification du marché suivent toujours l'EXP – 4.1 ; les
+     * Marchés à reporter vers les formulaires EXP 4.2 a)/b) : lus en priorité dans
+     * l'EXP – 4.1 (texte libre "Identification du marché", analysé par
+     * Exp41Marche) ; si 4.1 est absent du dossier ou vide, on se rabat sur les
+     * marchés similaires déjà structurés du Formulaire de qualification, pour
+     * ne pas obliger à ressaisir la même information dans les deux formulaires.
+     *
+     * @return array<int, array{nom:string, reference:string, autorite_nom:string, autorite_adresse:string, depart:string, final:string}>
+     */
+    private function marchesForExp42(Dossier $dossier): array
+    {
+        $exp41Doc = $dossier->documents()
+            ->whereHas('typeDocument', fn ($q) => $q->where('nom', self::EXP41_NOM))
+            ->first();
+
+        if ($exp41Doc && !empty($exp41Doc->content)) {
+            $decoded = json_decode($exp41Doc->content, true);
+            if (is_array($decoded)) {
+                $departs = $decoded['mois_depart'] ?? [];
+                $finals = $decoded['mois_final'] ?? [];
+                $marches = [];
+                foreach ($decoded['identification'] ?? [] as $i => $ident) {
+                    $ident = trim((string) $ident);
+                    if ($ident === '') {
+                        continue;
+                    }
+                    $parsed = \App\Support\Exp41Marche::parse($ident);
+                    $marches[] = [
+                        'nom' => $parsed['nom'] !== '' ? $parsed['nom'] : $ident,
+                        'reference' => $parsed['reference'],
+                        'autorite_nom' => $parsed['autorite_nom'],
+                        'autorite_adresse' => $parsed['autorite_adresse'],
+                        'depart' => $departs[$i] ?? '',
+                        'final' => $finals[$i] ?? '',
+                    ];
+                }
+                if (!empty($marches)) {
+                    return $marches;
+                }
+            }
+        }
+
+        $qualificationDoc = $dossier->documents()
+            ->whereHas('typeDocument', fn ($q) => $q->where('nom', 'Formulaire de qualification'))
+            ->first();
+        if (!$qualificationDoc || empty($qualificationDoc->content)) {
+            return [];
+        }
+
+        $decoded = json_decode($qualificationDoc->content, true);
+        if (!is_array($decoded) || empty($decoded['marches']) || !is_array($decoded['marches'])) {
+            return [];
+        }
+
+        $marches = [];
+        foreach ($decoded['marches'] as $m) {
+            $nom = trim((string) ($m['nom'] ?? ''));
+            $reference = trim((string) ($m['reference'] ?? ''));
+            if ($nom === '' && $reference === '') {
+                continue;
+            }
+            $marches[] = [
+                'nom' => $nom,
+                'reference' => $reference,
+                'autorite_nom' => '',
+                'autorite_adresse' => '',
+                'depart' => trim((string) ($m['annee'] ?? '')),
+                'final' => '',
+            ];
+        }
+
+        return $marches;
+    }
+
+    /**
+     * Crée ou met à jour un Formulaire EXP – 4.2 a) par marché (EXP – 4.1, ou
+     * formulaire de qualification si 4.1 est vide — voir marchesForExp42).
+     * Le numéro et l'identification du marché suivent toujours la source ; les
      * autres champs saisis dans le formulaire sont conservés.
      */
     private function syncExp42aRecords(Dossier $dossier): void
@@ -496,26 +571,9 @@ class DossierController extends Controller
             return;
         }
 
-        $exp41Doc = $dossier->documents()
-            ->whereHas('typeDocument', fn ($q) => $q->where('nom', self::EXP41_NOM))
-            ->first();
-        if (!$exp41Doc || empty($exp41Doc->content)) {
+        $marches = $this->marchesForExp42($dossier);
+        if (empty($marches)) {
             return;
-        }
-
-        $decoded = json_decode($exp41Doc->content, true);
-        if (!is_array($decoded)) {
-            return;
-        }
-
-        $departs = $decoded['mois_depart'] ?? [];
-        $finals = $decoded['mois_final'] ?? [];
-        $marches = [];
-        foreach ($decoded['identification'] ?? [] as $i => $ident) {
-            $ident = trim((string) $ident);
-            if ($ident !== '') {
-                $marches[] = ['text' => $ident, 'depart' => $departs[$i] ?? '', 'final' => $finals[$i] ?? ''];
-            }
         }
 
         $dossier->loadMissing('entreprise', 'signataires');
@@ -523,12 +581,11 @@ class DossierController extends Controller
         $signataire = $dossier->signataires->firstWhere('pivot.role_signataire', 'gerant') ?? $dossier->signataires->first();
 
         foreach ($marches as $position => $marche) {
-            $parsed = \App\Support\Exp41Marche::parse($marche['text']);
             $prefill = [
-                'identification_marche' => $parsed['nom'] !== '' ? $parsed['nom'] : $marche['text'],
-                'numero_marche' => mb_substr($parsed['reference'], 0, 250),
-                'autorite_nom' => mb_substr($parsed['autorite_nom'], 0, 250),
-                'autorite_adresse' => $parsed['autorite_adresse'],
+                'identification_marche' => $marche['nom'],
+                'numero_marche' => mb_substr($marche['reference'], 0, 250),
+                'autorite_nom' => mb_substr($marche['autorite_nom'], 0, 250),
+                'autorite_adresse' => $marche['autorite_adresse'],
                 'date_attribution' => $this->monthToDate($marche['depart']),
                 'date_achevement' => $this->monthToDate($marche['final']),
             ];
@@ -606,7 +663,8 @@ class DossierController extends Controller
     }
 
     /**
-     * Crée ou met à jour un Formulaire EXP – 4.2 b) par marché listé dans l'EXP – 4.1.
+     * Crée ou met à jour un Formulaire EXP – 4.2 b) par marché (EXP – 4.1, ou
+     * formulaire de qualification si 4.1 est vide — voir marchesForExp42).
      * Même logique que syncExp42aRecords, pour le formulaire B (même table,
      * distinguée par formulaire_type).
      */
@@ -619,26 +677,9 @@ class DossierController extends Controller
             return;
         }
 
-        $exp41Doc = $dossier->documents()
-            ->whereHas('typeDocument', fn ($q) => $q->where('nom', self::EXP41_NOM))
-            ->first();
-        if (!$exp41Doc || empty($exp41Doc->content)) {
+        $marches = $this->marchesForExp42($dossier);
+        if (empty($marches)) {
             return;
-        }
-
-        $decoded = json_decode($exp41Doc->content, true);
-        if (!is_array($decoded)) {
-            return;
-        }
-
-        $departs = $decoded['mois_depart'] ?? [];
-        $finals = $decoded['mois_final'] ?? [];
-        $marches = [];
-        foreach ($decoded['identification'] ?? [] as $i => $ident) {
-            $ident = trim((string) $ident);
-            if ($ident !== '') {
-                $marches[] = ['text' => $ident, 'depart' => $departs[$i] ?? '', 'final' => $finals[$i] ?? ''];
-            }
         }
 
         $dossier->loadMissing('entreprise', 'signataires');
@@ -646,12 +687,11 @@ class DossierController extends Controller
         $signataire = $dossier->signataires->firstWhere('pivot.role_signataire', 'gerant') ?? $dossier->signataires->first();
 
         foreach ($marches as $position => $marche) {
-            $parsed = \App\Support\Exp41Marche::parse($marche['text']);
             $prefill = [
-                'identification_marche' => $parsed['nom'] !== '' ? $parsed['nom'] : $marche['text'],
-                'numero_marche' => mb_substr($parsed['reference'], 0, 250),
-                'autorite_nom' => mb_substr($parsed['autorite_nom'], 0, 250),
-                'autorite_adresse' => $parsed['autorite_adresse'],
+                'identification_marche' => $marche['nom'],
+                'numero_marche' => mb_substr($marche['reference'], 0, 250),
+                'autorite_nom' => mb_substr($marche['autorite_nom'], 0, 250),
+                'autorite_adresse' => $marche['autorite_adresse'],
                 'date_attribution' => $this->monthToDate($marche['depart']),
                 'date_achevement' => $this->monthToDate($marche['final']),
             ];
