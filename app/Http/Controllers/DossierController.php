@@ -1059,6 +1059,16 @@ class DossierController extends Controller
             // suivent toujours sa valeur actuelle, sans etre modifiables ici.
             $record->poste = mb_substr($p['poste'], 0, 250);
             $record->nom_personnel = mb_substr($p['nom'], 0, 250);
+
+            // Pre-remplissage (modifiable) : Nom de l'employeur <- Nom de la liste
+            // du personnel, Emploi tenu <- Designation du poste de la liste.
+            if ($record->nom_employeur === null || $record->nom_employeur === '') {
+                $record->nom_employeur = mb_substr($p['nom'], 0, 250);
+            }
+            if ($record->emploi_tenu === null || $record->emploi_tenu === '') {
+                $record->emploi_tenu = mb_substr($p['poste'], 0, 250);
+            }
+
             $record->save();
         }
 
