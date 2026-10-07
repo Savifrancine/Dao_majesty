@@ -715,6 +715,8 @@ class DossierController extends Controller
                 $prefill['montant_part'] = (string) $aRecord->montant_part;
                 $prefill['autorite_telephone'] = (string) $aRecord->autorite_telephone;
                 $prefill['autorite_email'] = (string) $aRecord->autorite_email;
+                $prefill['date_attribution'] = $prefill['date_attribution'] ?: $aRecord->date_attribution;
+                $prefill['date_achevement'] = $prefill['date_achevement'] ?: $aRecord->date_achevement;
             }
 
             $record = FormulaireExp42B::firstOrNew(['dossier_id' => $dossier->id, 'marche_position' => $position]);
