@@ -832,6 +832,24 @@ class DossierController extends Controller
                 $record->numero_marche = mb_substr((string) $aRecord->numero_marche, 0, 250);
             }
 
+            // Pre-remplissage : description = nom du marche (Identification du
+            // marche de 4.2 a)), montant = montant total de 4.2 a), et des valeurs
+            // par defaut usuelles pour les caracteristiques. L'utilisateur reste
+            // libre de modifier : on ne touche jamais un champ deja renseigne.
+            $suitePrefill = [
+                'description_similitude' => $aRecord ? (string) $aRecord->identification_marche : '',
+                'montant' => $aRecord ? (string) $aRecord->montant_total : '',
+                'taille_physique' => 'Etendue',
+                'complexite' => 'Haute',
+                'methodes_technologie' => 'Semblable',
+                'autres_caracteristiques' => 'NEANT',
+            ];
+            foreach ($suitePrefill as $field => $value) {
+                if (($record->{$field} === null || $record->{$field} === '') && $value !== '') {
+                    $record->{$field} = $value;
+                }
+            }
+
             $record->save();
         }
 
