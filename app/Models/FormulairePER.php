@@ -11,6 +11,8 @@ class FormulairePER extends Model
 
     protected $fillable = [
         'utilisateur_id',
+        'dossier_id',
+        'personnel_position',
         'nom_candidat',
         'poste',
         'nom_personnel',
@@ -35,6 +37,11 @@ class FormulairePER extends Model
         'date_signature' => 'date',
         'experiences' => 'array',
     ];
+
+    public function dossier(): BelongsTo
+    {
+        return $this->belongsTo(Dossier::class);
+    }
 
     public function utilisateur(): BelongsTo
     {

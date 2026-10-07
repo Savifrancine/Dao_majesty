@@ -20,10 +20,12 @@ use App\Models\FormulaireExp42A;
 use App\Models\FormulaireExp42B;
 use App\Models\FormulaireExp42ASuite;
 use App\Models\FormulaireExp42BSuite;
+use App\Models\FormulairePER;
 use App\Support\Exp42aPdf;
 use App\Support\Exp42bPdf;
 use App\Support\Exp42aSuitePdf;
 use App\Support\Exp42bSuitePdf;
+use App\Support\FormulairePerPdf;
 use App\Support\MarcheIdentification;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Http\Request;
@@ -71,6 +73,8 @@ class DossierController extends Controller
     private const EXP42B_NOM = 'Formulaire EXP – 4.2 b)  Expérience spécifique de fournitures';
     private const EXP42A_SUITE_NOM = 'Formulaire EXP – 4.2 a) (suite) Expérience spécifique de fournitures/services dans les activités principales (suite)';
     private const EXP42B_SUITE_NOM = 'Formulaire EXP – 4.2 b) (suite) Expérience spécifique de fournitures/services dans les activités principales (suite)';
+    private const FORMULAIRE_PER_NOM = 'Formulaire PER';
+    private const LISTE_PERSONNEL_NOM = 'Liste du personnel affecté à l\'exécution du marché';
 
     /**
      * Afficher le dashboard home avec les dossiers
@@ -997,6 +1001,101 @@ class DossierController extends Controller
     }
 
     /**
+     * Crée ou met à jour un Formulaire PER par ligne de la Liste du personnel
+     * affecté à l'exécution du marché : poste et nom suivent toujours cette
+     * liste (lien direct, non modifiables dans ce formulaire) ; le reste
+     * (qualifications, employeur, expériences...) reste à la main de
+     * l'utilisateur, par personne.
+     */
+    private function syncFormulairePerRecords(Dossier $dossier): void
+    {
+        $hasPer = $dossier->documents()
+            ->whereHas('typeDocument', fn ($q) => $q->where('nom', self::FORMULAIRE_PER_NOM))
+            ->exists();
+        if (!$hasPer) {
+            return;
+        }
+
+        $listeDoc = $dossier->documents()
+            ->whereHas('typeDocument', fn ($q) => $q->where('nom', self::LISTE_PERSONNEL_NOM))
+            ->first();
+        if (!$listeDoc || empty($listeDoc->content)) {
+            return;
+        }
+
+        $decoded = json_decode($listeDoc->content, true);
+        if (!is_array($decoded)) {
+            return;
+        }
+
+        $personnel = [];
+        foreach ($decoded as $row) {
+            $poste = trim((string) ($row['poste'] ?? ''));
+            $nom = trim((string) ($row['nom'] ?? ''));
+            if ($poste === '' && $nom === '') {
+                continue;
+            }
+            $personnel[] = ['poste' => $poste, 'nom' => $nom];
+        }
+        if (empty($personnel)) {
+            return;
+        }
+
+        $dossier->loadMissing('entreprise');
+        $entreprise = $dossier->entreprise;
+        $nomCandidat = trim(optional($entreprise)->responsable ?? optional($entreprise)->nom ?? '') ?: 'Candidat non renseigné';
+
+        foreach ($personnel as $position => $p) {
+            $record = FormulairePER::firstOrNew(['dossier_id' => $dossier->id, 'personnel_position' => $position]);
+
+            if (!$record->exists) {
+                $record->fill([
+                    'utilisateur_id' => auth()->id(),
+                    'nom_candidat' => $nomCandidat,
+                ]);
+            }
+
+            // Poste et nom sont purement derives de la liste du personnel : ils
+            // suivent toujours sa valeur actuelle, sans etre modifiables ici.
+            $record->poste = mb_substr($p['poste'], 0, 250);
+            $record->nom_personnel = mb_substr($p['nom'], 0, 250);
+            $record->save();
+        }
+
+        FormulairePER::where('dossier_id', $dossier->id)
+            ->whereNotNull('personnel_position')
+            ->where('personnel_position', '>=', count($personnel))
+            ->delete();
+    }
+
+    /**
+     * Chemins de fichiers temporaires : un PDF Formulaire PER par personne du
+     * dossier. L'appelant doit les supprimer une fois fusionnés.
+     */
+    private function formulairePerPdfPaths(Dossier $dossier): array
+    {
+        $this->syncFormulairePerRecords($dossier);
+
+        $paths = [];
+        FormulairePER::where('dossier_id', $dossier->id)
+            ->whereNotNull('personnel_position')
+            ->orderBy('personnel_position')
+            ->get()
+            ->each(function (FormulairePER $record) use (&$paths) {
+                $path = tempnam(sys_get_temp_dir(), 'formulaire_per_') . '.pdf';
+                file_put_contents($path, FormulairePerPdf::render($record));
+                $paths[] = $path;
+            });
+
+        return $paths;
+    }
+
+    private function isFormulairePerDoc(DossierDocument $doc): bool
+    {
+        return trim(optional($doc->typeDocument)->nom ?? '') === self::FORMULAIRE_PER_NOM;
+    }
+
+    /**
      * Afficher le formulaire de création (Étape 1)
      * Choix Public/Privé
      */
@@ -1619,7 +1718,42 @@ class DossierController extends Controller
                         'content' => json_encode($savedPersonnel, JSON_UNESCAPED_UNICODE),
                         'statut' => 'complete',
                     ]);
+                    $this->syncFormulairePerRecords($dossier);
                 }
+            }
+
+            if (trim($currentDocument->nom) === self::FORMULAIRE_PER_NOM) {
+                $this->syncFormulairePerRecords($dossier);
+
+                $validated = $request->validate([
+                    'per' => ['nullable', 'array'],
+                    'per.*.date_naissance' => ['nullable', 'date'],
+                    'per.*.qualifications' => ['nullable', 'string', 'max:4000'],
+                    'per.*.nom_employeur' => ['nullable', 'string', 'max:255'],
+                    'per.*.emploi_tenu' => ['nullable', 'string', 'max:255'],
+                    'per.*.adresse_employeur' => ['nullable', 'string', 'max:4000'],
+                    'per.*.telephone' => ['nullable', 'string', 'max:20'],
+                    'per.*.telecopie' => ['nullable', 'string', 'max:20'],
+                    'per.*.email' => ['nullable', 'email', 'max:255'],
+                    'per.*.contact_personnel' => ['nullable', 'string', 'max:255'],
+                    'per.*.nombre_annees_employeur' => ['nullable', 'integer', 'min:0'],
+                    'per.*.lieu_signature' => ['nullable', 'string', 'max:255'],
+                    'per.*.experiences' => ['nullable', 'string'],
+                ]);
+
+                foreach ($validated['per'] ?? [] as $id => $data) {
+                    if (array_key_exists('experiences', $data)) {
+                        $decodedExp = json_decode((string) $data['experiences'], true);
+                        $data['experiences'] = is_array($decodedExp) ? $decodedExp : [];
+                    }
+
+                    FormulairePER::where('dossier_id', $dossier->id)
+                        ->whereNotNull('personnel_position')
+                        ->whereKey($id)
+                        ->first()?->update($data);
+                }
+
+                $dossierDocument->update(['statut' => 'complete']);
             }
 
             if (trim($currentDocument->nom) === 'Formulaire de divulgation des bénéficiaires effectifs') {
@@ -2710,6 +2844,7 @@ class DossierController extends Controller
         $this->syncExp42bRecords($dossier);
         $this->syncExp42aSuiteRecords($dossier);
         $this->syncExp42bSuiteRecords($dossier);
+        $this->syncFormulairePerRecords($dossier);
         $globalChiffres = ChiffreAffaire::whereNull('dossier_id')->orderBy('annee')->get();
 
         return view('dossiers.create.step6', [
@@ -2836,7 +2971,7 @@ class DossierController extends Controller
 
         $needsMerge = $documents->contains(function ($doc) {
             $plan = $this->attachmentPlan($doc);
-            return $plan['pdfs']->isNotEmpty() || $plan['others']->isNotEmpty() || $this->isExp42aDoc($doc) || $this->isExp42bDoc($doc) || $this->isExp42aSuiteDoc($doc) || $this->isExp42bSuiteDoc($doc);
+            return $plan['pdfs']->isNotEmpty() || $plan['others']->isNotEmpty() || $this->isExp42aDoc($doc) || $this->isExp42bDoc($doc) || $this->isExp42aSuiteDoc($doc) || $this->isExp42bSuiteDoc($doc) || $this->isFormulairePerDoc($doc);
         });
 
         if (!$needsMerge) {
@@ -2917,7 +3052,8 @@ class DossierController extends Controller
                 $isExp42b = $this->isExp42bDoc($doc);
                 $isExp42aSuite = $this->isExp42aSuiteDoc($doc);
                 $isExp42bSuite = $this->isExp42bSuiteDoc($doc);
-                if ($isExp42a || $isExp42b || $isExp42aSuite || $isExp42bSuite) {
+                $isFormulairePer = $this->isFormulairePerDoc($doc);
+                if ($isExp42a || $isExp42b || $isExp42aSuite || $isExp42bSuite || $isFormulairePer) {
                     $skipHtmlDocPage = true;
                 }
 
@@ -2987,6 +3123,12 @@ class DossierController extends Controller
                 }
                 if ($isExp42bSuite) {
                     foreach ($this->exp42bSuitePdfPaths($dossier) as $path) {
+                        $filesToMerge[] = $path;
+                        $tempFiles[] = $path;
+                    }
+                }
+                if ($isFormulairePer) {
+                    foreach ($this->formulairePerPdfPaths($dossier) as $path) {
                         $filesToMerge[] = $path;
                         $tempFiles[] = $path;
                     }
@@ -3072,7 +3214,7 @@ class DossierController extends Controller
                 && $plan['others']->isEmpty()
                 && $document->valeurs->isEmpty()
                 && $document->bordereau->isEmpty();
-            if ($this->isExp42aDoc($document) || $this->isExp42bDoc($document) || $this->isExp42aSuiteDoc($document) || $this->isExp42bSuiteDoc($document)) {
+            if ($this->isExp42aDoc($document) || $this->isExp42bDoc($document) || $this->isExp42aSuiteDoc($document) || $this->isExp42bSuiteDoc($document) || $this->isFormulairePerDoc($document)) {
                 $skipHtmlDocPage = true;
             }
 
@@ -3127,6 +3269,12 @@ class DossierController extends Controller
             }
             if ($this->isExp42bSuiteDoc($document)) {
                 foreach ($this->exp42bSuitePdfPaths($dossier) as $path) {
+                    $filesToMerge[] = $path;
+                    $tempFiles[] = $path;
+                }
+            }
+            if ($this->isFormulairePerDoc($document)) {
+                foreach ($this->formulairePerPdfPaths($dossier) as $path) {
                     $filesToMerge[] = $path;
                     $tempFiles[] = $path;
                 }
@@ -3546,6 +3694,7 @@ class DossierController extends Controller
         $this->syncExp42bRecords($dossier);
         $this->syncExp42aSuiteRecords($dossier);
         $this->syncExp42bSuiteRecords($dossier);
+        $this->syncFormulairePerRecords($dossier);
         $globalChiffres = ChiffreAffaire::whereNull('dossier_id')->orderBy('annee')->get();
 
         return view('dossiers.create.step6', [
