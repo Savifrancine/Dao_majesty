@@ -5,19 +5,37 @@ namespace App\Support;
 /**
  * Extrait les informations d'un marché saisi dans "Identification du marché"
  * (Formulaire EXP – 4.1) : lignes libellées "Nom du marché", "Marché",
- * "Autorité contractante", "Adresse"... Sans libellé, repli sur le format
- * "Marché n° {référence} - {nom}" posé par MarcheIdentification.
+ * "Autorité contractante", "Adresse"... Les segments peuvent être séparés par
+ * de vrais retours à la ligne (saisie directe) ou par " - " (texte reformaté
+ * par le report depuis le formulaire de qualification, au format
+ * "Marché n° {référence} - {reste}" posé par MarcheIdentification::format).
+ * Sans aucun libellé reconnu, le texte entier est pris comme nom du marché.
  */
 class Exp41Marche
 {
+    private const LABELS = 'Nom du march[ée]|March[ée]|Autorit[ée] contractante|Adresse';
+
     /**
      * @return array{nom: string, reference: string, autorite_nom: string, autorite_adresse: string}
      */
     public static function parse(string $text): array
     {
         $result = ['nom' => '', 'reference' => '', 'autorite_nom' => '', 'autorite_adresse' => ''];
+        $text = trim($text);
 
-        foreach (preg_split('/\R/u', $text) as $line) {
+        // Le report depuis la qualification préfixe tout le texte par
+        // "Marché n° {référence}", suivi d'un " - " ou d'un retour à la ligne.
+        if (preg_match('/^March[ée]\s*n°\s*(.*?)(?:\s+-\s+|\R|$)(.*)$/isu', $text, $prefixMatch)) {
+            $result['reference'] = trim($prefixMatch[1]);
+            $text = trim($prefixMatch[2]);
+        }
+
+        // Normalise les segments restants séparés par " - Libellé :" en vrais
+        // retours à la ligne, pour les traiter comme une saisie multi-lignes.
+        $normalized = preg_replace('/\s*-\s*(?=(?:' . self::LABELS . ')\s*:)/iu', "\n", $text);
+
+        $foundLabel = false;
+        foreach (preg_split('/\R/u', $normalized) as $line) {
             if (!preg_match('/^\s*([^:]+?)\s*:\s*(.*)$/u', $line, $matches)) {
                 continue;
             }
@@ -30,19 +48,23 @@ class Exp41Marche
 
             if (str_starts_with($label, 'nom du marche')) {
                 $result['nom'] = $value;
+                $foundLabel = true;
             } elseif ($label === 'marche' || str_starts_with($label, 'marche n')) {
-                $result['reference'] = $value;
+                if ($result['reference'] === '') {
+                    $result['reference'] = $value;
+                }
+                $foundLabel = true;
             } elseif (str_starts_with($label, 'autorite contractante')) {
                 $result['autorite_nom'] = $value;
+                $foundLabel = true;
             } elseif ($label === 'adresse') {
                 $result['autorite_adresse'] = $value;
+                $foundLabel = true;
             }
         }
 
-        if ($result['nom'] === '' && $result['reference'] === '' && $result['autorite_nom'] === '') {
-            $fallback = MarcheIdentification::parse($text);
-
-            return ['nom' => $fallback['nom'], 'reference' => $fallback['reference'], 'autorite_nom' => '', 'autorite_adresse' => ''];
+        if (!$foundLabel && $result['nom'] === '') {
+            $result['nom'] = trim($text);
         }
 
         return $result;

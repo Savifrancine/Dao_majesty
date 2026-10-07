@@ -526,8 +526,8 @@ class DossierController extends Controller
             $parsed = \App\Support\Exp41Marche::parse($marche['text']);
             $prefill = [
                 'identification_marche' => $parsed['nom'] !== '' ? $parsed['nom'] : $marche['text'],
-                'numero_marche' => $parsed['reference'],
-                'autorite_nom' => $parsed['autorite_nom'],
+                'numero_marche' => mb_substr($parsed['reference'], 0, 250),
+                'autorite_nom' => mb_substr($parsed['autorite_nom'], 0, 250),
                 'autorite_adresse' => $parsed['autorite_adresse'],
                 'date_attribution' => $this->monthToDate($marche['depart']),
                 'date_achevement' => $this->monthToDate($marche['final']),
@@ -649,8 +649,8 @@ class DossierController extends Controller
             $parsed = \App\Support\Exp41Marche::parse($marche['text']);
             $prefill = [
                 'identification_marche' => $parsed['nom'] !== '' ? $parsed['nom'] : $marche['text'],
-                'numero_marche' => $parsed['reference'],
-                'autorite_nom' => $parsed['autorite_nom'],
+                'numero_marche' => mb_substr($parsed['reference'], 0, 250),
+                'autorite_nom' => mb_substr($parsed['autorite_nom'], 0, 250),
                 'autorite_adresse' => $parsed['autorite_adresse'],
                 'date_attribution' => $this->monthToDate($marche['depart']),
                 'date_achevement' => $this->monthToDate($marche['final']),
