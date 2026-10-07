@@ -686,6 +686,15 @@ class DossierController extends Controller
         $entreprise = $dossier->entreprise;
         $signataire = $dossier->signataires->firstWhere('pivot.role_signataire', 'gerant') ?? $dossier->signataires->first();
 
+        // 4.2 a) est synchronise avant 4.2 b) (voir les appels groupes de ces deux
+        // methodes) : on reprend ici ce que 4.1 ne fournit pas (role, montants,
+        // telephone/email de l'autorite) depuis le formulaire a) du meme marche,
+        // pour eviter de ressaisir deux fois la meme information.
+        $aByPosition = FormulaireExp42A::where('dossier_id', $dossier->id)
+            ->whereNotNull('marche_position')
+            ->get()
+            ->keyBy('marche_position');
+
         foreach ($marches as $position => $marche) {
             $prefill = [
                 'identification_marche' => $marche['nom'],
@@ -695,6 +704,18 @@ class DossierController extends Controller
                 'date_attribution' => $this->monthToDate($marche['depart']),
                 'date_achevement' => $this->monthToDate($marche['final']),
             ];
+
+            $aRecord = $aByPosition->get($position);
+            if ($aRecord) {
+                $prefill['autorite_nom'] = $prefill['autorite_nom'] !== '' ? $prefill['autorite_nom'] : mb_substr((string) $aRecord->autorite_nom, 0, 250);
+                $prefill['autorite_adresse'] = $prefill['autorite_adresse'] !== '' ? $prefill['autorite_adresse'] : (string) $aRecord->autorite_adresse;
+                $prefill['role_marche'] = (string) $aRecord->role_marche;
+                $prefill['montant_total'] = (string) $aRecord->montant_total;
+                $prefill['participation_pourcentage'] = (string) $aRecord->participation_pourcentage;
+                $prefill['montant_part'] = (string) $aRecord->montant_part;
+                $prefill['autorite_telephone'] = (string) $aRecord->autorite_telephone;
+                $prefill['autorite_email'] = (string) $aRecord->autorite_email;
+            }
 
             $record = FormulaireExp42B::firstOrNew(['dossier_id' => $dossier->id, 'marche_position' => $position]);
 
