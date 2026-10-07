@@ -15,6 +15,7 @@ class FormulaireExp42ASuite extends Model
     protected $fillable = [
         'utilisateur_id',
         'dossier_id',
+        'marche_position',
         'entreprise_id',
         'signataire_id',
         'formulaire_type',
@@ -90,7 +91,7 @@ class FormulaireExp42ASuite extends Model
             if ($reference !== '') {
                 $parts[] = $reference;
             }
-            if ($dateLancement) {
+            if ($dateLancement && !str_contains($reference, $dateLancement)) {
                 $parts[] = 'du ' . $dateLancement;
             }
             if ($titre !== '') {
