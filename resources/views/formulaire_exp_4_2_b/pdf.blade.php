@@ -6,7 +6,7 @@
     <title>Formulaire EXP-4.2 b) - {{ optional($formulaireExp42B->entreprise)->nom ?? $formulaireExp42B->nom_candidat ?? 'Formulaire' }}</title>
     <style>
         @page { margin: 12mm 20mm 20mm 20mm; }
-        body { font-family: DejaVu Sans, Calibri, Segoe UI, Arial, Helvetica, sans-serif; color: #222; margin: 0; font-size: 12px; }
+        body { font-family: Helvetica, Arial, sans-serif; color: #222; margin: 0; font-size: 11px; }
         .header-table { width:100%; border-collapse:collapse; margin-bottom:12px; }
         .header-table td { vertical-align:top; }
         .header-logo { width:115px; padding-right:14px; }
@@ -93,7 +93,12 @@
             ?? ''
         );
 
-        $numero_adpr_full = $formulaireExp42B->buildNumeroAdrp($dossier);
+        $dossierRef = trim($dossier->reference_dossier ?? $dossier->ref ?? '');
+        $dossierDate = optional($dossier->date_lancement)->format('d/m/Y') ?? '';
+        $dossierLabel = $dossierRef;
+        if ($dossierDate !== '' && !str_contains($dossierRef, $dossierDate)) {
+            $dossierLabel = trim($dossierRef . ' du ' . $dossierDate);
+        }
 
         $date_soumission_display = optional($dossier)->date_soumission ? optional($dossier)->date_soumission->format('d/m/Y') : '-';
 
@@ -121,7 +126,7 @@
             <div style="flex:0 0 220px; text-align:right;"><strong>Date :</strong> {{ $date_soumission_display }}</div>
         </div>
         <div style="text-align:center; margin-top:6px; margin-left:8px; padding-left:16px;">
-            <strong>N° ADRP :</strong>{{ $numero_adpr_full }}
+            <strong>{{ $dossierLabel }}</strong>
         </div>
     </div>
 
@@ -136,11 +141,11 @@
         </tr>
         <tr>
             <td><strong>Date d'attribution :</strong></td>
-            <td colspan="3">{{ optional($formulaireExp42B->date_attribution)->format('d/m/Y') ?? '' }}</td>
+            <td colspan="3">{{ optional($formulaireExp42B->date_attribution)->format('m/Y') ?? '' }}</td>
         </tr>
         <tr>
             <td><strong>Date d'achèvement :</strong></td>
-            <td colspan="3">{{ optional($formulaireExp42B->date_achevement)->format('d/m/Y') ?? '' }}</td>
+            <td colspan="3">{{ optional($formulaireExp42B->date_achevement)->format('m/Y') ?? '' }}</td>
         </tr>
         @php
             $montantTotal = '';
