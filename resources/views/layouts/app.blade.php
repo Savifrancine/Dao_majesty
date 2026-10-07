@@ -498,22 +498,9 @@
                     <span class="icon">📄</span>
                     <span>Formulaire MAT</span>
                 </a>
-                <a href="{{ route('formulaire_exp_4_2_a.index') }}" class="menu-item">
-                    <span class="icon">🧾</span>
-                    <span>FORMULAIRE EXP-4.2 a)</span>
-                </a>
-                <a href="{{ route('formulaire_exp_4_2_b.index') }}" class="menu-item">
-                    <span class="icon">🧾</span>
-                    <span>FORMULAIRE EXP-4.2 b)</span>
-                </a>
-                <a href="{{ route('formulaire_exp_4_2_a_suite.index') }}" class="menu-item">
-                    <span class="icon">🧾</span>
-                    <span>FORMULAIRE EXP-4.2 a) (suite)</span>
-                </a>
-                <a href="{{ route('formulaire_exp_4_2_b_suite.index') }}" class="menu-item">
-                    <span class="icon">🧾</span>
-                    <span>FORMULAIRE EXP-4.2 b) (suite)</span>
-                </a>
+                {{-- Formulaires EXP-4.2 a)/b)/(suite) : retires du menu, generes
+                     automatiquement par marche depuis le dossier (routes et pages
+                     conservees, utilisees par les liens "PDF" de l'etape 6). --}}
                 <a href="{{ route('formulaire_per.index') }}" class="menu-item">
                     <span class="icon">📋</span>
                     <span>Formulaire PER</span>
