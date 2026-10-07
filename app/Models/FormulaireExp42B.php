@@ -15,6 +15,7 @@ class FormulaireExp42B extends Model
     protected $fillable = [
         'utilisateur_id',
         'dossier_id',
+        'marche_position',
         'entreprise_id',
         'signataire_id',
         'formulaire_type',
