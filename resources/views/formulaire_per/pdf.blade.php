@@ -29,7 +29,6 @@
         .signature-block { flex:1; font-size:11px; line-height:1.4; }
         .signature-box { text-align:center; }
         .signature-line { width:220px; border-bottom:1px solid #000; margin:40px auto 6px auto; height:1px; }
-        .footer { text-align:center; font-size:9px; color:#999; margin-top:22px; padding-top:10px; border-top:1px solid #ddd; }
     </style>
 </head>
 <body>
@@ -159,9 +158,14 @@
 
         <!-- Signature section removed as requested -->
 
-        <div class="footer">
-            <div>Document généré le {{ now()->format('d/m/Y à H:i') }}</div>
-        </div>
+        @if($formulaire_per->fichiers->isNotEmpty())
+            <div style="margin-top:16px; font-size:11px; font-weight:700;">Pièces jointes</div>
+            <div style="font-size:10px;">
+                @foreach($formulaire_per->fichiers as $fichier)
+                    <div>— {{ $fichier->nom_original ?: basename($fichier->chemin_fichier) }}</div>
+                @endforeach
+            </div>
+        @endif
     </div>
 </body>
 </html>
