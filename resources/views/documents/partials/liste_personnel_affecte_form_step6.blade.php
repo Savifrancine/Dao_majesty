@@ -51,7 +51,14 @@
 </div>
 
 <script>
-    window.__entreprisePersonnelRoster = @json(($dossier->entreprise->personnel_data ?? []));
+    window.__entreprisePersonnelRoster = @json(
+        $dossier->entreprise
+            ? $dossier->entreprise->personnels()->get()
+                ->unique(fn ($p) => mb_strtolower(trim($p->nom)))
+                ->map(fn ($p) => ['nom' => $p->nom, 'poste' => $p->poste])
+                ->values()
+            : []
+    );
 </script>
 
 <script>
