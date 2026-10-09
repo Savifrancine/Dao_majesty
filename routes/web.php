@@ -129,7 +129,6 @@ Route::middleware('auth')->group(function () {
     // Aperçu HTML des documents du dossier
     Route::get('/documents/preview/{document}', [App\Http\Controllers\DocumentController::class, 'previewDocument'])->name('documents.preview');
     // Entreprise creation
-    Route::post('/dossiers/entreprise/store', [App\Http\Controllers\DossierController::class, 'storeEntreprise'])->name('dossiers.storeEntreprise');
 
     // Document filling
     Route::post('/dossiers/{dossierId}/documents/{documentIndex}/save', [App\Http\Controllers\DossierController::class, 'saveDocumentValues'])->name('dossiers.saveDocumentValues');

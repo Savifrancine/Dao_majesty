@@ -1151,54 +1151,6 @@ class DossierController extends Controller
     }
 
     /**
-     * Étape 3b : Créer une nouvelle entreprise
-     */
-    public function storeEntreprise(Request $request)
-    {
-        $data = $request->validate([
-            'nom' => ['required', 'string', 'max:255'],
-            'sigle' => ['nullable', 'string', 'max:50'],
-            'adresse' => ['nullable', 'string'],
-            'adresse_officielle' => ['nullable', 'string'],
-            'telephone' => ['nullable', 'string', 'max:50'],
-            'email' => ['nullable', 'email', 'max:255'],
-            'pays' => ['nullable', 'string', 'max:255'],
-            'ifu' => ['nullable', 'string', 'max:100'],
-            'registre_path' => ['nullable', 'string', 'max:255'],
-            'responsable' => ['nullable', 'string', 'max:255'],
-            'fonction_responsable' => ['nullable', 'string', 'max:255'],
-            'annee_enregistrement' => ['nullable', 'digits:4'],
-            'logo' => ['nullable', 'file', 'image', 'max:5120'],
-        ]);
-
-        if ($request->hasFile('logo') && $request->file('logo')->isValid()) {
-            $path = $request->file('logo')->store('entreprises/logos', 'public');
-            $data['logo'] = $path;
-        }
-
-        $entreprise = Entreprise::create([
-            'nom' => $data['nom'],
-            'sigle' => $data['sigle'] ?? null,
-            'adresse' => $data['adresse'] ?? null,
-            'adresse_officielle' => $data['adresse_officielle'] ?? null,
-            'telephone' => $data['telephone'] ?? null,
-            'email' => $data['email'] ?? null,
-            'pays' => $data['pays'] ?? null,
-            'ifu' => $data['ifu'] ?? null,
-            'registre_path' => $data['registre_path'] ?? null,
-            'logo' => $data['logo'] ?? null,
-            'responsable' => $data['responsable'] ?? null,
-            'fonction_responsable' => $data['fonction_responsable'] ?? null,
-            'annee_enregistrement' => $data['annee_enregistrement'] ?? null,
-        ]);
-
-        return response()->json([
-            'success' => true,
-            'entreprise' => $entreprise
-        ]);
-    }
-
-    /**
      * Étape 4 : Infos du dossier (Page de garde)
      */
     public function step4(Request $request)

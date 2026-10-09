@@ -427,97 +427,11 @@
 
                 <div class="wizard-divider"></div>
 
-                <div id="newEntrepriseForm" class="wizard-subcard" style="display: none;">
-                    <div class="wizard-subcard-title">Creer une nouvelle entreprise</div>
-
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="wizard-field">
-                                <label for="new_nom" class="wizard-label">Nom *</label>
-                                <input type="text" class="form-control wizard-input" id="new_nom" name="new_nom">
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="wizard-field">
-                                <label for="new_sigle" class="wizard-label">Sigle</label>
-                                <input type="text" class="form-control wizard-input" id="new_sigle" name="new_sigle" maxlength="10">
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="wizard-field">
-                        <label for="new_adresse" class="wizard-label">Adresse</label>
-                        <input type="text" class="form-control wizard-input" id="new_adresse" name="new_adresse">
-                    </div>
-
-                    <div class="wizard-field">
-                        <label for="new_adresse_officielle" class="wizard-label">Adresse officielle</label>
-                        <input type="text" class="form-control wizard-input" id="new_adresse_officielle" name="new_adresse_officielle">
-                    </div>
-
-                    <div class="wizard-field">
-                        <label for="new_annee_enregistrement" class="wizard-label">Année d'enregistrement</label>
-                        <input type="number" class="form-control wizard-input" id="new_annee_enregistrement" name="new_annee_enregistrement" min="1900" max="2100">
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="wizard-field">
-                                <label for="new_pays" class="wizard-label">Pays</label>
-                                <select class="form-control wizard-input" id="new_pays" name="new_pays">
-                                    @include('partials.pays_options', ['selectedPays' => old('new_pays')])
-                                </select>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="wizard-field">
-                                <label for="new_ifu" class="wizard-label">Numero IFU</label>
-                                <input type="text" class="form-control wizard-input" id="new_ifu" name="new_ifu">
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="wizard-field">
-                        <label for="new_registre" class="wizard-label">Registre de commerce (PDF/JPG/PNG)</label>
-                        <input type="file" class="form-control wizard-input" id="new_registre" name="new_registre" accept="application/pdf,image/*">
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="wizard-field">
-                                <label for="new_telephone" class="wizard-label">Telephone</label>
-                                <input type="tel" class="form-control wizard-input" id="new_telephone" name="new_telephone">
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="wizard-field">
-                                <label for="new_email" class="wizard-label">Email</label>
-                                <input type="email" class="form-control wizard-input" id="new_email" name="new_email">
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="wizard-field">
-                                <label for="new_responsable" class="wizard-label">Responsable</label>
-                                <input type="text" class="form-control wizard-input" id="new_responsable" name="new_responsable">
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="wizard-field">
-                                <label for="new_fonction" class="wizard-label">Fonction</label>
-                                <input type="text" class="form-control wizard-input" id="new_fonction" name="new_fonction">
-                            </div>
-                        </div>
-                    </div>
-
-                    <button type="button" class="btn btn-primary-custom btn-sm" id="saveNewEntreprise">Creer cette entreprise</button>
-                </div>
-
-                <button type="button" class="btn btn-link wizard-link" id="toggleNewEntreprise">
-                    + Creer une nouvelle entreprise
-                </button>
+                <p class="wizard-subtitle">
+                    Entreprise absente de la liste ?
+                    <a href="{{ route('entreprises.create') }}" target="_blank" rel="noopener noreferrer">Créez-la ici</a>,
+                    puis revenez sur cette page et actualisez pour la sélectionner.
+                </p>
 
                 <div class="wizard-actions">
                     <button type="button" class="btn btn-ghost" onclick="history.back()">Retour</button>
@@ -559,73 +473,5 @@ document.querySelectorAll('.delete-entreprise-btn').forEach(btn => {
     });
 });
 
-document.getElementById('toggleNewEntreprise').addEventListener('click', function(e) {
-    e.preventDefault();
-    const form = document.getElementById('newEntrepriseForm');
-    form.style.display = form.style.display === 'none' ? 'block' : 'none';
-});
-
-document.getElementById('saveNewEntreprise').addEventListener('click', async function() {
-    const nom = document.getElementById('new_nom').value;
-    if (!nom) {
-        alert('Le nom de l\'entreprise est requis');
-        return;
-    }
-
-    const formData = new FormData();
-    formData.append('nom', nom);
-    formData.append('sigle', document.getElementById('new_sigle').value || '');
-    formData.append('adresse', document.getElementById('new_adresse').value || '');
-    formData.append('telephone', document.getElementById('new_telephone').value || '');
-    formData.append('email', document.getElementById('new_email').value || '');
-    formData.append('responsable', document.getElementById('new_responsable').value || '');
-    formData.append('fonction_responsable', document.getElementById('new_fonction').value || '');
-    formData.append('adresse_officielle', document.getElementById('new_adresse_officielle') ? document.getElementById('new_adresse_officielle').value : '');
-    formData.append('annee_enregistrement', document.getElementById('new_annee_enregistrement') ? document.getElementById('new_annee_enregistrement').value : '');
-    formData.append('pays', document.getElementById('new_pays').value || '');
-    formData.append('ifu', document.getElementById('new_ifu').value || '');
-
-    const fileInput = document.getElementById('new_registre');
-    if (fileInput && fileInput.files && fileInput.files[0]) {
-        formData.append('registre', fileInput.files[0]);
-    }
-    const logoInput = document.getElementById('new_logo');
-    if (logoInput && logoInput.files && logoInput.files[0]) {
-        formData.append('logo', logoInput.files[0]);
-    }
-
-    try {
-        const resRaw = await fetch('{{ route("dossiers.storeEntreprise") }}', {
-            method: 'POST',
-            headers: {
-                'X-CSRF-TOKEN': '{{ csrf_token() }}'
-            },
-            body: formData
-        });
-
-        const res = await resRaw.json();
-        if (resRaw.status === 422) {
-            const errors = res.errors || {};
-            const messages = Object.values(errors).flat().join('\n');
-            alert('Validation error:\n' + messages);
-            return;
-        }
-        if (!res.success) {
-            alert(res.message || 'Erreur lors de la création de l\'entreprise');
-            return;
-        }
-
-        const option = document.createElement('option');
-        option.value = res.entreprise.id;
-        option.textContent = res.entreprise.nom + (res.entreprise.sigle ? ` (${res.entreprise.sigle})` : '');
-        document.getElementById('entreprise_id').appendChild(option);
-        document.getElementById('entreprise_id').value = res.entreprise.id;
-        document.getElementById('newEntrepriseForm').style.display = 'none';
-        alert('Entreprise créée avec succès!');
-    } catch (err) {
-        console.error(err);
-        alert('Erreur réseau ou serveur. Vérifiez la console pour plus de détails.');
-    }
-});
 </script>
 @endsection
