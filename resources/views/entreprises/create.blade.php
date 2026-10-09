@@ -78,6 +78,8 @@
 
         @include('entreprises.partials.finance_section', ['financeData' => []])
 
+        @include('entreprises.partials.personnel_section', ['personnelData' => []])
+
         <button type="submit" class="btn btn-success">Enregistrer</button>
         <a href="{{ route('entreprises.index') }}" class="btn btn-secondary">Annuler</a>
     </form>

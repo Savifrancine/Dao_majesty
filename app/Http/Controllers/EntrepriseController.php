@@ -44,6 +44,7 @@ class EntrepriseController extends Controller
 
         $data['finance_data'] = $this->extractFinanceData($request);
         $this->syncChiffresAffairesFromFinance($data['finance_data']);
+        $data['personnel_data'] = $this->extractPersonnelData($request);
 
         Entreprise::create($data);
 
@@ -83,6 +84,7 @@ class EntrepriseController extends Controller
 
         $data['finance_data'] = $this->extractFinanceData($request);
         $this->syncChiffresAffairesFromFinance($data['finance_data']);
+        $data['personnel_data'] = $this->extractPersonnelData($request);
 
         $entreprise->update($data);
 
@@ -163,5 +165,51 @@ class EntrepriseController extends Controller
                 ['montant' => (float) $montant, 'monnaie' => 'F CFA']
             );
         }
+    }
+
+    /**
+     * Memes champs que le Formulaire PER (etape 6), plus nom/poste puisqu'il
+     * n'y a pas ici de Liste du personnel externe pour les fournir : chaque
+     * bloc est une personne ajoutee/retiree librement. Les blocs entierement
+     * vides (ni nom ni poste) sont ignores a l'enregistrement.
+     */
+    private function extractPersonnelData(Request $request): array
+    {
+        $validated = $request->validate([
+            'personnel' => ['nullable', 'array'],
+            'personnel.*.nom' => ['nullable', 'string', 'max:255'],
+            'personnel.*.poste' => ['nullable', 'string', 'max:255'],
+            'personnel.*.date_naissance' => ['nullable', 'date'],
+            'personnel.*.qualifications' => ['nullable', 'string', 'max:4000'],
+            'personnel.*.nom_employeur' => ['nullable', 'string', 'max:255'],
+            'personnel.*.emploi_tenu' => ['nullable', 'string', 'max:255'],
+            'personnel.*.adresse_employeur' => ['nullable', 'string', 'max:4000'],
+            'personnel.*.telephone' => ['nullable', 'string', 'max:20'],
+            'personnel.*.telecopie' => ['nullable', 'string', 'max:20'],
+            'personnel.*.email' => ['nullable', 'email', 'max:255'],
+            'personnel.*.contact_personnel' => ['nullable', 'string', 'max:255'],
+            'personnel.*.nombre_annees_employeur' => ['nullable', 'integer', 'min:0'],
+            'personnel.*.experiences' => ['nullable', 'string'],
+        ]);
+
+        $personnel = [];
+        foreach ($validated['personnel'] ?? [] as $row) {
+            $nom = trim((string) ($row['nom'] ?? ''));
+            $poste = trim((string) ($row['poste'] ?? ''));
+            if ($nom === '' && $poste === '') {
+                continue;
+            }
+
+            $experiences = [];
+            if (!empty($row['experiences'])) {
+                $decoded = json_decode((string) $row['experiences'], true);
+                $experiences = is_array($decoded) ? $decoded : [];
+            }
+
+            $row['experiences'] = $experiences;
+            $personnel[] = $row;
+        }
+
+        return $personnel;
     }
 }
