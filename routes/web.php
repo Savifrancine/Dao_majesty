@@ -107,6 +107,7 @@ Route::middleware('auth')->group(function () {
     // Dashboard dossiers
     Route::get('/dossiers', [App\Http\Controllers\DossierController::class, 'index'])->name('dossiers.index');
     Route::get('/dossiers/show/{dossier}', [App\Http\Controllers\DossierController::class, 'show'])->name('dossiers.show');
+    Route::post('/dossiers/{dossier}/dupliquer', [App\Http\Controllers\DossierController::class, 'duplicate'])->name('dossiers.duplicate');
     Route::get('/dossiers/{dossier}/continuer', [App\Http\Controllers\DossierController::class, 'continueCreation'])->name('dossiers.continuer');
     Route::get('/dossiers/{dossier}/select-documents', [App\Http\Controllers\DossierController::class, 'selectDocuments'])->name('dossiers.selectDocuments');
     Route::delete('/dossiers/{dossier}/document/{document}', [App\Http\Controllers\DossierController::class, 'destroyDocument'])->name('dossiers.destroyDocument');

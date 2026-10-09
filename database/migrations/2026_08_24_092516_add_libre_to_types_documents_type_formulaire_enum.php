@@ -12,7 +12,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        DB::statement("ALTER TABLE types_documents MODIFY type_formulaire ENUM('formulaire', 'fichier', 'bordereau', 'libre') NOT NULL DEFAULT 'formulaire'");
+        // Syntaxe ENUM/MODIFY propre a MySQL : sans objet sur SQLite (utilise en
+        // local pour les tests), qui ne contraint pas les valeurs d'une colonne
+        // texte de la meme facon.
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement("ALTER TABLE types_documents MODIFY type_formulaire ENUM('formulaire', 'fichier', 'bordereau', 'libre') NOT NULL DEFAULT 'formulaire'");
+        }
     }
 
     /**
@@ -20,6 +25,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        DB::statement("ALTER TABLE types_documents MODIFY type_formulaire ENUM('formulaire', 'fichier', 'bordereau') NOT NULL DEFAULT 'formulaire'");
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement("ALTER TABLE types_documents MODIFY type_formulaire ENUM('formulaire', 'fichier', 'bordereau') NOT NULL DEFAULT 'formulaire'");
+        }
     }
 };

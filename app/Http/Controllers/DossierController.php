@@ -3629,6 +3629,60 @@ class DossierController extends Controller
     }
 
     /**
+     * Duplique un dossier : entreprise, signataires, contributeurs et contenu
+     * de chaque document (y compris les bordereaux) sont recopiés. Les pièces
+     * jointes (fichiers téléversés) ne sont pas dupliquées : il faut les
+     * reteléverser sur la copie. Les formulaires générés par marché/personne
+     * (EXP 4.2, PER...) se regénèrent automatiquement dès l'ouverture de la
+     * copie, puisqu'ils suivent le contenu copié de l'EXP 4.1/qualification/
+     * liste du personnel.
+     */
+    public function duplicate(Dossier $dossier)
+    {
+        $dossier->load(['documents.bordereau.lignes', 'signataires', 'utilisateurs', 'chiffresAffaires']);
+
+        $copy = $dossier->replicate();
+        $copy->nom_dossier = trim($dossier->nom_dossier) . ' (copie)';
+        $copy->statut = 'en_cours';
+        $copy->save();
+
+        foreach ($dossier->signataires as $signataire) {
+            $copy->signataires()->attach($signataire->id, ['role_signataire' => $signataire->pivot->role_signataire]);
+        }
+
+        foreach ($dossier->utilisateurs as $utilisateur) {
+            $copy->utilisateurs()->attach($utilisateur->id);
+        }
+
+        foreach ($dossier->chiffresAffaires as $chiffre) {
+            $newChiffre = $chiffre->replicate();
+            $newChiffre->dossier_id = $copy->id;
+            $newChiffre->save();
+        }
+
+        foreach ($dossier->documents as $doc) {
+            $newDoc = $doc->replicate();
+            $newDoc->dossier_id = $copy->id;
+            $newDoc->save();
+
+            foreach ($doc->bordereau as $bordereau) {
+                $newBordereau = $bordereau->replicate();
+                $newBordereau->dossier_document_id = $newDoc->id;
+                $newBordereau->save();
+
+                foreach ($bordereau->lignes as $ligne) {
+                    $newLigne = $ligne->replicate();
+                    $newLigne->bordereau_id = $newBordereau->id;
+                    $newLigne->save();
+                }
+            }
+        }
+
+        return redirect()->route('dossiers.show', $copy->id)
+            ->with('success', "Dossier dupliqué en « {$copy->nom_dossier} ». Les pièces jointes (fichiers téléversés) ne sont pas copiées : vérifiez et retéléversez-les si besoin avant de générer le PDF.");
+    }
+
+    /**
      * Afficher un dossier
      */
     public function show(Dossier $dossier)

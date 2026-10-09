@@ -12,7 +12,9 @@ return new class extends Migration
      */
     public function up(): void
     {
-        DB::statement("ALTER TABLE types_documents MODIFY type_formulaire ENUM('formulaire', 'fichier', 'bordereau', 'libre', 'piece_jointe') NOT NULL DEFAULT 'formulaire'");
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement("ALTER TABLE types_documents MODIFY type_formulaire ENUM('formulaire', 'fichier', 'bordereau', 'libre', 'piece_jointe') NOT NULL DEFAULT 'formulaire'");
+        }
 
         // Remarque : la valeur 'fichier' est utilisée de longue date pour de nombreux
         // documents legacy ayant leur propre rendu PDF dédié (Déclaration de garantie,
@@ -33,6 +35,8 @@ return new class extends Migration
             ->where('type_formulaire', 'piece_jointe')
             ->update(['type_formulaire' => 'fichier']);
 
-        DB::statement("ALTER TABLE types_documents MODIFY type_formulaire ENUM('formulaire', 'fichier', 'bordereau', 'libre') NOT NULL DEFAULT 'formulaire'");
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement("ALTER TABLE types_documents MODIFY type_formulaire ENUM('formulaire', 'fichier', 'bordereau', 'libre') NOT NULL DEFAULT 'formulaire'");
+        }
     }
 };

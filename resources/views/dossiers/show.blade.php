@@ -490,6 +490,11 @@
                     <a href="{{ route('dossiers.utilisateurs', $dossier) }}" class="btn btn-ghost">Gérer les contributeurs</a>
                 @endif
 
+                <form action="{{ route('dossiers.duplicate', $dossier) }}" method="POST" style="display:inline;" onsubmit="return confirm('Dupliquer ce dossier ? Les pièces jointes téléversées ne seront pas copiées.');">
+                    @csrf
+                    <button type="submit" class="btn btn-ghost">Dupliquer</button>
+                </form>
+
                 <a href="{{ route('dossiers.index') }}" class="btn btn-ghost">Retour</a>
             </div>
         </div>
