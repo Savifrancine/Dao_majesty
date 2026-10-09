@@ -68,6 +68,25 @@ class DossierController extends Controller
         'Formulaire MTC/FIN – 3.5 : Marchés de fournitures/services en cours',
     ];
 
+    /**
+     * Ordre du sommaire pour une offre financière (distinct de STANDARD_SOMMAIRE,
+     * utilisé pour l'offre technique) : la personne complète ensuite si besoin,
+     * les pièces non listées ici restent à la fin dans leur ordre actuel.
+     */
+    private const STANDARD_SOMMAIRE_FINANCIERE = [
+        'Listes des Fournitures et Calendrier de livraison',
+        'Formulaire MTC/FIN – 3.5 : Marchés de fournitures/services en cours',
+        'Lettre de soumission',
+        'Bordereau prix unitaire',
+        'Bordereau des prix pour les fournitures à importer',
+        'Chiffre d\'affaires annuel moyen des activités de services',
+        'Formulaire FIN – 3.1 Situation financière',
+        'Formulaire FIN 3.3',
+        'Formulaire FIN 3.4 (a) Modèle d\'attestation de capacité financière',
+        'Etats financiers certifiés',
+        'Cadres de sous détails des prix unitaire',
+    ];
+
     private const EXP41_NOM = 'Formulaire EXP – 4.1 : Expérience générale de fournitures/services';
     private const EXP42A_NOM = 'Formulaire EXP – 4.2 a) Expérience spécifique de fournitures/services';
     private const EXP42B_NOM = 'Formulaire EXP – 4.2 b)  Expérience spécifique de fournitures';
@@ -81,8 +100,30 @@ class DossierController extends Controller
      */
     public function dashboardHome()
     {
-        $dossiers = Dossier::all();
-        return view('home', compact('dossiers'));
+        $dossiers = Dossier::with(['typeDossier', 'entreprise', 'documents.typeDocument', 'documents.fichiers'])->get();
+
+        // Dossiers avec au moins une pièce manquante et/ou une échéance de
+        // soumission proche (7 jours) ou dépassée, pour ne rien oublier
+        // avant la date limite. Triés par échéance la plus proche d'abord ;
+        // les dossiers sans date_soumission sont mis à la fin.
+        $incompleteDossiers = $dossiers
+            ->filter(function (Dossier $d) {
+                if ($d->statut === 'genere') {
+                    return false;
+                }
+                if ($d->hasIncompleteDocuments()) {
+                    return true;
+                }
+                // diffInDays(..., false) est signe : positif si la date est dans
+                // le futur, negatif si deja passee (Carbon 3 n'est plus absolu
+                // par defaut) — <= 7 couvre donc a la fois "en retard" et
+                // "echeance proche".
+                return $d->date_soumission && now()->diffInDays($d->date_soumission, false) <= 7;
+            })
+            ->sortBy(fn (Dossier $d) => $d->date_soumission?->timestamp ?? PHP_INT_MAX)
+            ->values();
+
+        return view('home', compact('dossiers', 'incompleteDossiers'));
     }
 
     /**
@@ -3515,10 +3556,22 @@ class DossierController extends Controller
             ->with('success', 'Sommaire classé selon l\'ordre standard.');
     }
 
+    /**
+     * Une offre est consideree "financiere" d'apres le texte libre saisi a
+     * l'etape 4 (champ type_offre) : pas de colonne dediee, donc detection
+     * par simple recherche de "financ" (financiere, financier...).
+     */
+    private function isOffreFinanciere(Dossier $dossier): bool
+    {
+        return str_contains($this->normalizeSommaireName((string) $dossier->type_offre), 'financ');
+    }
+
     private function applySommaireStandardOrder(Dossier $dossier): void
     {
+        $rankNames = $this->isOffreFinanciere($dossier) ? self::STANDARD_SOMMAIRE_FINANCIERE : self::STANDARD_SOMMAIRE;
+
         $rank = [];
-        foreach (self::STANDARD_SOMMAIRE as $index => $nom) {
+        foreach ($rankNames as $index => $nom) {
             $rank[$this->normalizeSommaireName($nom)] = $index;
         }
 

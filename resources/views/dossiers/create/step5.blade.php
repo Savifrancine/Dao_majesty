@@ -426,6 +426,17 @@
                 </div>
 
                 <div class="wizard-field" style="margin-bottom:16px;">
+                    <label for="sommaireModele" class="wizard-label">Modèle de sommaire</label>
+                    <select id="sommaireModele" class="form-control wizard-input">
+                        <option value="">Sélection manuelle</option>
+                        <option value="financiere" @if(str_contains(\Illuminate\Support\Str::lower($dossier->type_offre ?? ''), 'financ')) selected @endif>
+                            Offre financière (pré-sélection standard)
+                        </option>
+                    </select>
+                    <small style="color:#64748b;">Pré-coche les pièces habituelles de l'offre financière ; vous pouvez ensuite en ajouter ou en retirer librement.</small>
+                </div>
+
+                <div class="wizard-field" style="margin-bottom:16px;">
                     <label for="documentSearch" class="wizard-label">Rechercher un document</label>
                     <input id="documentSearch" type="search" class="form-control wizard-input" placeholder="Rechercher un document...">
                 </div>
@@ -521,6 +532,7 @@
                                     name="documents[]"
                                     value="{{ $doc?->id }}"
                                     id="doc_{{ $doc?->id ?? Str::slug($pieceName) }}"
+                                    data-piece="{{ $pieceName }}"
                                     @if(!$doc) disabled @endif
                                 >
                                 <span class="checkbox-custom"></span>
@@ -605,5 +617,40 @@ function updateSearch() {
 
 checkboxes.forEach(cb => cb.addEventListener('change', updateList));
 searchInput.addEventListener('input', updateSearch);
+
+const SOMMAIRE_FINANCIERE = [
+    "Listes des Fournitures et Calendrier de livraison",
+    "Formulaire MTC/FIN – 3.5 : Marchés de fournitures/services en cours",
+    "Lettre de soumission",
+    "Bordereau prix unitaire",
+    "Bordereau des prix pour les fournitures à importer",
+    "Chiffre d'affaires annuel moyen des activités de services",
+    "Formulaire FIN – 3.1 Situation financière",
+    "Formulaire FIN 3.3",
+    "Formulaire FIN 3.4 (a) Modèle d'attestation de capacité financière",
+    "Etats financiers certifiés",
+    "Cadres de sous détails des prix unitaire",
+];
+
+const sommaireModeleSelect = document.getElementById('sommaireModele');
+
+function applySommaireModele(modele) {
+    if (modele !== 'financiere') return;
+    checkboxes.forEach(cb => {
+        if (cb.disabled) return;
+        if (SOMMAIRE_FINANCIERE.includes(cb.dataset.piece)) {
+            cb.checked = true;
+        }
+    });
+    updateList();
+}
+
+sommaireModeleSelect.addEventListener('change', function () {
+    applySommaireModele(this.value);
+});
+
+if (sommaireModeleSelect.value) {
+    applySommaireModele(sommaireModeleSelect.value);
+}
 </script>
 @endsection

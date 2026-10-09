@@ -468,20 +468,11 @@
                     <a href="{{ route('dossiers.pdf', $dossier) }}" class="btn btn-success-custom">Telecharger PDF</a>
                 @endif
 
-                @php
-                    $allComplete = $dossier->documents->count() > 0 && $dossier->documents->every(function ($dd) {
-                        return $dd->statut === 'complete'
-                            || ($dd->fichiers && $dd->fichiers->count() > 0);
-                    });
-                @endphp
                 @if($dossier->documents->count() > 0)
                     <a href="{{ route('dossiers.pdf', $dossier) }}" target="_blank" class="btn btn-success-custom">Générer le dossier</a>
-                    @if(! $allComplete)
-                        @php
-                            $incomplete = $dossier->documents->filter(fn ($dd) => $dd->statut !== 'complete' && $dd->fichiers->isEmpty());
-                        @endphp
+                    @if($dossier->hasIncompleteDocuments())
                         <div style="width:100%; font-size:13px; color:#92400e; margin-top:6px;">
-                            À compléter avant la finalisation : {{ $incomplete->map(fn ($dd) => $dd->typeDocument->nom ?? 'Document')->implode(' ; ') }}
+                            À compléter avant la finalisation : {{ $dossier->missingDocuments()->map(fn ($dd) => $dd->typeDocument->nom ?? 'Document')->implode(' ; ') }}
                         </div>
                     @endif
                 @endif

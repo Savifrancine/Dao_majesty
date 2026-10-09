@@ -1044,6 +1044,78 @@
         </div>
         @endif
     </div>
+
+    <!-- Dossiers incomplets / echeance proche -->
+    <div class="table-section" style="margin-top: 2rem;">
+        <div class="table-header">
+            <h3 class="table-title">⚠️ Dossiers à surveiller</h3>
+        </div>
+
+        @if($incompleteDossiers->count() > 0)
+        <div style="overflow-x: auto;">
+            <table class="modern-table">
+                <thead>
+                    <tr>
+                        <th>Nom du dossier</th>
+                        <th>Entreprise</th>
+                        <th>Pièces manquantes</th>
+                        <th>Échéance de soumission</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($incompleteDossiers as $dossier)
+                        @php
+                            $missing = $dossier->missingDocuments();
+                        @endphp
+                        <tr>
+                            <td>
+                                <div class="table-name">
+                                    <div class="name-avatar">{{ substr($dossier->nom_dossier, 0, 1) }}</div>
+                                    <strong>{{ $dossier->nom_dossier }}</strong>
+                                </div>
+                            </td>
+                            <td>{{ $dossier->entreprise->nom ?? '—' }}</td>
+                            <td>
+                                @if($missing->isNotEmpty())
+                                    <span class="status-badge status-warning">{{ $missing->count() }} pièce(s)</span>
+                                @else
+                                    <span class="status-badge status-success">✅ Complet</span>
+                                @endif
+                            </td>
+                            @php
+                                $joursRestants = $dossier->date_soumission ? (int) round(now()->diffInDays($dossier->date_soumission, false)) : null;
+                            @endphp
+                            <td>
+                                @if($dossier->date_soumission)
+                                    {{ $dossier->date_soumission->format('d/m/Y') }}
+                                    @if($joursRestants < 0)
+                                        <span class="status-badge" style="background:#fee2e2;color:#991b1b;">En retard ({{ abs($joursRestants) }} j)</span>
+                                    @elseif($joursRestants <= 7)
+                                        <span class="status-badge" style="background:#ffedd5;color:#9a3412;">Dans {{ $joursRestants }} j</span>
+                                    @endif
+                                @else
+                                    —
+                                @endif
+                            </td>
+                            <td>
+                                <div class="action-btns">
+                                    <a href="{{ route('dossiers.show', $dossier) }}" class="action-btn btn-view">▶ Voir</a>
+                                </div>
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+        @else
+        <div class="empty-state">
+            <div class="empty-icon">🎉</div>
+            <h4 class="empty-title">Rien à signaler</h4>
+            <p class="empty-desc">Aucun dossier incomplet ni échéance proche pour le moment</p>
+        </div>
+        @endif
+    </div>
 </div>
 
 <script>

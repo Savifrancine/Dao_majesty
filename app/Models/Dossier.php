@@ -110,4 +110,26 @@ class Dossier extends Model
     {
         return $this->belongsToMany(\App\Models\Utilisateur::class, 'dossier_utilisateurs', 'dossier_id', 'utilisateur_id')->withTimestamps();
     }
+
+    /**
+     * Pièces du sommaire ni marquées complètes ni pourvues d'un fichier
+     * téléversé. Suppose que `documents.fichiers` est déjà chargé (sinon
+     * déclenche une requête par document).
+     */
+    public function missingDocuments(): \Illuminate\Support\Collection
+    {
+        return $this->documents->filter(function ($dd) {
+            return $dd->statut !== 'complete' && $dd->fichiers->isEmpty();
+        });
+    }
+
+    /**
+     * Un dossier qui a des pièces mais dont au moins une n'est ni complète
+     * ni accompagnée d'un fichier. Un dossier sans aucune pièce n'est pas
+     * considéré incomplet ici (encore au tout début du wizard).
+     */
+    public function hasIncompleteDocuments(): bool
+    {
+        return $this->documents->count() > 0 && $this->missingDocuments()->isNotEmpty();
+    }
 }
