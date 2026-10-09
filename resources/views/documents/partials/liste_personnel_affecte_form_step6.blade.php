@@ -43,11 +43,16 @@
         @endforeach
     </div>
 
-    <div style="margin-top:10px; display:flex; gap:8px;">
+    <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
         <button type="button" class="btn btn-primary-custom" id="addPersonnelRow">Ajouter une ligne</button>
         <button type="button" class="btn btn-secondary" id="resetPersonnelRows">Réinitialiser</button>
+        <button type="button" class="btn btn-outline-secondary" id="prefillFromEntrepriseBtn">Pré-remplir depuis les personnels de l'entreprise</button>
     </div>
 </div>
+
+<script>
+    window.__entreprisePersonnelRoster = @json(($dossier->entreprise->personnel_data ?? []));
+</script>
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -89,11 +94,15 @@
             wrapper.innerHTML = `
                 <div style="width:40px; text-align:center; font-weight:700;">${index}.</div>
                 <div style="flex:1;">
-                    <div style="font-weight:700;">Désignation du poste : <input type="text" name="personnel[${index}][poste]" value="${poste}" class="form-control" style="display:inline-block; width:70%; border:none; border-bottom:1px solid #000; padding:2px 6px; margin-left:8px;"></div>
-                    <div style="margin-top:8px; font-style:italic; color:#333;">Nom : <input type="text" name="personnel[${index}][nom]" value="${nom}" class="form-control" style="display:inline-block; width:60%; border:none; border-bottom:1px solid #000; padding:2px 6px; margin-left:8px;"></div>
+                    <div style="font-weight:700;">Désignation du poste : <input type="text" name="personnel[${index}][poste]" class="form-control" style="display:inline-block; width:70%; border:none; border-bottom:1px solid #000; padding:2px 6px; margin-left:8px;"></div>
+                    <div style="margin-top:8px; font-style:italic; color:#333;">Nom : <input type="text" name="personnel[${index}][nom]" class="form-control" style="display:inline-block; width:60%; border:none; border-bottom:1px solid #000; padding:2px 6px; margin-left:8px;"></div>
                 </div>
                 <div style="width:80px; display:flex; flex-direction:column; gap:6px; align-items:center;"><button type="button" class="btn btn-sm btn-outline-danger remove-personnel">Supprimer</button></div>
             `;
+            // Assignes via .value (pas d'interpolation dans le HTML) pour eviter
+            // toute injection si un nom/poste contient des caracteres HTML.
+            wrapper.querySelector('input[name$="[poste]"]').value = poste;
+            wrapper.querySelector('input[name$="[nom]"]').value = nom;
             return wrapper;
         }
 
@@ -110,6 +119,23 @@
             for (let i = 1; i <= 3; i++) {
                 rowsContainer.appendChild(createRow(i));
             }
+            refreshRemoveHandlers();
+        });
+
+        const prefillBtn = document.getElementById('prefillFromEntrepriseBtn');
+        prefillBtn.addEventListener('click', function() {
+            const roster = window.__entreprisePersonnelRoster || [];
+            if (roster.length === 0) {
+                alert("Aucun personnel enregistré sur la fiche de l'entreprise.");
+                return;
+            }
+            if (!confirm('Remplacer les lignes actuelles par les personnels enregistrés sur la fiche entreprise ?')) {
+                return;
+            }
+            rowsContainer.innerHTML = '';
+            roster.forEach((p, i) => {
+                rowsContainer.appendChild(createRow(i + 1, p.poste || '', p.nom || ''));
+            });
             refreshRemoveHandlers();
         });
 

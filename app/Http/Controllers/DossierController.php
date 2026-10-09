@@ -23,6 +23,7 @@ use App\Models\FormulaireExp42B;
 use App\Models\FormulaireExp42ASuite;
 use App\Models\FormulaireExp42BSuite;
 use App\Models\FormulairePER;
+use App\Models\FormulairePerFichier;
 use App\Models\FormulaireMat;
 use App\Support\Exp42aPdf;
 use App\Support\Exp42bPdf;
@@ -1144,6 +1145,27 @@ class DossierController extends Controller
                 $record->emploi_tenu = mb_substr($p['poste'], 0, 250);
             }
 
+            // Si cette personne est deja enregistree dans "Les personnels de
+            // l'entreprise" (match par nom), on reprend tout ce qui y est
+            // deja connu - toujours fill-empty-only, jamais d'ecrasement
+            // d'un champ deja renseigne a la main sur ce dossier.
+            $entrepriseRecord = $this->findEntreprisePersonnelByNom($entreprise, $p['nom']);
+            if ($entrepriseRecord) {
+                foreach (['date_naissance', 'qualifications', 'adresse_employeur', 'telephone', 'telecopie', 'email', 'contact_personnel', 'nombre_annees_employeur', 'experiences'] as $field) {
+                    $value = $entrepriseRecord[$field] ?? null;
+                    $valueIsEmpty = $value === null || $value === '' || (is_array($value) && empty($value));
+                    if ($valueIsEmpty) {
+                        continue;
+                    }
+
+                    $current = $record->{$field};
+                    $currentIsEmpty = $current === null || $current === '' || (is_array($current) && empty($current));
+                    if ($currentIsEmpty) {
+                        $record->{$field} = $value;
+                    }
+                }
+            }
+
             $record->save();
         }
 
@@ -1151,6 +1173,27 @@ class DossierController extends Controller
             ->whereNotNull('personnel_position')
             ->where('personnel_position', '>=', count($personnel))
             ->delete();
+    }
+
+    /**
+     * Cherche, dans "Les personnels de l'entreprise", la personne dont le
+     * nom correspond (normalise : casse/accents/ponctuation ignores).
+     */
+    private function findEntreprisePersonnelByNom(?Entreprise $entreprise, string $nom): ?array
+    {
+        $nom = trim($nom);
+        if (!$entreprise || $nom === '') {
+            return null;
+        }
+
+        $target = $this->normalizeSommaireName($nom);
+        foreach ((array) ($entreprise->personnel_data ?? []) as $row) {
+            if ($this->normalizeSommaireName(trim((string) ($row['nom'] ?? ''))) === $target) {
+                return $row;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -1165,14 +1208,67 @@ class DossierController extends Controller
         FormulairePER::where('dossier_id', $dossier->id)
             ->whereNotNull('personnel_position')
             ->orderBy('personnel_position')
+            ->with('fichiers')
             ->get()
             ->each(function (FormulairePER $record) use (&$paths) {
                 $path = tempnam(sys_get_temp_dir(), 'formulaire_per_') . '.pdf';
                 file_put_contents($path, FormulairePerPdf::render($record));
                 $paths[] = $path;
+
+                // Pieces jointes de cette personne (diplomes, certificats...) :
+                // inserees juste apres sa page, avant de passer a la personne
+                // suivante. On travaille sur des COPIES temporaires (jamais le
+                // fichier original) puisque l'appelant supprime tout ce que
+                // cette methode renvoie une fois la fusion terminee.
+                foreach ($record->fichiers as $fichier) {
+                    $fullPath = storage_path('app/public/' . ltrim($fichier->chemin_fichier, '/'));
+                    if (!file_exists($fullPath)) {
+                        continue;
+                    }
+
+                    $ext = strtolower(pathinfo($fullPath, PATHINFO_EXTENSION));
+                    if ($ext === 'pdf') {
+                        $tempCopy = tempnam(sys_get_temp_dir(), 'per_piece_') . '.pdf';
+                        copy($fullPath, $tempCopy);
+                        $paths[] = $tempCopy;
+                    } elseif (in_array($ext, ['png', 'jpg', 'jpeg', 'gif'], true)) {
+                        $imagePdf = $this->imageToSinglePagePdf($fullPath);
+                        if ($imagePdf) {
+                            $paths[] = $imagePdf;
+                        }
+                    }
+                }
             });
 
         return $paths;
+    }
+
+    /**
+     * Convertit une image en un PDF autonome d'une seule page (meme format
+     * que l'image, pleine page) : utilise pour inserer une piece jointe
+     * image dans le PDF fusionne via le meme mecanisme que les PDF generes
+     * (chemin de fichier temporaire pousse dans $filesToMerge).
+     */
+    private function imageToSinglePagePdf(string $imagePath): ?string
+    {
+        $size = @getimagesize($imagePath);
+        if (!$size) {
+            return null;
+        }
+
+        [$widthPx, $heightPx] = $size;
+        $widthMm = $widthPx / 150 * 25.4;
+        $heightMm = $heightPx / 150 * 25.4;
+        $orientation = $widthMm > $heightMm ? 'L' : 'P';
+
+        $pdf = new \FPDF($orientation, 'mm', [$widthMm, $heightMm]);
+        $pdf->AddPage($orientation, [$widthMm, $heightMm]);
+        $pdf->Image($imagePath, 0, 0, $widthMm, $heightMm);
+
+        $tempPath = tempnam(sys_get_temp_dir(), 'per_piece_img_') . '.pdf';
+        $pdf->Output('F', $tempPath);
+
+        return $tempPath;
     }
 
     private function isFormulairePerDoc(DossierDocument $doc): bool
@@ -1954,18 +2050,51 @@ class DossierController extends Controller
                     'per.*.nombre_annees_employeur' => ['nullable', 'integer', 'min:0'],
                     'per.*.lieu_signature' => ['nullable', 'string', 'max:255'],
                     'per.*.experiences' => ['nullable', 'string'],
+                    'per.*.delete_fichier_ids' => ['nullable', 'array'],
+                    'per.*.delete_fichier_ids.*' => ['integer'],
+                    'per_fichiers' => ['nullable', 'array'],
                 ]);
 
                 foreach ($validated['per'] ?? [] as $id => $data) {
+                    $deleteFichierIds = $data['delete_fichier_ids'] ?? [];
+                    unset($data['delete_fichier_ids']);
+
                     if (array_key_exists('experiences', $data)) {
                         $decodedExp = json_decode((string) $data['experiences'], true);
                         $data['experiences'] = is_array($decodedExp) ? $decodedExp : [];
                     }
 
-                    FormulairePER::where('dossier_id', $dossier->id)
+                    $formulairePer = FormulairePER::where('dossier_id', $dossier->id)
                         ->whereNotNull('personnel_position')
                         ->whereKey($id)
-                        ->first()?->update($data);
+                        ->first();
+
+                    if (!$formulairePer) {
+                        continue;
+                    }
+
+                    $formulairePer->update($data);
+
+                    foreach ($deleteFichierIds as $fichierId) {
+                        $fichier = FormulairePerFichier::where('formulaire_per_id', $formulairePer->id)->find($fichierId);
+                        if ($fichier) {
+                            Storage::disk('public')->delete($fichier->chemin_fichier);
+                            $fichier->delete();
+                        }
+                    }
+
+                    foreach ($request->file("per_fichiers.$id", []) as $uploaded) {
+                        if (!$uploaded) {
+                            continue;
+                        }
+                        $chemin = $uploaded->store('formulaire_per/pieces', 'public');
+                        FormulairePerFichier::create([
+                            'formulaire_per_id' => $formulairePer->id,
+                            'chemin_fichier' => $chemin,
+                            'nom_original' => $uploaded->getClientOriginalName(),
+                            'utilisateur_id' => auth()->id(),
+                        ]);
+                    }
                 }
 
                 $dossierDocument->update(['statut' => 'complete']);

@@ -3,6 +3,7 @@
         $formulairesPer = \App\Models\FormulairePER::where('dossier_id', $dossier->id)
             ->whereNotNull('personnel_position')
             ->orderBy('personnel_position')
+            ->with('fichiers')
             ->get();
     @endphp
 
@@ -91,6 +92,23 @@
                 <div style="margin-top:10px;">
                     <label class="wizard-label">Lieu de signature</label>
                     <input type="text" name="per[{{ $f->id }}][lieu_signature]" value="{{ old("per.$f->id.lieu_signature", $f->lieu_signature) }}" class="form-control" style="max-width:260px;">
+                </div>
+
+                <div style="margin-top:14px;">
+                    <label class="wizard-label">Pièces jointes (diplômes, certificats...)</label>
+                    @if($f->fichiers->isNotEmpty())
+                        <div style="margin-bottom:6px;">
+                            @foreach($f->fichiers as $fichier)
+                                <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
+                                    <a href="{{ asset('storage/' . $fichier->chemin_fichier) }}" target="_blank" rel="noopener noreferrer">{{ $fichier->nom_original ?: basename($fichier->chemin_fichier) }}</a>
+                                    <label style="font-size:0.85rem; color:#b91c1c;">
+                                        <input type="checkbox" name="per[{{ $f->id }}][delete_fichier_ids][]" value="{{ $fichier->id }}"> Supprimer
+                                    </label>
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
+                    <input type="file" name="per_fichiers[{{ $f->id }}][]" multiple class="form-control" style="max-width:420px;">
                 </div>
 
                 <div style="text-align:right; margin-top:8px;">

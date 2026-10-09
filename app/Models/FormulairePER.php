@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class FormulairePER extends Model
 {
@@ -46,5 +47,10 @@ class FormulairePER extends Model
     public function utilisateur(): BelongsTo
     {
         return $this->belongsTo(Utilisateur::class);
+    }
+
+    public function fichiers(): HasMany
+    {
+        return $this->hasMany(FormulairePerFichier::class, 'formulaire_per_id')->orderBy('id', 'desc');
     }
 }
