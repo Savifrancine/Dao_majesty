@@ -1142,8 +1142,12 @@ class DossierController extends Controller
         $entreprises = Entreprise::all();
         $categorie = $data['categorie'];
         $typeDossierId = $data['type_dossier_id'];
+        // La meme entreprise depose quasiment toujours les dossiers : on
+        // pre-selectionne celle du dernier dossier cree, pour eviter de la
+        // rechoisir a chaque fois.
+        $defaultEntrepriseId = Dossier::latest('id')->value('entreprise_id');
 
-        return view('dossiers.create.step3', compact('categorie', 'typeDossierId', 'entreprises'));
+        return view('dossiers.create.step3', compact('categorie', 'typeDossierId', 'entreprises', 'defaultEntrepriseId'));
     }
 
     /**

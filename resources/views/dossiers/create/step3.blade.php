@@ -386,7 +386,7 @@
                     <select class="form-select wizard-input @error('entreprise_id') is-invalid @enderror" name="entreprise_id" id="entreprise_id" required>
                         <option value="">-- Selectionnez une entreprise --</option>
                         @foreach($entreprises as $entreprise)
-                            <option value="{{ $entreprise->id }}">{{ $entreprise->nom }} @if($entreprise->sigle)({{ $entreprise->sigle }})@endif</option>
+                            <option value="{{ $entreprise->id }}" {{ (int) ($defaultEntrepriseId ?? 0) === $entreprise->id ? 'selected' : '' }}>{{ $entreprise->nom }} @if($entreprise->sigle)({{ $entreprise->sigle }})@endif</option>
                         @endforeach
                     </select>
 
