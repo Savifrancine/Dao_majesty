@@ -494,15 +494,14 @@
                     <span class="icon">✚</span>
                     <span>Nouveau dossier</span>
                 </a>
-                <a href="{{ route('formulaire_mat.index') }}" class="menu-item">
-                    <span class="icon">📄</span>
-                    <span>Formulaire MAT</span>
-                </a>
                 {{-- Formulaires EXP-4.2 a)/b)/(suite) : retires du menu, generes
                      automatiquement par marche depuis le dossier (routes et pages
                      conservees, utilisees par les liens "PDF" de l'etape 6). --}}
                 {{-- Formulaire PER : retire du menu, genere automatiquement par
                      personne depuis la Liste du personnel du dossier (routes et
+                     pages conservees, utilisees par les liens "PDF" de l'etape 6). --}}
+                {{-- Formulaire MAT : retire du menu, genere automatiquement par
+                     materiel depuis la Liste de Materiel du dossier (routes et
                      pages conservees, utilisees par les liens "PDF" de l'etape 6). --}}
                     <a href="{{ route('chiffres.index') }}" class="menu-item">
                         <span class="icon">📈</span>

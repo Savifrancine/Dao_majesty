@@ -11,6 +11,8 @@ class FormulaireMat extends Model
 
     protected $fillable = [
         'utilisateur_id',
+        'dossier_id',
+        'materiel_position',
         'piece_materiel',
         'fabricant',
         'modele_puissance',
@@ -31,6 +33,11 @@ class FormulaireMat extends Model
     public function utilisateur(): BelongsTo
     {
         return $this->belongsTo(Utilisateur::class);
+    }
+
+    public function dossier(): BelongsTo
+    {
+        return $this->belongsTo(Dossier::class);
     }
 
     public function signataire(): BelongsTo

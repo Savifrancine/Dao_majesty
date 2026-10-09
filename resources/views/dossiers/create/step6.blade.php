@@ -551,6 +551,8 @@
                                 @include('documents.partials.formulaire_exp_4_2_b_suite_form_step6', ['dossier' => $dossier, 'docId' => $currentDocument->id])
                             @elseif(trim($currentDocument->nom) === 'Formulaire PER')
                                 @include('documents.partials.formulaire_per_form_step6', ['dossier' => $dossier, 'docId' => $currentDocument->id])
+                            @elseif(trim($currentDocument->nom) === 'Formulaire MAT')
+                                @include('documents.partials.formulaire_mat_form_step6', ['dossier' => $dossier, 'docId' => $currentDocument->id])
                             @elseif(trim($currentDocument->nom) === 'Formulaire ANT-2 : Formulaire renseignant sur les antécédents de marchés non exécutés, de litiges en instance et d\'antécédents de litiges')
                                 @include('documents.partials.formulaire_antecedents_form_step6', ['dossier' => $dossier, 'docId' => $currentDocument->id])
                             @elseif(trim($currentDocument->nom) === 'Chiffre d\'affaires annuel moyen des activités de services')

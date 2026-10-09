@@ -23,11 +23,13 @@ use App\Models\FormulaireExp42B;
 use App\Models\FormulaireExp42ASuite;
 use App\Models\FormulaireExp42BSuite;
 use App\Models\FormulairePER;
+use App\Models\FormulaireMat;
 use App\Support\Exp42aPdf;
 use App\Support\Exp42bPdf;
 use App\Support\Exp42aSuitePdf;
 use App\Support\Exp42bSuitePdf;
 use App\Support\FormulairePerPdf;
+use App\Support\FormulaireMatPdf;
 use App\Support\MarcheIdentification;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Http\Request;
@@ -97,6 +99,8 @@ class DossierController extends Controller
     private const EXP42B_SUITE_NOM = 'Formulaire EXP – 4.2 b) (suite) Expérience spécifique de fournitures/services dans les activités principales (suite)';
     private const FORMULAIRE_PER_NOM = 'Formulaire PER';
     private const LISTE_PERSONNEL_NOM = 'Liste du personnel affecté à l\'exécution du marché';
+    private const FORMULAIRE_MAT_NOM = 'Formulaire MAT';
+    private const LISTE_MATERIEL_NOM = 'Liste de Matériel';
 
     /**
      * Afficher le dashboard home avec les dossiers
@@ -1174,6 +1178,92 @@ class DossierController extends Controller
     private function isFormulairePerDoc(DossierDocument $doc): bool
     {
         return trim(optional($doc->typeDocument)->nom ?? '') === self::FORMULAIRE_PER_NOM;
+    }
+
+    /**
+     * Crée ou met à jour un Formulaire MAT par ligne de la Liste de Matériel
+     * du dossier : le type et caractéristiques du matériel suivent toujours
+     * cette liste (lien direct, non modifiable dans ce formulaire) ; le
+     * reste (fabricant, modèle/puissance, capacité, provenance...) reste à
+     * la main de l'utilisateur, par matériel.
+     */
+    private function syncFormulaireMatRecords(Dossier $dossier): void
+    {
+        $hasMat = $dossier->documents()
+            ->whereHas('typeDocument', fn ($q) => $q->where('nom', self::FORMULAIRE_MAT_NOM))
+            ->exists();
+        if (!$hasMat) {
+            return;
+        }
+
+        $listeDoc = $dossier->documents()
+            ->whereHas('typeDocument', fn ($q) => $q->where('nom', self::LISTE_MATERIEL_NOM))
+            ->with('bordereau.lignes')
+            ->first();
+        if (!$listeDoc) {
+            return;
+        }
+
+        $materiels = [];
+        foreach ($listeDoc->bordereau as $bordereau) {
+            foreach ($bordereau->lignes as $ligne) {
+                $designation = trim((string) ($ligne->designation ?? ''));
+                if ($designation === '') {
+                    continue;
+                }
+                $materiels[] = $designation;
+            }
+        }
+        if (empty($materiels)) {
+            return;
+        }
+
+        foreach ($materiels as $position => $designation) {
+            $record = FormulaireMat::firstOrNew(['dossier_id' => $dossier->id, 'materiel_position' => $position]);
+
+            if (!$record->exists) {
+                $record->fill(['utilisateur_id' => auth()->id()]);
+            }
+
+            // Le type et caracteristiques du materiel est purement derive de
+            // la Liste de Materiel : il suit toujours sa valeur actuelle,
+            // sans etre modifiable ici.
+            $record->piece_materiel = mb_substr($designation, 0, 250);
+
+            $record->save();
+        }
+
+        FormulaireMat::where('dossier_id', $dossier->id)
+            ->whereNotNull('materiel_position')
+            ->where('materiel_position', '>=', count($materiels))
+            ->delete();
+    }
+
+    /**
+     * Chemins de fichiers temporaires : un PDF Formulaire MAT par matériel
+     * du dossier. L'appelant doit les supprimer une fois fusionnés.
+     */
+    private function formulaireMatPdfPaths(Dossier $dossier): array
+    {
+        $this->syncFormulaireMatRecords($dossier);
+
+        $paths = [];
+        FormulaireMat::where('dossier_id', $dossier->id)
+            ->whereNotNull('materiel_position')
+            ->orderBy('materiel_position')
+            ->get()
+            ->each(function (FormulaireMat $record) use (&$paths) {
+                $path = tempnam(sys_get_temp_dir(), 'formulaire_mat_') . '.pdf';
+                file_put_contents($path, FormulaireMatPdf::render($record));
+                $paths[] = $path;
+            });
+
+        return $paths;
+    }
+
+    private function isFormulaireMatDoc(DossierDocument $doc): bool
+    {
+        return trim(optional($doc->typeDocument)->nom ?? '') === self::FORMULAIRE_MAT_NOM;
     }
 
     /**
@@ -2778,6 +2868,37 @@ class DossierController extends Controller
                 if ($validLineCreated) {
                     $dossierDocument->update(['statut' => 'complete']);
                 }
+
+                if (trim($currentDocument->nom) === self::LISTE_MATERIEL_NOM) {
+                    $this->syncFormulaireMatRecords($dossier);
+                }
+            }
+
+            if (trim($currentDocument->nom) === self::FORMULAIRE_MAT_NOM) {
+                $this->syncFormulaireMatRecords($dossier);
+
+                $validated = $request->validate([
+                    'mat' => ['nullable', 'array'],
+                    'mat.*.fabricant' => ['nullable', 'string', 'max:255'],
+                    'mat.*.modele_puissance' => ['nullable', 'string', 'max:255'],
+                    'mat.*.capacite' => ['nullable', 'string', 'max:1000'],
+                    'mat.*.annee_fabrication' => ['nullable', 'string', 'max:10'],
+                    'mat.*.localisation' => ['nullable', 'string', 'max:255'],
+                    'mat.*.engagements' => ['nullable', 'string'],
+                    'mat.*.provenance' => ['nullable', 'string', 'max:50'],
+                    'mat.*.signataire_id' => ['nullable', 'exists:signataires,id'],
+                    'mat.*.lieu_fait' => ['nullable', 'string', 'max:255'],
+                    'mat.*.date_fait' => ['nullable', 'date'],
+                ]);
+
+                foreach ($validated['mat'] ?? [] as $id => $data) {
+                    FormulaireMat::where('dossier_id', $dossier->id)
+                        ->whereNotNull('materiel_position')
+                        ->whereKey($id)
+                        ->first()?->update($data);
+                }
+
+                $dossierDocument->update(['statut' => 'complete']);
             }
 
             if (trim($currentDocument->nom) === 'Plan de charge') {
@@ -2937,6 +3058,7 @@ class DossierController extends Controller
         $this->syncExp42aSuiteRecords($dossier);
         $this->syncExp42bSuiteRecords($dossier);
         $this->syncFormulairePerRecords($dossier);
+        $this->syncFormulaireMatRecords($dossier);
         $globalChiffres = ChiffreAffaire::whereNull('dossier_id')->orderBy('annee')->get();
 
         return view('dossiers.create.step6', [
@@ -3063,7 +3185,7 @@ class DossierController extends Controller
 
         $needsMerge = $documents->contains(function ($doc) {
             $plan = $this->attachmentPlan($doc);
-            return $plan['pdfs']->isNotEmpty() || $plan['others']->isNotEmpty() || $this->isExp42aDoc($doc) || $this->isExp42bDoc($doc) || $this->isExp42aSuiteDoc($doc) || $this->isExp42bSuiteDoc($doc) || $this->isFormulairePerDoc($doc);
+            return $plan['pdfs']->isNotEmpty() || $plan['others']->isNotEmpty() || $this->isExp42aDoc($doc) || $this->isExp42bDoc($doc) || $this->isExp42aSuiteDoc($doc) || $this->isExp42bSuiteDoc($doc) || $this->isFormulairePerDoc($doc) || $this->isFormulaireMatDoc($doc);
         });
 
         if (!$needsMerge) {
@@ -3145,7 +3267,8 @@ class DossierController extends Controller
                 $isExp42aSuite = $this->isExp42aSuiteDoc($doc);
                 $isExp42bSuite = $this->isExp42bSuiteDoc($doc);
                 $isFormulairePer = $this->isFormulairePerDoc($doc);
-                if ($isExp42a || $isExp42b || $isExp42aSuite || $isExp42bSuite || $isFormulairePer) {
+                $isFormulaireMat = $this->isFormulaireMatDoc($doc);
+                if ($isExp42a || $isExp42b || $isExp42aSuite || $isExp42bSuite || $isFormulairePer || $isFormulaireMat) {
                     $skipHtmlDocPage = true;
                 }
 
@@ -3221,6 +3344,12 @@ class DossierController extends Controller
                 }
                 if ($isFormulairePer) {
                     foreach ($this->formulairePerPdfPaths($dossier) as $path) {
+                        $filesToMerge[] = $path;
+                        $tempFiles[] = $path;
+                    }
+                }
+                if ($isFormulaireMat) {
+                    foreach ($this->formulaireMatPdfPaths($dossier) as $path) {
                         $filesToMerge[] = $path;
                         $tempFiles[] = $path;
                     }
@@ -3306,7 +3435,7 @@ class DossierController extends Controller
                 && $plan['others']->isEmpty()
                 && $document->valeurs->isEmpty()
                 && $document->bordereau->isEmpty();
-            if ($this->isExp42aDoc($document) || $this->isExp42bDoc($document) || $this->isExp42aSuiteDoc($document) || $this->isExp42bSuiteDoc($document) || $this->isFormulairePerDoc($document)) {
+            if ($this->isExp42aDoc($document) || $this->isExp42bDoc($document) || $this->isExp42aSuiteDoc($document) || $this->isExp42bSuiteDoc($document) || $this->isFormulairePerDoc($document) || $this->isFormulaireMatDoc($document)) {
                 $skipHtmlDocPage = true;
             }
 
@@ -3367,6 +3496,12 @@ class DossierController extends Controller
             }
             if ($this->isFormulairePerDoc($document)) {
                 foreach ($this->formulairePerPdfPaths($dossier) as $path) {
+                    $filesToMerge[] = $path;
+                    $tempFiles[] = $path;
+                }
+            }
+            if ($this->isFormulaireMatDoc($document)) {
+                foreach ($this->formulaireMatPdfPaths($dossier) as $path) {
                     $filesToMerge[] = $path;
                     $tempFiles[] = $path;
                 }
@@ -4002,6 +4137,7 @@ class DossierController extends Controller
         $this->syncExp42aSuiteRecords($dossier);
         $this->syncExp42bSuiteRecords($dossier);
         $this->syncFormulairePerRecords($dossier);
+        $this->syncFormulaireMatRecords($dossier);
         $globalChiffres = ChiffreAffaire::whereNull('dossier_id')->orderBy('annee')->get();
 
         return view('dossiers.create.step6', [
