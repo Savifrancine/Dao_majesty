@@ -335,7 +335,22 @@
                 <div class="wizard-progress"><span style="width: 66.6%;"></span></div>
             </div>
 
-            <form action="{{ route('dossiers.step5') }}" method="POST" enctype="multipart/form-data">
+            @php($duplicateWarning = session('duplicate_warning'))
+            @if($duplicateWarning)
+                <div style="background:#fffbeb; border:1px solid #f59e0b; border-radius:12px; padding:14px 16px; margin-bottom:18px; color:#92400e;">
+                    <strong>⚠️ Un dossier avec cette référence existe déjà :</strong>
+                    « {{ $duplicateWarning['nom_dossier'] }} » (réf. {{ $duplicateWarning['matched_value'] }}).
+                    <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
+                        <form action="{{ route('dossiers.duplicate', $duplicateWarning['dossier_id']) }}" method="POST" onsubmit="return confirm('Dupliquer ce dossier existant ? Les pièces jointes téléversées ne seront pas copiées.');">
+                            @csrf
+                            <button type="submit" class="btn btn-primary-custom" style="padding:8px 14px;">Dupliquer ce dossier plutôt</button>
+                        </form>
+                        <button type="submit" form="step4Form" name="force_duplicate" value="1" class="btn btn-ghost" style="padding:8px 14px;">Continuer quand même (nouveau dossier)</button>
+                    </div>
+                </div>
+            @endif
+
+            <form id="step4Form" action="{{ route('dossiers.step5') }}" method="POST" enctype="multipart/form-data">
                 @csrf
                 <input type="hidden" name="categorie" value="{{ $categorie }}">
                 <input type="hidden" name="type_dossier_id" value="{{ $type_dossier_id }}">

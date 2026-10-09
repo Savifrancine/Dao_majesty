@@ -475,6 +475,16 @@
                             À compléter avant la finalisation : {{ $dossier->missingDocuments()->map(fn ($dd) => $dd->typeDocument->nom ?? 'Document')->implode(' ; ') }}
                         </div>
                     @endif
+                    @if(!empty($coherenceWarnings))
+                        <div style="width:100%; font-size:13px; color:#991b1b; margin-top:6px; background:#fef2f2; border:1px solid #fecaca; border-radius:8px; padding:8px 10px;">
+                            <strong>⚠️ À vérifier avant de générer :</strong>
+                            <ul style="margin:4px 0 0; padding-left:18px;">
+                                @foreach($coherenceWarnings as $warning)
+                                    <li>{{ $warning }}</li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endif
                 @endif
 
                 @if(auth()->check() && auth()->user()->isAdminOrDirecteur())

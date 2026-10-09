@@ -1265,6 +1265,23 @@ class DossierController extends Controller
             'accord_pret' => ['nullable','string','max:255'],
         ]);
 
+        // Si une reference identique existe deja sur un autre dossier, on
+        // propose de le dupliquer plutot que de repartir de zero, sauf si
+        // l'utilisateur a deja confirme vouloir continuer quand meme.
+        if (! $request->boolean('force_duplicate')) {
+            $existing = $this->findDossierWithSameReference($data['ref'] ?? '', $data['reference_dossier'] ?? '');
+
+            if ($existing) {
+                return back()->withInput()->with('duplicate_warning', [
+                    'dossier_id' => $existing->id,
+                    'nom_dossier' => $existing->nom_dossier,
+                    'matched_value' => $existing->ref === trim((string) ($data['ref'] ?? '')) && trim((string) ($data['ref'] ?? '')) !== ''
+                        ? $existing->ref
+                        : $existing->reference_dossier,
+                ]);
+            }
+        }
+
         // Créer le dossier provisoirement (statut = en_cours)
         $dossier = Dossier::create([
             'type_dossier_id' => $data['type_dossier_id'],
@@ -3557,6 +3574,32 @@ class DossierController extends Controller
     }
 
     /**
+     * Cherche un dossier existant partageant la meme reference (ref ou
+     * reference_dossier) que celle saisie a l'etape 4. Ignore les valeurs
+     * vides pour ne pas faire matcher deux dossiers sans reference.
+     */
+    private function findDossierWithSameReference(?string $ref, ?string $referenceDossier): ?Dossier
+    {
+        $ref = trim((string) $ref);
+        $referenceDossier = trim((string) $referenceDossier);
+
+        if ($ref === '' && $referenceDossier === '') {
+            return null;
+        }
+
+        return Dossier::where(function ($query) use ($ref, $referenceDossier) {
+                if ($ref !== '') {
+                    $query->orWhere('ref', $ref);
+                }
+                if ($referenceDossier !== '') {
+                    $query->orWhere('reference_dossier', $referenceDossier);
+                }
+            })
+            ->latest('id')
+            ->first();
+    }
+
+    /**
      * Une offre est consideree "financiere" d'apres le texte libre saisi a
      * l'etape 4 (champ type_offre) : pas de colonne dediee, donc detection
      * par simple recherche de "financ" (financiere, financier...).
@@ -3723,7 +3766,69 @@ class DossierController extends Controller
 
         $resumeDocumentIds = $uploadableDocs->map(fn ($doc) => $doc->type_document_id)->values()->all();
 
-        return view('dossiers.show', compact('dossier', 'resumeIndex', 'resumeDocumentIds'));
+        $coherenceWarnings = $this->coherenceWarnings($dossier);
+
+        return view('dossiers.show', compact('dossier', 'resumeIndex', 'resumeDocumentIds', 'coherenceWarnings'));
+    }
+
+    /**
+     * Anomalies de coherence a signaler avant de generer le dossier final :
+     * dates incoherentes (achevement avant attribution) et montants a zero
+     * sur une piece pourtant marquee complete, sur les marches des
+     * formulaires EXP 4.2 a)/b) et leurs "(suite)". Non bloquant : une
+     * simple liste de messages d'avertissement.
+     */
+    private function coherenceWarnings(Dossier $dossier): array
+    {
+        $warnings = [];
+
+        $statutByTypeName = $dossier->documents
+            ->filter(fn ($dd) => $dd->typeDocument)
+            ->mapWithKeys(fn ($dd) => [$dd->typeDocument->nom => $dd->statut]);
+
+        $nomMarche = function ($record): string {
+            $nom = trim((string) ($record->numero_marche ?? ''));
+            if ($nom === '') {
+                $nom = trim((string) ($record->identification_marche ?? ''));
+            }
+            return $nom !== '' ? $nom : 'entrée #' . ((int) $record->marche_position + 1);
+        };
+
+        $checkDates = function ($records, string $label) use (&$warnings, $nomMarche) {
+            foreach ($records as $record) {
+                if ($record->date_attribution && $record->date_achevement && $record->date_achevement->lt($record->date_attribution)) {
+                    $warnings[] = "{$label} — « {$nomMarche($record)} » : la date d'achèvement ({$record->date_achevement->format('d/m/Y')}) est antérieure à la date d'attribution ({$record->date_attribution->format('d/m/Y')}).";
+                }
+            }
+        };
+
+        $checkMontantZero = function ($records, string $label, string $field, bool $complete) use (&$warnings, $nomMarche) {
+            if (!$complete) {
+                return;
+            }
+            foreach ($records as $record) {
+                $brut = (string) ($record->{$field} ?? '');
+                $montant = (float) str_replace([' ', ','], ['', '.'], $brut);
+                if ($montant <= 0) {
+                    $warnings[] = "{$label} — « {$nomMarche($record)} » : le montant est à 0 alors que la pièce est marquée complète.";
+                }
+            }
+        };
+
+        $exp42a = FormulaireExp42A::where('dossier_id', $dossier->id)->orderBy('marche_position')->get();
+        $exp42b = FormulaireExp42B::where('dossier_id', $dossier->id)->orderBy('marche_position')->get();
+        $exp42aSuite = FormulaireExp42ASuite::where('dossier_id', $dossier->id)->orderBy('marche_position')->get();
+        $exp42bSuite = FormulaireExp42BSuite::where('dossier_id', $dossier->id)->orderBy('marche_position')->get();
+
+        $checkDates($exp42a, 'EXP 4.2 a)');
+        $checkDates($exp42b, 'EXP 4.2 b)');
+
+        $checkMontantZero($exp42a, 'EXP 4.2 a)', 'montant_total', ($statutByTypeName[self::EXP42A_NOM] ?? null) === 'complete');
+        $checkMontantZero($exp42b, 'EXP 4.2 b)', 'montant_total', ($statutByTypeName[self::EXP42B_NOM] ?? null) === 'complete');
+        $checkMontantZero($exp42aSuite, 'EXP 4.2 a) (suite)', 'montant', ($statutByTypeName[self::EXP42A_SUITE_NOM] ?? null) === 'complete');
+        $checkMontantZero($exp42bSuite, 'EXP 4.2 b) (suite)', 'montant', ($statutByTypeName[self::EXP42B_SUITE_NOM] ?? null) === 'complete');
+
+        return $warnings;
     }
 
     /**
