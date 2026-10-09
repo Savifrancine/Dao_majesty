@@ -9,6 +9,7 @@ use App\Models\Entreprise;
 use App\Models\TypeDossier;
 use App\Models\TypeDocument;
 use App\Models\DossierDocument;
+use App\Models\DossierChangeLog;
 use App\Models\ChampDocument;
 use App\Models\ValeurDocument;
 use App\Models\DocumentFichier;
@@ -1349,6 +1350,7 @@ class DossierController extends Controller
         ]);
 
         $dossier->utilisateurs()->attach(auth()->id());
+        $this->logChange($dossier, 'dossier_cree', "Dossier « {$dossier->nom_dossier} » créé.");
 
         // no file/page_garde handling here (removed)
         $pieceNames = $this->getDocumentPieceNames();
@@ -2866,6 +2868,14 @@ class DossierController extends Controller
                 }
             }
 
+            $this->logChange(
+                $dossier,
+                'document_enregistre',
+                "Pièce « {$currentDocument->nom} » renseignée.",
+                $currentDocument->nom,
+                $currentDocument->id
+            );
+
             $nextIndex = null;
             for ($i = $currentIndex + 1; $i < $uploadQueue->count(); $i++) {
                 $nextDoc = $uploadQueue->get($i);
@@ -3600,6 +3610,28 @@ class DossierController extends Controller
     }
 
     /**
+     * Historique des modifications d'un dossier : qui a fait quoi et quand
+     * (creation, document renseigne, piece retiree, duplication...). Non
+     * bloquant par conception : une erreur d'ecriture du log ne doit jamais
+     * faire echouer l'action metier elle-meme.
+     */
+    private function logChange(Dossier $dossier, string $action, string $resume, ?string $documentNom = null, ?int $typeDocumentId = null): void
+    {
+        try {
+            DossierChangeLog::create([
+                'dossier_id' => $dossier->id,
+                'utilisateur_id' => auth()->id(),
+                'type_document_id' => $typeDocumentId,
+                'document_nom' => $documentNom,
+                'action' => $action,
+                'resume' => $resume,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('Echec enregistrement historique dossier: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * Cherche un dossier existant partageant la meme reference (ref ou
      * reference_dossier) que celle saisie a l'etape 4. Ignore les valeurs
      * vides pour ne pas faire matcher deux dossiers sans reference.
@@ -3756,6 +3788,8 @@ class DossierController extends Controller
             }
         }
 
+        $this->logChange($copy, 'dossier_duplique', "Dossier dupliqué depuis « {$dossier->nom_dossier} » (#{$dossier->id}).");
+
         return redirect()->route('dossiers.show', $copy->id)
             ->with('success', "Dossier dupliqué en « {$copy->nom_dossier} ». Les pièces jointes (fichiers téléversés) ne sont pas copiées : vérifiez et retéléversez-les si besoin avant de générer le PDF.");
     }
@@ -3793,8 +3827,9 @@ class DossierController extends Controller
         $resumeDocumentIds = $uploadableDocs->map(fn ($doc) => $doc->type_document_id)->values()->all();
 
         $coherenceWarnings = $this->coherenceWarnings($dossier);
+        $changeLogs = $dossier->changeLogs()->with('utilisateur')->limit(50)->get();
 
-        return view('dossiers.show', compact('dossier', 'resumeIndex', 'resumeDocumentIds', 'coherenceWarnings'));
+        return view('dossiers.show', compact('dossier', 'resumeIndex', 'resumeDocumentIds', 'coherenceWarnings', 'changeLogs'));
     }
 
     /**
@@ -4103,6 +4138,9 @@ class DossierController extends Controller
             return redirect()->back()->with('error', 'Document non trouvé.');
         }
 
+        $nomDocument = optional($document->typeDocument)->nom;
+        $typeDocumentId = $document->type_document_id;
+
         try {
             // Supprimer les fichiers associés
             foreach ($document->fichiers as $fichier) {
@@ -4120,6 +4158,8 @@ class DossierController extends Controller
 
             // Supprimer le document
             $document->delete();
+
+            $this->logChange($dossier, 'document_retire', "Pièce « " . ($nomDocument ?? 'Document') . " » retirée du sommaire.", $nomDocument, $typeDocumentId);
 
             return redirect()->route('dossiers.show', $dossier)->with('success', 'Document supprimé avec succès.');
         } catch (\Throwable $e) {

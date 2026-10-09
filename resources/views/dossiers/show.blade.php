@@ -720,6 +720,34 @@
                     </div>
                 @endif
             </div>
+
+            <div class="section-card">
+                <div class="section-title">Historique des modifications</div>
+                @if($changeLogs->isNotEmpty())
+                    <div class="table-wrap">
+                        <table class="simple-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Utilisateur</th>
+                                    <th>Modification</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($changeLogs as $log)
+                                <tr>
+                                    <td>{{ $log->created_at->format('d/m/Y H:i') }}</td>
+                                    <td>{{ $log->utilisateur ? trim($log->utilisateur->prenom . ' ' . $log->utilisateur->nom) : '—' }}</td>
+                                    <td>{{ $log->resume }}</td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @else
+                    <p style="color:#64748b; font-size:13px;">Aucune modification enregistrée pour l'instant.</p>
+                @endif
+            </div>
         </div>
     </div>
 </div>

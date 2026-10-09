@@ -132,4 +132,9 @@ class Dossier extends Model
     {
         return $this->documents->count() > 0 && $this->missingDocuments()->isNotEmpty();
     }
+
+    public function changeLogs(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(DossierChangeLog::class)->latest('id');
+    }
 }
