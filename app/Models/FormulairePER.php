@@ -14,6 +14,7 @@ class FormulairePER extends Model
         'utilisateur_id',
         'dossier_id',
         'personnel_position',
+        'source_entreprise_personnel_id',
         'nom_candidat',
         'poste',
         'nom_personnel',
@@ -52,5 +53,10 @@ class FormulairePER extends Model
     public function fichiers(): HasMany
     {
         return $this->hasMany(FormulairePerFichier::class, 'formulaire_per_id')->orderBy('id', 'desc');
+    }
+
+    public function sourceEntreprisePersonnel(): BelongsTo
+    {
+        return $this->belongsTo(EntreprisePersonnel::class, 'source_entreprise_personnel_id');
     }
 }

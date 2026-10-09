@@ -3,8 +3,13 @@
         $formulairesPer = \App\Models\FormulairePER::where('dossier_id', $dossier->id)
             ->whereNotNull('personnel_position')
             ->orderBy('personnel_position')
-            ->with('fichiers')
+            ->with(['fichiers', 'sourceEntreprisePersonnel'])
             ->get();
+
+        $entreprisePersonnels = $dossier->entreprise
+            ? \App\Models\EntreprisePersonnel::where('entreprise_id', $dossier->entreprise_id)->get()
+            : collect();
+        $normalize = fn ($v) => mb_strtolower(trim((string) $v));
     @endphp
 
     <p style="margin:0 0 10px 0; font-size:13px; color:#4b5563; line-height:1.5; max-width:680px;">Un Formulaire PER est créé pour chaque personne déjà renseignée dans la Liste du personnel affecté à l'exécution du marché : le poste et le nom la suivent automatiquement. Complétez les informations propres à chaque personne, puis enregistrez.</p>
@@ -13,9 +18,36 @@
         <div style="font-size:13px; color:#6b7280; font-style:italic;">Aucune personne trouvée. Renseignez d'abord la Liste du personnel affecté à l'exécution du marché.</div>
     @else
         @foreach($formulairesPer as $f)
-            @php $exps = old("per.$f->id.experiences") ? json_decode(old("per.$f->id.experiences"), true) : ($f->experiences ?: []); @endphp
+            @php
+                $exps = old("per.$f->id.experiences") ? json_decode(old("per.$f->id.experiences"), true) : ($f->experiences ?: []);
+                $matchingCvs = $entreprisePersonnels->filter(fn ($p) => $normalize($p->nom) === $normalize($f->nom_personnel))->values();
+            @endphp
             <div class="per-block" data-record-id="{{ $f->id }}" style="margin-bottom:28px; padding:14px; border:1px solid #d1d5db; border-radius:6px;">
                 <div style="font-weight:700; margin-bottom:10px;">Personne {{ $f->personnel_position + 1 }} — {{ $f->poste }} : {{ $f->nom_personnel }}</div>
+
+                @if($matchingCvs->count() > 1)
+                    <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; padding:10px; margin-bottom:12px;">
+                        <div style="font-size:13px; color:#1e40af; margin-bottom:6px;">
+                            Plusieurs CV existent pour {{ $f->nom_personnel }} sur la fiche entreprise.
+                            @if($f->sourceEntreprisePersonnel)
+                                CV actuellement appliqué : <strong>{{ $f->sourceEntreprisePersonnel->intitule ?: 'sans intitulé' }}</strong>.
+                            @endif
+                            Choisissez celui adapté à ce dossier :
+                        </div>
+                        <form action="{{ route('dossiers.applyEntreprisePersonnelCv', $dossier->id) }}" method="POST" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;" onsubmit="return confirm('Appliquer ce CV ? Les champs correspondants de cette personne seront remplacés par ceux de ce CV.');">
+                            @csrf
+                            <input type="hidden" name="formulaire_per_id" value="{{ $f->id }}">
+                            <select name="entreprise_personnel_id" class="form-control" style="max-width:320px;">
+                                @foreach($matchingCvs as $cv)
+                                    <option value="{{ $cv->id }}" @selected(optional($f->sourceEntreprisePersonnel)->id === $cv->id)>{{ $cv->intitule ?: ('CV #' . $cv->id) }}</option>
+                                @endforeach
+                            </select>
+                            <button type="submit" class="btn-action" style="background:#2563eb; color:#fff;">Appliquer ce CV</button>
+                        </form>
+                    </div>
+                @elseif($f->sourceEntreprisePersonnel)
+                    <div style="font-size:12px; color:#6b7280; margin-bottom:10px;">CV source : {{ $f->sourceEntreprisePersonnel->intitule ?: 'sans intitulé' }}</div>
+                @endif
 
                 <div class="row" style="display:flex; gap:12px; margin-bottom:10px; flex-wrap:wrap;">
                     <div style="flex:1; min-width:200px;">

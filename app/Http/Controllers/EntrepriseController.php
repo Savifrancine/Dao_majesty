@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Entreprise;
+use App\Models\EntreprisePersonnel;
+use App\Models\EntreprisePersonnelFichier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -44,9 +46,9 @@ class EntrepriseController extends Controller
 
         $data['finance_data'] = $this->extractFinanceData($request);
         $this->syncChiffresAffairesFromFinance($data['finance_data']);
-        $data['personnel_data'] = $this->extractPersonnelData($request);
 
-        Entreprise::create($data);
+        $entreprise = Entreprise::create($data);
+        $this->syncPersonnels($request, $entreprise);
 
         return redirect()->route('entreprises.index')->with('success', 'Entreprise créée avec succès.');
     }
@@ -84,9 +86,9 @@ class EntrepriseController extends Controller
 
         $data['finance_data'] = $this->extractFinanceData($request);
         $this->syncChiffresAffairesFromFinance($data['finance_data']);
-        $data['personnel_data'] = $this->extractPersonnelData($request);
 
         $entreprise->update($data);
+        $this->syncPersonnels($request, $entreprise);
 
         return redirect()->route('entreprises.index')->with('success', 'Entreprise mise à jour.');
     }
@@ -100,6 +102,12 @@ class EntrepriseController extends Controller
 
         if (!empty($entreprise->registre_path)) {
             Storage::disk('public')->delete(ltrim($entreprise->registre_path, '/'));
+        }
+
+        foreach ($entreprise->personnels()->with('fichiers')->get() as $personnel) {
+            foreach ($personnel->fichiers as $fichier) {
+                Storage::disk('public')->delete($fichier->chemin_fichier);
+            }
         }
 
         $entreprise->delete();
@@ -168,15 +176,19 @@ class EntrepriseController extends Controller
     }
 
     /**
-     * Memes champs que le Formulaire PER (etape 6), plus nom/poste puisqu'il
-     * n'y a pas ici de Liste du personnel externe pour les fournir : chaque
-     * bloc est une personne ajoutee/retiree librement. Les blocs entierement
-     * vides (ni nom ni poste) sont ignores a l'enregistrement.
+     * Memes champs que le Formulaire PER (etape 6), plus intitule (titre du
+     * CV, puisqu'une meme personne peut avoir plusieurs CV distincts) et
+     * nom/poste puisqu'il n'y a pas ici de Liste du personnel externe pour
+     * les fournir. Chaque bloc est un "CV" ajoute/modifie/retire librement -
+     * identifie par son id (champ cache) s'il existe deja, sinon cree. Les
+     * blocs entierement vides (ni nom ni poste) ou retires du formulaire
+     * sont supprimes (avec leurs pieces jointes, fichiers compris).
      */
-    private function extractPersonnelData(Request $request): array
+    private function syncPersonnels(Request $request, Entreprise $entreprise): void
     {
         $validated = $request->validate([
             'personnel' => ['nullable', 'array'],
+            'personnel.*.intitule' => ['nullable', 'string', 'max:255'],
             'personnel.*.nom' => ['nullable', 'string', 'max:255'],
             'personnel.*.poste' => ['nullable', 'string', 'max:255'],
             'personnel.*.date_naissance' => ['nullable', 'date'],
@@ -190,10 +202,13 @@ class EntrepriseController extends Controller
             'personnel.*.contact_personnel' => ['nullable', 'string', 'max:255'],
             'personnel.*.nombre_annees_employeur' => ['nullable', 'integer', 'min:0'],
             'personnel.*.experiences' => ['nullable', 'string'],
+            'personnel.*.delete_fichier_ids' => ['nullable', 'array'],
+            'personnel.*.delete_fichier_ids.*' => ['integer'],
         ]);
 
-        $personnel = [];
-        foreach ($validated['personnel'] ?? [] as $row) {
+        $submittedIds = [];
+
+        foreach ($validated['personnel'] ?? [] as $key => $row) {
             $nom = trim((string) ($row['nom'] ?? ''));
             $poste = trim((string) ($row['poste'] ?? ''));
             if ($nom === '' && $poste === '') {
@@ -206,10 +221,70 @@ class EntrepriseController extends Controller
                 $experiences = is_array($decoded) ? $decoded : [];
             }
 
-            $row['experiences'] = $experiences;
-            $personnel[] = $row;
+            $data = [
+                'entreprise_id' => $entreprise->id,
+                'intitule' => $row['intitule'] ?? null,
+                'nom' => $nom,
+                'poste' => $poste,
+                'date_naissance' => $row['date_naissance'] ?? null,
+                'qualifications' => $row['qualifications'] ?? null,
+                'nom_employeur' => $row['nom_employeur'] ?? null,
+                'emploi_tenu' => $row['emploi_tenu'] ?? null,
+                'adresse_employeur' => $row['adresse_employeur'] ?? null,
+                'telephone' => $row['telephone'] ?? null,
+                'telecopie' => $row['telecopie'] ?? null,
+                'email' => $row['email'] ?? null,
+                'contact_personnel' => $row['contact_personnel'] ?? null,
+                'nombre_annees_employeur' => $row['nombre_annees_employeur'] ?? null,
+                'experiences' => $experiences,
+            ];
+
+            // La cle du tableau EST l'id reel (comme pour le Formulaire PER :
+            // personnel[{id}][...]) pour les blocs existants ; les nouveaux
+            // blocs utilisent une cle non numerique (ex: "new_1") cote JS.
+            $personnel = is_numeric($key)
+                ? EntreprisePersonnel::where('entreprise_id', $entreprise->id)->find((int) $key)
+                : null;
+
+            if ($personnel) {
+                $personnel->update($data);
+            } else {
+                $personnel = EntreprisePersonnel::create($data);
+            }
+
+            $submittedIds[] = $personnel->id;
+
+            foreach ($row['delete_fichier_ids'] ?? [] as $fichierId) {
+                $fichier = EntreprisePersonnelFichier::where('entreprise_personnel_id', $personnel->id)->find($fichierId);
+                if ($fichier) {
+                    Storage::disk('public')->delete($fichier->chemin_fichier);
+                    $fichier->delete();
+                }
+            }
+
+            foreach ($request->file("personnel_fichiers.$key", []) as $uploaded) {
+                if (!$uploaded) {
+                    continue;
+                }
+                $chemin = $uploaded->store('entreprise_personnels/pieces', 'public');
+                EntreprisePersonnelFichier::create([
+                    'entreprise_personnel_id' => $personnel->id,
+                    'chemin_fichier' => $chemin,
+                    'nom_original' => $uploaded->getClientOriginalName(),
+                    'utilisateur_id' => auth()->id(),
+                ]);
+            }
         }
 
-        return $personnel;
+        $removed = EntreprisePersonnel::where('entreprise_id', $entreprise->id)
+            ->whereNotIn('id', $submittedIds)
+            ->with('fichiers')
+            ->get();
+        foreach ($removed as $personnel) {
+            foreach ($personnel->fichiers as $fichier) {
+                Storage::disk('public')->delete($fichier->chemin_fichier);
+            }
+            $personnel->delete();
+        }
     }
 }

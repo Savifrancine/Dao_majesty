@@ -11,6 +11,7 @@ class FormulairePerFichier extends Model
 
     protected $fillable = [
         'formulaire_per_id',
+        'source_fichier_id',
         'chemin_fichier',
         'nom_original',
         'utilisateur_id',
@@ -19,6 +20,11 @@ class FormulairePerFichier extends Model
     public function formulairePer(): BelongsTo
     {
         return $this->belongsTo(FormulairePER::class, 'formulaire_per_id');
+    }
+
+    public function sourceFichier(): BelongsTo
+    {
+        return $this->belongsTo(EntreprisePersonnelFichier::class, 'source_fichier_id');
     }
 
     public function utilisateur(): BelongsTo

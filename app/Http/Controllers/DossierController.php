@@ -6,6 +6,7 @@ use App\Models\Dossier;
 use App\Models\TypeMarche;
 use App\Models\Signataire;
 use App\Models\Entreprise;
+use App\Models\EntreprisePersonnel;
 use App\Models\TypeDossier;
 use App\Models\TypeDocument;
 use App\Models\DossierDocument;
@@ -1145,28 +1146,17 @@ class DossierController extends Controller
                 $record->emploi_tenu = mb_substr($p['poste'], 0, 250);
             }
 
-            // Si cette personne est deja enregistree dans "Les personnels de
-            // l'entreprise" (match par nom), on reprend tout ce qui y est
-            // deja connu - toujours fill-empty-only, jamais d'ecrasement
-            // d'un champ deja renseigne a la main sur ce dossier.
-            $entrepriseRecord = $this->findEntreprisePersonnelByNom($entreprise, $p['nom']);
-            if ($entrepriseRecord) {
-                foreach (['date_naissance', 'qualifications', 'adresse_employeur', 'telephone', 'telecopie', 'email', 'contact_personnel', 'nombre_annees_employeur', 'experiences'] as $field) {
-                    $value = $entrepriseRecord[$field] ?? null;
-                    $valueIsEmpty = $value === null || $value === '' || (is_array($value) && empty($value));
-                    if ($valueIsEmpty) {
-                        continue;
-                    }
-
-                    $current = $record->{$field};
-                    $currentIsEmpty = $current === null || $current === '' || (is_array($current) && empty($current));
-                    if ($currentIsEmpty) {
-                        $record->{$field} = $value;
-                    }
-                }
-            }
-
             $record->save();
+
+            // Si cette personne correspond a EXACTEMENT un CV enregistre dans
+            // "Les personnels de l'entreprise" (match par nom), on l'applique
+            // automatiquement - fill-empty-only. En cas de plusieurs CV pour
+            // ce nom, rien n'est applique automatiquement : la personne choisit
+            // elle-meme via le menu deroulant du Formulaire PER (ambigu sinon).
+            $matches = $this->findEntreprisePersonnelsByNom($entreprise, $p['nom']);
+            if ($matches->count() === 1) {
+                $this->applyEntreprisePersonnelToFormulairePer($record, $matches->first(), false);
+            }
         }
 
         FormulairePER::where('dossier_id', $dossier->id)
@@ -1176,24 +1166,83 @@ class DossierController extends Controller
     }
 
     /**
-     * Cherche, dans "Les personnels de l'entreprise", la personne dont le
-     * nom correspond (normalise : casse/accents/ponctuation ignores).
+     * Tous les CV de "Les personnels de l'entreprise" dont le nom correspond
+     * (normalise : casse/accents/ponctuation ignores) - une meme personne
+     * pouvant avoir plusieurs CV distincts (intitules differents).
      */
-    private function findEntreprisePersonnelByNom(?Entreprise $entreprise, string $nom): ?array
+    private function findEntreprisePersonnelsByNom(?Entreprise $entreprise, string $nom): \Illuminate\Support\Collection
     {
         $nom = trim($nom);
         if (!$entreprise || $nom === '') {
-            return null;
+            return collect();
         }
 
         $target = $this->normalizeSommaireName($nom);
-        foreach ((array) ($entreprise->personnel_data ?? []) as $row) {
-            if ($this->normalizeSommaireName(trim((string) ($row['nom'] ?? ''))) === $target) {
-                return $row;
+
+        return $entreprise->personnels()->with('fichiers')->get()
+            ->filter(fn (EntreprisePersonnel $p) => $this->normalizeSommaireName(trim((string) $p->nom)) === $target)
+            ->values();
+    }
+
+    /**
+     * Applique un CV de l'entreprise sur un Formulaire PER : copie les champs
+     * (fill-empty-only par defaut, ou ecrase si $forceOverwrite - choix
+     * explicite via le bouton "Appliquer") et copie ses pieces jointes de
+     * facon additive (jamais de doublon, jamais de suppression de celles
+     * deja ajoutees manuellement sur ce dossier). Poste et nom restent
+     * toujours derives de la Liste du personnel, jamais de l'entreprise.
+     */
+    private function applyEntreprisePersonnelToFormulairePer(FormulairePER $record, EntreprisePersonnel $entreprisePersonnel, bool $forceOverwrite): void
+    {
+        foreach (['date_naissance', 'qualifications', 'adresse_employeur', 'telephone', 'telecopie', 'email', 'contact_personnel', 'nombre_annees_employeur', 'experiences'] as $field) {
+            $value = $entreprisePersonnel->{$field};
+            $valueIsEmpty = $value === null || $value === '' || (is_array($value) && empty($value));
+            if ($valueIsEmpty) {
+                continue;
+            }
+
+            if ($forceOverwrite) {
+                $record->{$field} = $value;
+                continue;
+            }
+
+            $current = $record->{$field};
+            $currentIsEmpty = $current === null || $current === '' || (is_array($current) && empty($current));
+            if ($currentIsEmpty) {
+                $record->{$field} = $value;
             }
         }
 
-        return null;
+        $record->source_entreprise_personnel_id = $entreprisePersonnel->id;
+        $record->save();
+
+        $alreadyCopied = FormulairePerFichier::where('formulaire_per_id', $record->id)
+            ->whereNotNull('source_fichier_id')
+            ->pluck('source_fichier_id')
+            ->all();
+
+        foreach ($entreprisePersonnel->fichiers as $sourceFichier) {
+            if (in_array($sourceFichier->id, $alreadyCopied, true)) {
+                continue;
+            }
+
+            $sourcePath = storage_path('app/public/' . ltrim($sourceFichier->chemin_fichier, '/'));
+            if (!file_exists($sourcePath)) {
+                continue;
+            }
+
+            $ext = pathinfo($sourcePath, PATHINFO_EXTENSION);
+            $newRelativePath = 'formulaire_per/pieces/' . \Illuminate\Support\Str::random(40) . ($ext !== '' ? '.' . $ext : '');
+            Storage::disk('public')->put($newRelativePath, file_get_contents($sourcePath));
+
+            FormulairePerFichier::create([
+                'formulaire_per_id' => $record->id,
+                'source_fichier_id' => $sourceFichier->id,
+                'chemin_fichier' => $newRelativePath,
+                'nom_original' => $sourceFichier->nom_original,
+                'utilisateur_id' => auth()->id(),
+            ]);
+        }
     }
 
     /**
@@ -4296,6 +4345,39 @@ class DossierController extends Controller
             : collect();
 
         return response()->json(['others' => $others, 'sameDocument' => $sameDocument]);
+    }
+
+    /**
+     * Applique explicitement un CV de l'entreprise sur un Formulaire PER du
+     * dossier (bouton "Appliquer" quand plusieurs CV correspondent au meme
+     * nom) : contrairement a la synchronisation automatique, ceci ecrase les
+     * champs deja renseignes - c'est un choix delibere de l'utilisateur.
+     */
+    public function applyEntreprisePersonnelCv(Request $request, Dossier $dossier)
+    {
+        $data = $request->validate([
+            'formulaire_per_id' => ['required', 'integer'],
+            'entreprise_personnel_id' => ['required', 'integer'],
+        ]);
+
+        $record = FormulairePER::where('dossier_id', $dossier->id)
+            ->whereNotNull('personnel_position')
+            ->whereKey($data['formulaire_per_id'])
+            ->first();
+        if (!$record) {
+            return back()->with('error', 'Personne introuvable sur ce dossier.');
+        }
+
+        $entreprisePersonnel = EntreprisePersonnel::where('entreprise_id', $dossier->entreprise_id)
+            ->with('fichiers')
+            ->find($data['entreprise_personnel_id']);
+        if (!$entreprisePersonnel) {
+            return back()->with('error', 'CV introuvable sur la fiche entreprise.');
+        }
+
+        $this->applyEntreprisePersonnelToFormulairePer($record, $entreprisePersonnel, true);
+
+        return back()->with('success', 'CV « ' . ($entreprisePersonnel->intitule ?: $entreprisePersonnel->nom) . ' » appliqué.');
     }
 
     /**

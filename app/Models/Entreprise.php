@@ -25,12 +25,10 @@ class Entreprise extends Model
         'responsable',
         'fonction_responsable',
         'finance_data',
-        'personnel_data',
     ];
 
     protected $casts = [
         'finance_data' => 'array',
-        'personnel_data' => 'array',
     ];
 
     /**
@@ -39,5 +37,14 @@ class Entreprise extends Model
     public function dossiers(): HasMany
     {
         return $this->hasMany(Dossier::class);
+    }
+
+    /**
+     * Les personnels de l'entreprise (un meme nom peut avoir plusieurs
+     * entrees - plusieurs "CV" distingues par leur intitule).
+     */
+    public function personnels(): HasMany
+    {
+        return $this->hasMany(EntreprisePersonnel::class);
     }
 }

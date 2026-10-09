@@ -82,7 +82,7 @@
 
         @include('entreprises.partials.finance_section', ['financeData' => $entreprise->finance_data ?? []])
 
-        @include('entreprises.partials.personnel_section', ['personnelData' => $entreprise->personnel_data ?? []])
+        @include('entreprises.partials.personnel_section', ['personnelData' => $entreprise->personnels()->with('fichiers')->get()])
 
         <button type="submit" class="btn btn-success">Enregistrer</button>
         <a href="{{ route('entreprises.index') }}" class="btn btn-secondary">Annuler</a>
