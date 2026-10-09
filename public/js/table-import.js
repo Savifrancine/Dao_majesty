@@ -123,31 +123,41 @@
         return index;
     }
 
+    // Applique a une ligne les champs encore vides connus pour une designation
+    // donnee (venant d'un autre tableau du dossier deja rempli, ou d'un import
+    // precedent) : utilise par la saisie manuelle (sur blur) comme par l'import
+    // CSV/Excel juste apres avoir rempli les colonnes presentes dans le fichier.
+    function applyKnownFieldsToRow(row, designationValue, index) {
+        const match = index[normalize(designationValue)];
+        if (!match || !row) return;
+
+        Object.keys(match).forEach((field) => {
+            const input = row.querySelector(`[name*="[${field}]"]`);
+            if (input && !input.value) {
+                input.value = match[field];
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+        });
+    }
+
     function setupCrossTableFill(lines) {
         const index = buildPrefillIndex(lines);
+        window.DaoTableImport._crossTableIndex = index;
         if (Object.keys(index).length === 0) return;
 
         document.addEventListener('blur', (event) => {
             const target = event.target;
             if (!target.matches || !target.matches('[name*="[designation]"]')) return;
 
-            const match = index[normalize(target.value)];
             const row = target.closest('tr');
-            if (!match || !row) return;
-
-            Object.keys(match).forEach((field) => {
-                const input = row.querySelector(`[name*="[${field}]"]`);
-                if (input && !input.value) {
-                    input.value = match[field];
-                    input.dispatchEvent(new Event('input', { bubbles: true }));
-                    input.dispatchEvent(new Event('change', { bubbles: true }));
-                }
-            });
+            applyKnownFieldsToRow(row, target.value, index);
         }, true);
     }
 
     window.DaoTableImport = {
         setupCrossTableFill,
+        _crossTableIndex: null,
         setup(options) {
             const { buttonId, statusId, sectionsContainerId, fieldSynonyms, importUrl } = options;
             const selectors = {
@@ -200,6 +210,22 @@
                         }
 
                         const count = fillSection(targetSection, mappedRows, selectors);
+
+                        // Complete les colonnes absentes du fichier (unite, site,
+                        // dates...) a partir de ce qui est deja connu ailleurs dans
+                        // le dossier pour la meme designation.
+                        const index = window.DaoTableImport._crossTableIndex;
+                        const tbody = targetSection.querySelector(selectors.lines);
+                        if (index && Object.keys(index).length > 0 && tbody) {
+                            const importedRows = Array.from(tbody.querySelectorAll('tr')).slice(-count);
+                            importedRows.forEach((row) => {
+                                const designationField = row.querySelector('[name*="[designation]"]');
+                                if (designationField && designationField.value) {
+                                    applyKnownFieldsToRow(row, designationField.value, index);
+                                }
+                            });
+                        }
+
                         setStatus(`${count} ligne(s) importée(s) — vérifiez et corrigez les champs si besoin avant d'enregistrer.`, false);
                     })
                     .catch((err) => {
