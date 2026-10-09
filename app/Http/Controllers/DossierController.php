@@ -641,6 +641,7 @@ class DossierController extends Controller
                 'autorite_adresse' => $marche['autorite_adresse'],
                 'date_attribution' => $this->monthToDate($marche['depart']),
                 'date_achevement' => $this->monthToDate($marche['final']),
+                'montant_total' => $this->knownMontantForMarche($dossier, $position),
             ];
 
             $record = FormulaireExp42A::firstOrNew(['dossier_id' => $dossier->id, 'marche_position' => $position]);
@@ -670,6 +671,31 @@ class DossierController extends Controller
             ->whereNotNull('marche_position')
             ->where('marche_position', '>=', count($marches))
             ->delete();
+    }
+
+    /**
+     * Montant d'un marche deja enregistre une fois, n'importe ou parmi les
+     * formulaires EXP 4.2 a)/b)/(suite) du meme marche (meme marche_position) :
+     * reutilise cette valeur pour pre-remplir les autres, sans jamais
+     * ecraser un montant deja saisi (l'utilisateur garde la main partout).
+     */
+    private function knownMontantForMarche(Dossier $dossier, int $position): ?string
+    {
+        $sources = [
+            [FormulaireExp42A::class, 'montant_total'],
+            [FormulaireExp42B::class, 'montant_total'],
+            [FormulaireExp42ASuite::class, 'montant'],
+            [FormulaireExp42BSuite::class, 'montant'],
+        ];
+
+        foreach ($sources as [$model, $field]) {
+            $value = $model::where('dossier_id', $dossier->id)->where('marche_position', $position)->value($field);
+            if ($value !== null && trim((string) $value) !== '') {
+                return (string) $value;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -756,6 +782,7 @@ class DossierController extends Controller
                 'autorite_adresse' => $marche['autorite_adresse'],
                 'date_attribution' => $this->monthToDate($marche['depart']),
                 'date_achevement' => $this->monthToDate($marche['final']),
+                'montant_total' => $this->knownMontantForMarche($dossier, $position),
             ];
 
             $aRecord = $aByPosition->get($position);
@@ -763,7 +790,6 @@ class DossierController extends Controller
                 $prefill['autorite_nom'] = $prefill['autorite_nom'] !== '' ? $prefill['autorite_nom'] : mb_substr((string) $aRecord->autorite_nom, 0, 250);
                 $prefill['autorite_adresse'] = $prefill['autorite_adresse'] !== '' ? $prefill['autorite_adresse'] : (string) $aRecord->autorite_adresse;
                 $prefill['role_marche'] = (string) $aRecord->role_marche;
-                $prefill['montant_total'] = (string) $aRecord->montant_total;
                 $prefill['participation_pourcentage'] = (string) $aRecord->participation_pourcentage;
                 $prefill['montant_part'] = (string) $aRecord->montant_part;
                 $prefill['autorite_telephone'] = (string) $aRecord->autorite_telephone;
@@ -887,14 +913,14 @@ class DossierController extends Controller
             // libre de modifier : on ne touche jamais un champ deja renseigne.
             $suitePrefill = [
                 'description_similitude' => $aRecord ? (string) $aRecord->identification_marche : '',
-                'montant' => $aRecord ? (string) $aRecord->montant_total : '',
+                'montant' => $this->knownMontantForMarche($dossier, $position),
                 'taille_physique' => 'Etendue',
                 'complexite' => 'Haute',
                 'methodes_technologie' => 'Semblable',
                 'autres_caracteristiques' => 'NEANT',
             ];
             foreach ($suitePrefill as $field => $value) {
-                if (($record->{$field} === null || $record->{$field} === '') && $value !== '') {
+                if (($record->{$field} === null || $record->{$field} === '') && $value !== '' && $value !== null) {
                     $record->{$field} = $value;
                 }
             }
@@ -993,14 +1019,14 @@ class DossierController extends Controller
             // on ne touche jamais un champ deja renseigne.
             $suitePrefill = [
                 'description_similitude' => $bRecord ? (string) $bRecord->identification_marche : '',
-                'montant' => $bRecord ? (string) $bRecord->montant_total : '',
+                'montant' => $this->knownMontantForMarche($dossier, $position),
                 'taille_physique' => 'Etendue',
                 'complexite' => 'Haute',
                 'methodes_technologie' => 'Semblable',
                 'autres_caracteristiques' => 'NEANT',
             ];
             foreach ($suitePrefill as $field => $value) {
-                if (($record->{$field} === null || $record->{$field} === '') && $value !== '') {
+                if (($record->{$field} === null || $record->{$field} === '') && $value !== '' && $value !== null) {
                     $record->{$field} = $value;
                 }
             }
