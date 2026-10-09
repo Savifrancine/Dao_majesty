@@ -1267,6 +1267,75 @@ class DossierController extends Controller
     }
 
     /**
+     * Pre-remplit le Formulaire FIN - 3.1 Situation financiere du dossier a
+     * partir de la section Finance de l'entreprise (les trois annees les
+     * plus recentes qui y sont renseignees), pour que la personne n'ait
+     * plus rien a y saisir. Ne touche jamais un document deja rempli, meme
+     * partiellement : des que le contenu n'est plus vide, l'auto-remplissage
+     * s'arrete definitivement pour ce dossier.
+     */
+    private function syncFormulaireFin31FromEntreprise(Dossier $dossier): void
+    {
+        $finDoc = $dossier->documents()
+            ->whereHas('typeDocument', fn ($q) => $q->where('nom', 'Formulaire FIN – 3.1 Situation financière'))
+            ->first();
+        if (!$finDoc || !empty($finDoc->content)) {
+            return;
+        }
+
+        $dossier->loadMissing('entreprise');
+        $financeData = optional($dossier->entreprise)->finance_data;
+        if (empty($financeData) || empty($financeData['year_labels'])) {
+            return;
+        }
+
+        // Les 3 annees les plus recentes (par valeur numerique), dans
+        // l'ordre chronologique croissant pour l'affichage du tableau.
+        $years = [];
+        foreach ($financeData['year_labels'] as $index => $label) {
+            $label = trim((string) $label);
+            if ($label === '' || !is_numeric($label)) {
+                continue;
+            }
+            $years[] = ['index' => $index, 'year' => (int) $label];
+        }
+        if (empty($years)) {
+            return;
+        }
+
+        usort($years, fn ($a, $b) => $b['year'] <=> $a['year']);
+        $selected = array_slice($years, 0, 3);
+        usort($selected, fn ($a, $b) => $a['year'] <=> $b['year']);
+
+        $metrics = ['total_actif', 'total_passif', 'patrimoine_net', 'disponibilites', 'engagements', 'recettes_totales', 'benefices_avant_impots'];
+        $content = ['year_labels' => []];
+        foreach ($metrics as $metric) {
+            $content[$metric] = [];
+        }
+
+        foreach ($selected as $s) {
+            $content['year_labels'][] = (string) $s['year'];
+            foreach ($metrics as $metric) {
+                $content[$metric][] = (string) ($financeData[$metric][$s['index']] ?? '');
+            }
+        }
+
+        $json = json_encode($content, JSON_UNESCAPED_UNICODE);
+        if ($json === false) {
+            $json = json_encode($content, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        }
+
+        $finDoc->update(['content' => $json, 'statut' => 'complete']);
+
+        // $finDoc est une instance distincte de celle (si deja chargee) dans
+        // $dossier->documents : on invalide ce cache pour que le reste de
+        // l'appelant (vue, generation PDF...) voie le contenu a jour.
+        if ($dossier->relationLoaded('documents')) {
+            $dossier->unsetRelation('documents');
+        }
+    }
+
+    /**
      * Afficher le formulaire de création (Étape 1)
      * Choix Public/Privé
      */
@@ -3059,6 +3128,7 @@ class DossierController extends Controller
         $this->syncExp42bSuiteRecords($dossier);
         $this->syncFormulairePerRecords($dossier);
         $this->syncFormulaireMatRecords($dossier);
+        $this->syncFormulaireFin31FromEntreprise($dossier);
         $globalChiffres = ChiffreAffaire::whereNull('dossier_id')->orderBy('annee')->get();
 
         return view('dossiers.create.step6', [
@@ -3154,6 +3224,8 @@ class DossierController extends Controller
     {
         @set_time_limit(300);
         @ini_set('memory_limit', '1024M');
+
+        $this->syncFormulaireFin31FromEntreprise($dossier);
 
         $dossier->load([
             'documents.typeDocument.champs',
@@ -3396,6 +3468,8 @@ class DossierController extends Controller
     public function previewSingleDocumentPdf(DossierDocument $document): string
     {
         $dossier = Dossier::with(['entreprise', 'signataires', 'typeDossier'])->find($document->dossier_id);
+        $this->syncFormulaireFin31FromEntreprise($dossier);
+        $document->refresh();
 
         $pageGardeDataUri = null;
         if (!empty($dossier->page_garde_path)) {
@@ -4138,6 +4212,7 @@ class DossierController extends Controller
         $this->syncExp42bSuiteRecords($dossier);
         $this->syncFormulairePerRecords($dossier);
         $this->syncFormulaireMatRecords($dossier);
+        $this->syncFormulaireFin31FromEntreprise($dossier);
         $globalChiffres = ChiffreAffaire::whereNull('dossier_id')->orderBy('annee')->get();
 
         return view('dossiers.create.step6', [

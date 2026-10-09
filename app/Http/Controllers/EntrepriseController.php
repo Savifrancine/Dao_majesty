@@ -43,6 +43,7 @@ class EntrepriseController extends Controller
         }
 
         $data['finance_data'] = $this->extractFinanceData($request);
+        $this->syncChiffresAffairesFromFinance($data['finance_data']);
 
         Entreprise::create($data);
 
@@ -81,6 +82,7 @@ class EntrepriseController extends Controller
         }
 
         $data['finance_data'] = $this->extractFinanceData($request);
+        $this->syncChiffresAffairesFromFinance($data['finance_data']);
 
         $entreprise->update($data);
 
@@ -128,7 +130,38 @@ class EntrepriseController extends Controller
             'recettes_totales.*' => ['nullable', 'string', 'max:255'],
             'benefices_avant_impots' => ['nullable', 'array'],
             'benefices_avant_impots.*' => ['nullable', 'string', 'max:255'],
-            'commentaire_complementaire' => ['nullable', 'string', 'max:4000'],
         ]);
+    }
+
+    /**
+     * Les Recettes totales (RT) saisies dans la section Finance alimentent
+     * la bibliotheque globale de Chiffre d'affaires (dossier_id null, geree
+     * jusqu'ici a la main sur /chiffres) : une annee deja presente dans
+     * cette bibliotheque n'est jamais ecrasee, seules les annees absentes
+     * sont ajoutees. Le choix de quelles annees s'appliquent a quel dossier
+     * reste inchange (etape 6, formulaire "Chiffre d'affaires annuel moyen").
+     */
+    private function syncChiffresAffairesFromFinance(array $financeData): void
+    {
+        $years = $financeData['year_labels'] ?? [];
+        $recettes = $financeData['recettes_totales'] ?? [];
+
+        foreach ($years as $index => $yearLabel) {
+            $year = trim((string) $yearLabel);
+            if (!preg_match('/^\d{4}$/', $year)) {
+                continue;
+            }
+
+            $montant = trim((string) ($recettes[$index] ?? ''));
+            $montant = str_replace([' ', "\u{A0}", ','], ['', '', '.'], $montant);
+            if ($montant === '' || !is_numeric($montant)) {
+                continue;
+            }
+
+            \App\Models\ChiffreAffaire::firstOrCreate(
+                ['dossier_id' => null, 'annee' => (int) $year],
+                ['montant' => (float) $montant, 'monnaie' => 'F CFA']
+            );
+        }
     }
 }

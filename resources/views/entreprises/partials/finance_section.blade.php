@@ -104,11 +104,6 @@
     </table>
 </div>
 
-<div class="mb-3">
-    <label class="form-label">Commentaire complémentaire</label>
-    <textarea class="form-control" name="commentaire_complementaire" rows="4">{{ old('commentaire_complementaire', $stored['commentaire_complementaire'] ?? '') }}</textarea>
-</div>
-
 <style>
 .hidden-col { display:none; }
 .year-col input[disabled] { background:#f9fafb; }
