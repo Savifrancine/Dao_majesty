@@ -2833,7 +2833,7 @@ class DossierController extends Controller
     public function importTableau(Request $request)
     {
         $request->validate([
-            'fichier' => ['required', 'file', 'max:10240', 'mimes:csv,txt,xlsx'],
+            'fichier' => ['required', 'file', 'max:10240', 'mimes:csv,txt,xlsx,docx'],
         ]);
 
         try {

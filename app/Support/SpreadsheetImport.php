@@ -5,10 +5,13 @@ namespace App\Support;
 use Illuminate\Http\UploadedFile;
 
 /**
- * Lit un fichier CSV ou Excel (.xlsx) uploadé et le transforme en tableau
- * brut [headers, rows] exploitable pour pré-remplir un formulaire. Parseur
- * minimal volontairement écrit sans dépendance externe (ZipArchive/SimpleXML
- * suffisent à lire un .xlsx, qui est une simple archive de fichiers XML).
+ * Lit un fichier CSV, Excel (.xlsx) ou Word (.docx) uploadé et le transforme
+ * en tableau brut [headers, rows] exploitable pour pré-remplir un formulaire.
+ * Parseur minimal volontairement écrit sans dépendance externe
+ * (ZipArchive/SimpleXML suffisent : .xlsx et .docx sont tous deux de simples
+ * archives de fichiers XML). Pour un .docx, c'est le plus grand tableau du
+ * document qui est utilisé ; un document sans tableau (texte libre) n'est
+ * pas pris en charge ici.
  */
 class SpreadsheetImport
 {
@@ -19,7 +22,8 @@ class SpreadsheetImport
         $rows = match ($extension) {
             'csv', 'txt' => self::parseCsv($file->getRealPath()),
             'xlsx' => self::parseXlsx($file->getRealPath()),
-            default => throw new \InvalidArgumentException('Format non supporté : ' . $extension . ' (utilisez .csv ou .xlsx)'),
+            'docx' => self::parseDocxTable($file->getRealPath()),
+            default => throw new \InvalidArgumentException('Format non supporté : ' . $extension . ' (utilisez .csv, .xlsx ou .docx)'),
         };
 
         $rows = array_values(array_filter($rows, fn ($row) => self::rowHasContent($row)));
@@ -174,6 +178,69 @@ class SpreadsheetImport
 
         ksort($rows);
         return array_values($rows);
+    }
+
+    /**
+     * Extrait le plus grand tableau (le plus de lignes) d'un document Word, en
+     * texte brut cellule par cellule. S'il y a plusieurs tableaux, on suppose
+     * que le plus grand est celui a importer (bordereau, liste...).
+     */
+    private static function parseDocxTable(string $path): array
+    {
+        $zip = new \ZipArchive();
+        if ($zip->open($path) !== true) {
+            throw new \RuntimeException('Impossible de lire le fichier Word.');
+        }
+        $xml = $zip->getFromName('word/document.xml');
+        $zip->close();
+
+        if ($xml === false) {
+            return [];
+        }
+
+        $dom = new \DOMDocument();
+        $previousSetting = libxml_use_internal_errors(true);
+        $loaded = $dom->loadXML($xml);
+        libxml_use_internal_errors($previousSetting);
+        if (!$loaded) {
+            return [];
+        }
+
+        $xpath = new \DOMXPath($dom);
+        $xpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+
+        $tables = $xpath->query('//w:tbl');
+        if ($tables === false || $tables->length === 0) {
+            return [];
+        }
+
+        $bestTable = null;
+        $bestRowCount = 0;
+        foreach ($tables as $table) {
+            $rowCount = $xpath->query('.//w:tr', $table)->length;
+            if ($rowCount > $bestRowCount) {
+                $bestRowCount = $rowCount;
+                $bestTable = $table;
+            }
+        }
+        if (!$bestTable) {
+            return [];
+        }
+
+        $rows = [];
+        foreach ($xpath->query('.//w:tr', $bestTable) as $trNode) {
+            $cells = [];
+            foreach ($xpath->query('.//w:tc', $trNode) as $tcNode) {
+                $text = '';
+                foreach ($xpath->query('.//w:t', $tcNode) as $tNode) {
+                    $text .= $tNode->textContent;
+                }
+                $cells[] = trim($text);
+            }
+            $rows[] = $cells;
+        }
+
+        return $rows;
     }
 
     private static function columnIndexFromRef(string $ref): int

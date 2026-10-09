@@ -33,7 +33,7 @@
         <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:8px;">
             <button type="button" id="libreAddTable" class="btn btn-secondary btn-sm">+ Ajouter un tableau</button>
             <button type="button" id="libreImportBtn" class="btn btn-outline-secondary btn-sm">Importer un tableau depuis un fichier (Excel/CSV)</button>
-            <input type="file" id="libreImportFile" accept=".csv,.txt,.xlsx" style="display:none;">
+            <input type="file" id="libreImportFile" accept=".csv,.txt,.xlsx,.docx" style="display:none;">
             <span id="libreImportStatus" style="font-size:0.8rem;"></span>
         </div>
         <small style="color:#64748b;">Donnez un nom à chaque colonne directement dans son en-tête, ou importez un fichier Excel/CSV pour créer un tableau automatiquement à partir de ses colonnes et lignes.</small>
