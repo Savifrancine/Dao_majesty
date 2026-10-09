@@ -3894,30 +3894,39 @@ class DossierController extends Controller
     }
 
     /**
-     * Signale que l'utilisateur courant regarde ce dossier (appele en
-     * sondage periodique depuis la page), et renvoie qui d'autre le regarde
+     * Signale que l'utilisateur courant regarde ce dossier (et, le cas
+     * echeant, telle piece precise), et renvoie qui d'autre le regarde
      * aussi en ce moment - pour eviter que deux personnes ecrasent le
-     * travail l'une de l'autre sans le savoir. Pas de temps reel : une
-     * simple presence "vue il y a moins de 45s" suffit pour ce besoin.
+     * travail l'une de l'autre sans le savoir. Deux personnes sur le meme
+     * dossier mais des pieces differentes ne se genent pas (distingue des
+     * "memes document" qui, eux, sont le vrai risque de collision). Pas de
+     * temps reel : une simple presence "vue il y a moins de 45s" suffit.
      */
-    public function presencePing(Dossier $dossier)
+    public function presencePing(Request $request, Dossier $dossier)
     {
         $userId = auth()->id();
+        $typeDocumentId = $request->integer('type_document_id') ?: null;
 
         DossierPresence::updateOrCreate(
             ['dossier_id' => $dossier->id, 'utilisateur_id' => $userId],
-            ['last_seen_at' => now()]
+            ['type_document_id' => $typeDocumentId, 'last_seen_at' => now()]
         );
 
-        $others = DossierPresence::with('utilisateur')
+        $autresPresents = DossierPresence::with('utilisateur')
             ->where('dossier_id', $dossier->id)
             ->where('utilisateur_id', '!=', $userId)
             ->where('last_seen_at', '>=', now()->subSeconds(45))
-            ->get()
-            ->map(fn (DossierPresence $p) => trim(($p->utilisateur->prenom ?? '') . ' ' . ($p->utilisateur->nom ?? '')) ?: 'Un autre utilisateur')
-            ->values();
+            ->get();
 
-        return response()->json(['others' => $others]);
+        $nom = fn (DossierPresence $p) => trim(($p->utilisateur->prenom ?? '') . ' ' . ($p->utilisateur->nom ?? '')) ?: 'Un autre utilisateur';
+
+        $others = $autresPresents->map($nom)->values();
+
+        $sameDocument = $typeDocumentId
+            ? $autresPresents->filter(fn (DossierPresence $p) => $p->type_document_id === $typeDocumentId)->map($nom)->values()
+            : collect();
+
+        return response()->json(['others' => $others, 'sameDocument' => $sameDocument]);
     }
 
     /**

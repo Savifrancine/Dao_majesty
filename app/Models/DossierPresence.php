@@ -12,6 +12,7 @@ class DossierPresence extends Model
     protected $fillable = [
         'dossier_id',
         'utilisateur_id',
+        'type_document_id',
         'last_seen_at',
     ];
 
@@ -27,5 +28,10 @@ class DossierPresence extends Model
     public function utilisateur(): BelongsTo
     {
         return $this->belongsTo(Utilisateur::class);
+    }
+
+    public function typeDocument(): BelongsTo
+    {
+        return $this->belongsTo(TypeDocument::class);
     }
 }

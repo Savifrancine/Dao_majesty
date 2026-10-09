@@ -415,6 +415,8 @@
                     <input type="hidden" name="documents[]" value="{{ $docId }}">
                 @endforeach
 
+                <div id="presence-banner" style="display:none; background:#fef2f2; border:1px solid #fca5a5; border-radius:10px; padding:10px 14px; margin-bottom:14px; color:#991b1b; font-size:13px;"></div>
+
                 <div class="card mb-3">
                     <div class="card-header">
                         <h6 class="mb-0">Piece {{ $currentIndex + 1 }} / {{ $totalCount }}</h6>
@@ -763,4 +765,13 @@
     </div>
 </div>
 
+<script src="{{ asset('js/dossier-presence.js') }}"></script>
+<script>
+    window.DaoDossierPresence.setup({
+        pingUrl: '{{ route('dossiers.presence', $dossier->id) }}',
+        bannerId: 'presence-banner',
+        typeDocumentId: {{ $currentDocument->id }},
+        intervalMs: 15000,
+    });
+</script>
 @endsection
