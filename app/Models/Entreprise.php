@@ -24,6 +24,11 @@ class Entreprise extends Model
         'annee_enregistrement',
         'responsable',
         'fonction_responsable',
+        'finance_data',
+    ];
+
+    protected $casts = [
+        'finance_data' => 'array',
     ];
 
     /**

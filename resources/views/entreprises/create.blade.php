@@ -76,6 +76,8 @@
             <input id="fonction_responsable" name="fonction_responsable" class="form-control" value="{{ old('fonction_responsable') }}">
         </div>
 
+        @include('entreprises.partials.finance_section', ['financeData' => []])
+
         <button type="submit" class="btn btn-success">Enregistrer</button>
         <a href="{{ route('entreprises.index') }}" class="btn btn-secondary">Annuler</a>
     </form>

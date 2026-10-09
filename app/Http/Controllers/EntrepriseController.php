@@ -42,6 +42,8 @@ class EntrepriseController extends Controller
             $data['registre_path'] = $path;
         }
 
+        $data['finance_data'] = $this->extractFinanceData($request);
+
         Entreprise::create($data);
 
         return redirect()->route('entreprises.index')->with('success', 'Entreprise créée avec succès.');
@@ -78,6 +80,8 @@ class EntrepriseController extends Controller
             $data['registre_path'] = $path;
         }
 
+        $data['finance_data'] = $this->extractFinanceData($request);
+
         $entreprise->update($data);
 
         return redirect()->route('entreprises.index')->with('success', 'Entreprise mise à jour.');
@@ -97,5 +101,34 @@ class EntrepriseController extends Controller
         $entreprise->delete();
 
         return redirect()->route('entreprises.index')->with('success', 'Entreprise supprimée.');
+    }
+
+    /**
+     * Memes champs/regles que la section Finance (etape 6, Formulaire FIN
+     * - 3.1 Situation financiere) : on ne modifie pas ce formulaire ici,
+     * on se contente de capturer les memes informations sur l'entreprise
+     * pour pouvoir les reutiliser plus tard.
+     */
+    private function extractFinanceData(Request $request): array
+    {
+        return $request->validate([
+            'year_labels' => ['nullable', 'array'],
+            'year_labels.*' => ['nullable', 'string', 'max:255'],
+            'total_actif' => ['nullable', 'array'],
+            'total_actif.*' => ['nullable', 'string', 'max:255'],
+            'total_passif' => ['nullable', 'array'],
+            'total_passif.*' => ['nullable', 'string', 'max:255'],
+            'patrimoine_net' => ['nullable', 'array'],
+            'patrimoine_net.*' => ['nullable', 'string', 'max:255'],
+            'disponibilites' => ['nullable', 'array'],
+            'disponibilites.*' => ['nullable', 'string', 'max:255'],
+            'engagements' => ['nullable', 'array'],
+            'engagements.*' => ['nullable', 'string', 'max:255'],
+            'recettes_totales' => ['nullable', 'array'],
+            'recettes_totales.*' => ['nullable', 'string', 'max:255'],
+            'benefices_avant_impots' => ['nullable', 'array'],
+            'benefices_avant_impots.*' => ['nullable', 'string', 'max:255'],
+            'commentaire_complementaire' => ['nullable', 'string', 'max:4000'],
+        ]);
     }
 }
