@@ -34,16 +34,14 @@
                             @endif
                             Choisissez celui adapté à ce dossier :
                         </div>
-                        <form action="{{ route('dossiers.applyEntreprisePersonnelCv', $dossier->id) }}" method="POST" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;" onsubmit="return confirm('Appliquer ce CV ? Les champs correspondants de cette personne seront remplacés par ceux de ce CV.');">
-                            @csrf
-                            <input type="hidden" name="formulaire_per_id" value="{{ $f->id }}">
-                            <select name="entreprise_personnel_id" class="form-control" style="max-width:320px;">
+                        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                            <select id="cvSelect-{{ $f->id }}" class="form-control" style="max-width:320px;">
                                 @foreach($matchingCvs as $cv)
                                     <option value="{{ $cv->id }}" @selected(optional($f->sourceEntreprisePersonnel)->id === $cv->id)>{{ $cv->intitule ?: ('CV #' . $cv->id) }}</option>
                                 @endforeach
                             </select>
-                            <button type="submit" class="btn-action" style="background:#2563eb; color:#fff;">Appliquer ce CV</button>
-                        </form>
+                            <button type="button" class="btn-action" style="background:#2563eb; color:#fff;" onclick="window.applyEntreprisePersonnelCv({{ $f->id }})">Appliquer ce CV</button>
+                        </div>
                     </div>
                 @elseif($f->sourceEntreprisePersonnel)
                     <div style="font-size:12px; color:#6b7280; margin-bottom:10px;">CV source : {{ $f->sourceEntreprisePersonnel->intitule ?: 'sans intitulé' }}</div>
@@ -152,6 +150,40 @@
 </div>
 
 <script>
+    // Soumis en dehors du formulaire principal de l'etape 6 (un element form
+    // ne peut pas en contenir un autre - le navigateur fermerait le formulaire
+    // de l'etape 6 en avance, rendant le bouton "Continuer" inoperant). On
+    // cree donc un formulaire independant, directement attache au body, au
+    // moment du clic.
+    window.applyEntreprisePersonnelCv = function (formulairePerId) {
+        if (!confirm('Appliquer ce CV ? Les champs correspondants de cette personne seront remplacés par ceux de ce CV.')) {
+            return;
+        }
+        const select = document.getElementById('cvSelect-' + formulairePerId);
+        const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}';
+
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '{{ route('dossiers.applyEntreprisePersonnelCv', $dossier->id) }}';
+        form.style.display = 'none';
+
+        const fields = {
+            _token: token,
+            formulaire_per_id: formulairePerId,
+            entreprise_personnel_id: select.value,
+        };
+        Object.keys(fields).forEach((name) => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = name;
+            input.value = fields[name];
+            form.appendChild(input);
+        });
+
+        document.body.appendChild(form);
+        form.submit();
+    };
+
     document.addEventListener('DOMContentLoaded', function () {
         function syncExperiencesInput(block) {
             const rows = block.querySelectorAll('.experience-row');
