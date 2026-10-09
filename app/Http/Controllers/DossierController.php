@@ -10,6 +10,7 @@ use App\Models\TypeDossier;
 use App\Models\TypeDocument;
 use App\Models\DossierDocument;
 use App\Models\DossierChangeLog;
+use App\Models\DossierPresence;
 use App\Models\ChampDocument;
 use App\Models\ValeurDocument;
 use App\Models\DocumentFichier;
@@ -3890,6 +3891,33 @@ class DossierController extends Controller
         $checkMontantZero($exp42bSuite, 'EXP 4.2 b) (suite)', 'montant', ($statutByTypeName[self::EXP42B_SUITE_NOM] ?? null) === 'complete');
 
         return $warnings;
+    }
+
+    /**
+     * Signale que l'utilisateur courant regarde ce dossier (appele en
+     * sondage periodique depuis la page), et renvoie qui d'autre le regarde
+     * aussi en ce moment - pour eviter que deux personnes ecrasent le
+     * travail l'une de l'autre sans le savoir. Pas de temps reel : une
+     * simple presence "vue il y a moins de 45s" suffit pour ce besoin.
+     */
+    public function presencePing(Dossier $dossier)
+    {
+        $userId = auth()->id();
+
+        DossierPresence::updateOrCreate(
+            ['dossier_id' => $dossier->id, 'utilisateur_id' => $userId],
+            ['last_seen_at' => now()]
+        );
+
+        $others = DossierPresence::with('utilisateur')
+            ->where('dossier_id', $dossier->id)
+            ->where('utilisateur_id', '!=', $userId)
+            ->where('last_seen_at', '>=', now()->subSeconds(45))
+            ->get()
+            ->map(fn (DossierPresence $p) => trim(($p->utilisateur->prenom ?? '') . ' ' . ($p->utilisateur->nom ?? '')) ?: 'Un autre utilisateur')
+            ->values();
+
+        return response()->json(['others' => $others]);
     }
 
     /**

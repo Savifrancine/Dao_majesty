@@ -459,6 +459,8 @@
                 Type: <strong>{{ $dossier->typeDossier->nom }}</strong> | Entreprise: <strong>{{ $dossier->entreprise->nom }}</strong>
             </p>
 
+            <div id="presence-banner" style="display:none; background:#fffbeb; border:1px solid #f59e0b; border-radius:10px; padding:10px 14px; margin-bottom:14px; color:#92400e; font-size:13px;"></div>
+
             <div class="show-actions">
                 @if(!is_null($resumeIndex) && !empty($resumeDocumentIds))
                     <a href="{{ route('dossiers.continuer', $dossier->id) }}" class="btn btn-primary-custom">Continuer la creation</a>
@@ -751,4 +753,13 @@
         </div>
     </div>
 </div>
+
+<script src="{{ asset('js/dossier-presence.js') }}"></script>
+<script>
+    window.DaoDossierPresence.setup({
+        pingUrl: '{{ route('dossiers.presence', $dossier->id) }}',
+        bannerId: 'presence-banner',
+        intervalMs: 20000,
+    });
+</script>
 @endsection
