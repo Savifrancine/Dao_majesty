@@ -642,6 +642,13 @@
                                 @endphp
 
                                 @include('documents.partials.listes_fournitures_calendrier_livraison_form_step6', ['bordereaux' => $existingBordereaux, 'docId' => $currentDocument->id, 'prefillSections' => $sharedDesignationPrefill->toArray()])
+                            @elseif(trim($currentDocument->nom) === 'Liste de Matériel')
+                                @php
+                                    $dossierDocument = $dossier->documents->firstWhere('type_document_id', $currentDocument->id);
+                                    $existingBordereaux = $dossierDocument ? $dossierDocument->bordereau : collect();
+                                @endphp
+
+                                @include('documents.partials.liste_materiel_form_step6', ['bordereaux' => $existingBordereaux, 'docId' => $currentDocument->id])
                             @elseif(trim($currentDocument->nom) === 'Tableau de résumé des bordereaux de prix')
                                 @php
                                     $dossierDocument = $dossier->documents->firstWhere('type_document_id', $currentDocument->id);

@@ -35,6 +35,7 @@ class TypesDocumentsSeeder extends Seeder
             ['nom' => 'Formulaire EXP – 4.2 b) (suite) Expérience spécifique de fournitures/services dans les activités principales (suite)', 'type_formulaire' => 'formulaire'],
             ['nom' => 'Formulaire ANT-2 : Formulaire renseignant sur les antécédents de marchés non exécutés, de litiges en instance et d\'antécédents de litiges', 'type_formulaire' => 'formulaire'],
             ['nom' => 'Formulaire MAT', 'type_formulaire' => 'formulaire'],
+            ['nom' => 'Liste de Matériel', 'type_formulaire' => 'bordereau'],
             ['nom' => 'Formulaire PER', 'type_formulaire' => 'formulaire'],
             ['nom' => 'Liste du personnel affecté à l\'exécution du marché', 'type_formulaire' => 'formulaire'],
             ['nom' => 'Attestation de non-exclusion de la commande publique', 'type_formulaire' => 'fichier'],

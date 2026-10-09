@@ -14,6 +14,7 @@ class BordereauLigne extends Model
         'designation',
         'unite_physique',
         'quantite',
+        'nombre_propose',
         'prix_unitaire',
         'montant',
         'cout_benin',
@@ -39,6 +40,7 @@ class BordereauLigne extends Model
 
     protected $casts = [
         'quantite' => 'decimal:2',
+        'nombre_propose' => 'decimal:2',
         'prix_unitaire' => 'decimal:2',
         'montant' => 'decimal:2',
         'cout_benin' => 'decimal:2',

@@ -483,6 +483,7 @@
                         "Formulaire EXP – 4.2 b) (suite) Expérience spécifique de fournitures/services dans les activités principales (suite)",
                         "Formulaire ANT-2 : Formulaire renseignant sur les antécédents de marchés non exécutés, de litiges en instance et d'antécédents de litiges",
                         "Formulaire MAT",
+                        "Liste de Matériel",
                         "Formulaire PER",
                         "Liste du personnel affecté à l'exécution du marché",
                         "Chiffre d'affaires annuel moyen des activités de services",

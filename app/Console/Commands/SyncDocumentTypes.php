@@ -26,6 +26,7 @@ class SyncDocumentTypes extends Command
             "Formulaire ELI – 1.1 : Formulaire de renseignements sur le candidat",
             "Formulaire ANT-2 : Formulaire renseignant sur les antécédents de marchés non exécutés, de litiges en instance et d'antécédents de litiges",
             "Formulaire MAT",
+            "Liste de Matériel",
             "Formulaire PER",
             "Chiffre d'affaires annuel moyen des activités de services",
             "Attestation de non-exclusion de la commande publique",

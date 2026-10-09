@@ -52,6 +52,7 @@ class DossierController extends Controller
         'Engagement du soumissionnaire à respecter le code d\'éthique et de déontologie',
         'Listes des Fournitures et Calendrier de livraison',
         'Description technique des fournitures/services',
+        'Liste de Matériel',
         'Fiche technique de chaque article, délivrée par le fabricant',
         'Attestation de bonne fin',
         'Bon de commande et contrats',
@@ -170,6 +171,7 @@ class DossierController extends Controller
             "Formulaire EXP – 4.2 b) (suite) Expérience spécifique de fournitures/services dans les activités principales (suite)",
             "Formulaire ANT-2 : Formulaire renseignant sur les antécédents de marchés non exécutés, de litiges en instance et d'antécédents de litiges",
             "Formulaire MAT",
+            "Liste de Matériel",
             "Formulaire PER",
             "Liste du personnel affecté à l'exécution du marché",
             "Chiffre d'affaires annuel moyen des activités de services",
@@ -218,7 +220,7 @@ class DossierController extends Controller
      */
     private function normalizeBordereauNumbers(array $sections): array
     {
-        $numericKeys = ['prix_unitaire', 'quantite', 'cout_benin'];
+        $numericKeys = ['prix_unitaire', 'quantite', 'cout_benin', 'nombre_propose'];
 
         foreach ($sections as &$section) {
             if (!isset($section['lignes']) || !is_array($section['lignes'])) {
@@ -1369,6 +1371,7 @@ class DossierController extends Controller
             'Méthodes d\'exécution',
             'Calendrier d\'exécution',
             'Description technique des fournitures/services',
+            'Liste de Matériel',
         ];
 
         foreach ($pieceNames as $name) {
@@ -2288,6 +2291,7 @@ class DossierController extends Controller
                 $isListesServicesConnexes = trim($currentDocument->nom) === "Listes des services connexes et calendrier de réalisation";
                 $isListesFournituersLivraison = trim($currentDocument->nom) === "Listes des Fournitures et Calendrier de livraison";
                 $isCadresSousDetailsPrix = trim($currentDocument->nom) === "Cadres de sous détails des prix unitaire";
+                $isListeMateriel = trim($currentDocument->nom) === "Liste de Matériel";
                 $rules = [
                     'sections' => ['required', 'array', 'min:1'],
                     'sections.*.titre' => ['nullable', 'string', 'max:255'],
@@ -2392,6 +2396,13 @@ class DossierController extends Controller
                         'sections.*.lignes.*.date_livraison_plus_tot' => ['nullable', 'string', 'max:255'],
                         'sections.*.lignes.*.date_livraison_plus_tard' => ['nullable', 'string', 'max:255'],
                         'sections.*.lignes.*.date_livraison_offerte' => ['nullable', 'string', 'max:255'],
+                    ]);
+                }
+
+                if ($isListeMateriel) {
+                    $rules = array_merge($rules, [
+                        'sections.*.lignes.*.quantite' => ['nullable', 'numeric'],
+                        'sections.*.lignes.*.nombre_propose' => ['nullable', 'numeric'],
                     ]);
                 }
 
@@ -2574,6 +2585,26 @@ class DossierController extends Controller
                                 'montant' => 0,
                                 'site' => $site,
                                 'date_prestation' => $datePrestation,
+                            ]);
+                            $validLineCreated = true;
+                            continue;
+                        }
+
+                        if ($isListeMateriel) {
+                            $quantite = !empty($ligne['quantite']) ? (float) $ligne['quantite'] : 0;
+                            $nombrePropose = !empty($ligne['nombre_propose']) ? (float) $ligne['nombre_propose'] : 0;
+
+                            if ($designation === '' && $quantite <= 0 && $nombrePropose <= 0) {
+                                continue;
+                            }
+
+                            BordereauLigne::create([
+                                'bordereau_id' => $bordereau->id,
+                                'designation' => $designation,
+                                'quantite' => $quantite,
+                                'nombre_propose' => $nombrePropose,
+                                'prix_unitaire' => 0,
+                                'montant' => 0,
                             ]);
                             $validLineCreated = true;
                             continue;
@@ -4005,6 +4036,7 @@ class DossierController extends Controller
             'Méthodes d\'exécution',
             'Calendrier d\'exécution',
             'Description technique des fournitures/services',
+            'Liste de Matériel',
         ];
 
         foreach ($pieceNames as $name) {

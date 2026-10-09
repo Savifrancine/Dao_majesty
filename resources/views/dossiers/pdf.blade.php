@@ -1617,6 +1617,43 @@
                 @else
                     <div style="margin-top:8px; font-style:italic; color:#444;">Aucun bordereau enregistré pour ce document.</div>
                 @endif
+            @elseif(strcasecmp(trim($doc->typeDocument->nom), 'Liste de Matériel') === 0)
+                @php
+                    $bordereaux = $doc->bordereau;
+                @endphp
+                @if($bordereaux && $bordereaux->count() > 0)
+                    <div style="margin-top:10px; font-size:11px; line-height:1.4;">
+                        <div style="font-weight:700; font-size:16px; text-align:center; margin-bottom:16px;">LISTE DE MATERIEL</div>
+
+                        <div style="overflow-x:auto; margin-bottom:20px;">
+                            <table style="width:100%; border-collapse:collapse; font-size:10px;">
+                                <thead>
+                                    <tr style="background:#f3f4f6; font-weight:700;">
+                                        <th style="border:1px solid #000; padding:6px; text-align:center; width:10%;">Numéro</th>
+                                        <th style="border:1px solid #000; padding:6px; text-align:center; width:50%;">Type et caractéristiques du matériel</th>
+                                        <th style="border:1px solid #000; padding:6px; text-align:center; width:20%;">Nombre minimum requis</th>
+                                        <th style="border:1px solid #000; padding:6px; text-align:center; width:20%;">Nombre minimum proposé</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @php $lineNumber = 1; @endphp
+                                    @foreach($bordereaux as $bordereau)
+                                        @foreach($bordereau->lignes as $ligne)
+                                            <tr>
+                                                <td style="border:1px solid #000; padding:6px; text-align:center; vertical-align:top;">{{ $lineNumber++ }}</td>
+                                                <td style="border:1px solid #000; padding:6px; vertical-align:top;">{!! nl2br(e($ligne->designation)) !!}</td>
+                                                <td style="border:1px solid #000; padding:6px; text-align:center; vertical-align:top;">{{ $ligne->quantite ? number_format($ligne->quantite, 0, '.', ' ') : '' }}</td>
+                                                <td style="border:1px solid #000; padding:6px; text-align:center; vertical-align:top;">{{ $ligne->nombre_propose ? number_format($ligne->nombre_propose, 0, '.', ' ') : '' }}</td>
+                                            </tr>
+                                        @endforeach
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                @else
+                    <div style="margin-top:8px; font-style:italic; color:#444;">Aucun matériel enregistré pour ce document.</div>
+                @endif
             @elseif(strcasecmp(trim($doc->typeDocument->nom), 'Cadres de sous détails des prix unitaire') === 0)
                 @php
                     $bordereaux = $doc->bordereau;
