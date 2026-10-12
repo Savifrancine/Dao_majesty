@@ -1136,27 +1136,30 @@ class DossierController extends Controller
             // suivent toujours sa valeur actuelle, sans etre modifiables ici.
             $record->poste = mb_substr($p['poste'], 0, 250);
             $record->nom_personnel = mb_substr($p['nom'], 0, 250);
+            $record->save();
 
-            // Pre-remplissage (modifiable) : Nom de l'employeur <- Nom de la liste
-            // du personnel, Emploi tenu <- Designation du poste de la liste.
+            // Si cette personne correspond a EXACTEMENT un CV enregistre dans
+            // "Les personnels de l'entreprise" (match par nom), on l'applique
+            // automatiquement - fill-empty-only (nom de l'employeur, emploi
+            // tenu, qualifications, coordonnees, experiences, pieces jointes...
+            // tout ce que le CV connait deja). En cas de plusieurs CV pour ce
+            // nom, rien n'est applique automatiquement : la personne choisit
+            // elle-meme via le menu deroulant du Formulaire PER (ambigu sinon).
+            $matches = $this->findEntreprisePersonnelsByNom($entreprise, $p['nom']);
+            if ($matches->count() === 1) {
+                $this->applyEntreprisePersonnelToFormulairePer($record, $matches->first(), false);
+            }
+
+            // Repli generique, seulement si toujours vide (aucun CV ne
+            // fournissait l'info) : Nom de l'employeur <- Nom de la liste du
+            // personnel, Emploi tenu <- Designation du poste de la liste.
             if ($record->nom_employeur === null || $record->nom_employeur === '') {
                 $record->nom_employeur = mb_substr($p['nom'], 0, 250);
             }
             if ($record->emploi_tenu === null || $record->emploi_tenu === '') {
                 $record->emploi_tenu = mb_substr($p['poste'], 0, 250);
             }
-
             $record->save();
-
-            // Si cette personne correspond a EXACTEMENT un CV enregistre dans
-            // "Les personnels de l'entreprise" (match par nom), on l'applique
-            // automatiquement - fill-empty-only. En cas de plusieurs CV pour
-            // ce nom, rien n'est applique automatiquement : la personne choisit
-            // elle-meme via le menu deroulant du Formulaire PER (ambigu sinon).
-            $matches = $this->findEntreprisePersonnelsByNom($entreprise, $p['nom']);
-            if ($matches->count() === 1) {
-                $this->applyEntreprisePersonnelToFormulairePer($record, $matches->first(), false);
-            }
         }
 
         FormulairePER::where('dossier_id', $dossier->id)
@@ -1194,7 +1197,7 @@ class DossierController extends Controller
      */
     private function applyEntreprisePersonnelToFormulairePer(FormulairePER $record, EntreprisePersonnel $entreprisePersonnel, bool $forceOverwrite): void
     {
-        foreach (['date_naissance', 'qualifications', 'adresse_employeur', 'telephone', 'telecopie', 'email', 'contact_personnel', 'nombre_annees_employeur', 'experiences'] as $field) {
+        foreach (['nom_employeur', 'emploi_tenu', 'date_naissance', 'qualifications', 'adresse_employeur', 'telephone', 'telecopie', 'email', 'contact_personnel', 'nombre_annees_employeur', 'experiences'] as $field) {
             $value = $entreprisePersonnel->{$field};
             $valueIsEmpty = $value === null || $value === '' || (is_array($value) && empty($value));
             if ($valueIsEmpty) {
