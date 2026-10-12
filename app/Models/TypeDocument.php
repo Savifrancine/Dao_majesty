@@ -59,6 +59,7 @@ class TypeDocument extends Model
             'attestation de regularite a la cnss',
             'attestation de non imposition',
             'attestation de non-exclusion de la commande publique',
+            'attestation de catégorisation',
             'attestation de non-condamnation pour fraude, corruption ou fausse declaration',
             'attestation de nationalite ou document de constitution legale de l\'entreprise',
             'statuts de la societe et pv de nomination du gerant',

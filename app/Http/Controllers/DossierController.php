@@ -6,6 +6,7 @@ use App\Models\Dossier;
 use App\Models\TypeMarche;
 use App\Models\Signataire;
 use App\Models\Entreprise;
+use App\Models\EntrepriseDocument;
 use App\Models\EntreprisePersonnel;
 use App\Models\TypeDossier;
 use App\Models\TypeDocument;
@@ -132,7 +133,21 @@ class DossierController extends Controller
             ->sortBy(fn (Dossier $d) => $d->date_soumission?->timestamp ?? PHP_INT_MAX)
             ->values();
 
-        return view('home', compact('dossiers', 'incompleteDossiers'));
+        // Documents administratifs des entreprises qui expirent (Attestation de
+        // non-exclusion : 1 an, Attestation de categorisation : 5 ans) : pour
+        // chaque entreprise et chaque type, seul le renouvellement le plus
+        // recent compte (les plus anciens restent en historique sans alerter).
+        $expiringEntrepriseDocuments = EntrepriseDocument::whereIn('type', ['non_exclusion', 'categorisation', 'regularite_fiscale', 'cnss', 'non_faillite'])
+            ->whereNotNull('date_delivrance')
+            ->with('entreprise')
+            ->get()
+            ->groupBy(fn (EntrepriseDocument $d) => $d->entreprise_id . '-' . $d->type)
+            ->map(fn ($group) => $group->sortByDesc('date_delivrance')->first())
+            ->filter(fn (EntrepriseDocument $d) => $d->estExpire() || $d->expireBientot())
+            ->sortBy(fn (EntrepriseDocument $d) => $d->date_expiration?->timestamp ?? PHP_INT_MAX)
+            ->values();
+
+        return view('home', compact('dossiers', 'incompleteDossiers', 'expiringEntrepriseDocuments'));
     }
 
     /**
@@ -182,6 +197,7 @@ class DossierController extends Controller
             "Liste du personnel affecté à l'exécution du marché",
             "Chiffre d'affaires annuel moyen des activités de services",
             "Attestation de non-exclusion de la commande publique",
+            "Attestation de catégorisation",
             "Engagement du soumissionnaire à respecter le code d'éthique et de déontologie",
             "Attestation de non-condamnation pour fraude, corruption ou fausse declaration",
             "Attestation de nationalite ou document de constitution legale de l'entreprise",
@@ -1395,6 +1411,64 @@ class DossierController extends Controller
     private function isFormulaireMatDoc(DossierDocument $doc): bool
     {
         return trim(optional($doc->typeDocument)->nom ?? '') === self::FORMULAIRE_MAT_NOM;
+    }
+
+    /**
+     * Documents administratifs de l'entreprise (RCCM, IFU, Etats financiers
+     * certifiés) pouvant être référencés directement depuis cette pièce du
+     * dossier, sans être re-téléversés. Retourne le "type" EntrepriseDocument
+     * correspondant (rccm/ifu/etat_financier), ou null si cette pièce n'est
+     * pas concernée.
+     */
+    private function entrepriseDocumentPickerType(DossierDocument $doc): ?string
+    {
+        $nom = trim(optional($doc->typeDocument)->nom ?? '');
+
+        return match ($nom) {
+            'RCCM' => 'rccm',
+            "Copie legalisee de l'Identifiant Fiscal Unique (IFU)" => 'ifu',
+            'Etats financiers certifiés' => 'etat_financier',
+            'Attestation de non-exclusion de la commande publique' => 'non_exclusion',
+            'Attestation de catégorisation' => 'categorisation',
+            "Attestation d'imposition ou de situation fiscale en cours de validite" => 'regularite_fiscale',
+            'Attestation de regularite a la CNSS' => 'cnss',
+            'Attestation de non-faillite datant de moins de trois (03) mois' => 'non_faillite',
+            "Relevé d'identité bancaire (RIB)" => 'rib',
+            default => null,
+        };
+    }
+
+    /**
+     * Chemins de fichiers temporaires : les pièces de l'entreprise (RCCM,
+     * IFU ou Etats financiers) référencées pour cette pièce du dossier,
+     * converties si besoin (image -> PDF une page) pour être fusionnées
+     * juste après la page de cette pièce. Travaille sur des COPIES
+     * temporaires (jamais le fichier original) - l'appelant doit les
+     * supprimer une fois la fusion terminée.
+     */
+    private function entrepriseDocumentPdfPaths(DossierDocument $doc): array
+    {
+        $paths = [];
+        foreach ($doc->entrepriseFichiers() as $fichier) {
+            $fullPath = storage_path('app/public/' . ltrim($fichier->chemin_fichier, '/'));
+            if (!file_exists($fullPath)) {
+                continue;
+            }
+
+            $ext = strtolower(pathinfo($fullPath, PATHINFO_EXTENSION));
+            if ($ext === 'pdf') {
+                $tempCopy = tempnam(sys_get_temp_dir(), 'entreprise_doc_') . '.pdf';
+                copy($fullPath, $tempCopy);
+                $paths[] = $tempCopy;
+            } elseif (in_array($ext, ['png', 'jpg', 'jpeg', 'gif'], true)) {
+                $imagePdf = $this->imageToSinglePagePdf($fullPath);
+                if ($imagePdf) {
+                    $paths[] = $imagePdf;
+                }
+            }
+        }
+
+        return $paths;
     }
 
     /**
@@ -3239,7 +3313,8 @@ class DossierController extends Controller
             }
 
             try {
-                $hasFiles = DocumentFichier::where('dossier_document_id', $dossierDocument->id)->exists();
+                $hasFiles = DocumentFichier::where('dossier_document_id', $dossierDocument->id)->exists()
+                    || (!empty($dossierDocument->linked_entreprise_document_ids) && $dossierDocument->entrepriseFichiers()->isNotEmpty());
                 if ($hasFiles) {
                     $dossierDocument->update(['statut' => 'complete']);
                 }
@@ -3260,6 +3335,12 @@ class DossierController extends Controller
                         $file->delete();
                     }
                 }
+            }
+
+            if ($this->entrepriseDocumentPickerType($dossierDocument) !== null) {
+                $excludedEntrepriseIds = array_map('intval', $request->input('exclude_entreprise_fichier_ids', []));
+                $dossierDocument->excluded_entreprise_fichier_ids = $excludedEntrepriseIds;
+                $dossierDocument->save();
             }
 
             $this->logChange(
@@ -3429,7 +3510,7 @@ class DossierController extends Controller
 
         $needsMerge = $documents->contains(function ($doc) {
             $plan = $this->attachmentPlan($doc);
-            return $plan['pdfs']->isNotEmpty() || $plan['others']->isNotEmpty() || $this->isExp42aDoc($doc) || $this->isExp42bDoc($doc) || $this->isExp42aSuiteDoc($doc) || $this->isExp42bSuiteDoc($doc) || $this->isFormulairePerDoc($doc) || $this->isFormulaireMatDoc($doc);
+            return $plan['pdfs']->isNotEmpty() || $plan['others']->isNotEmpty() || $this->isExp42aDoc($doc) || $this->isExp42bDoc($doc) || $this->isExp42aSuiteDoc($doc) || $this->isExp42bSuiteDoc($doc) || $this->isFormulairePerDoc($doc) || $this->isFormulaireMatDoc($doc) || ($this->entrepriseDocumentPickerType($doc) !== null && !empty($doc->linked_entreprise_document_ids));
         });
 
         if (!$needsMerge) {
@@ -3598,6 +3679,12 @@ class DossierController extends Controller
                         $tempFiles[] = $path;
                     }
                 }
+                if ($this->entrepriseDocumentPickerType($doc) !== null) {
+                    foreach ($this->entrepriseDocumentPdfPaths($doc) as $path) {
+                        $filesToMerge[] = $path;
+                        $tempFiles[] = $path;
+                    }
+                }
             }
 
             $finalFilename = 'dossiers/documents/dossier_' . $dossier->id . '_merged_' . time() . '.pdf';
@@ -3748,6 +3835,12 @@ class DossierController extends Controller
             }
             if ($this->isFormulaireMatDoc($document)) {
                 foreach ($this->formulaireMatPdfPaths($dossier) as $path) {
+                    $filesToMerge[] = $path;
+                    $tempFiles[] = $path;
+                }
+            }
+            if ($this->entrepriseDocumentPickerType($document) !== null) {
+                foreach ($this->entrepriseDocumentPdfPaths($document) as $path) {
                     $filesToMerge[] = $path;
                     $tempFiles[] = $path;
                 }
@@ -4372,6 +4465,45 @@ class DossierController extends Controller
         $this->applyEntreprisePersonnelToFormulairePer($record, $entreprisePersonnel, true);
 
         return back()->with('success', 'CV « ' . ($entreprisePersonnel->intitule ?: $entreprisePersonnel->nom) . ' » appliqué.');
+    }
+
+    /**
+     * Choix des documents de l'entreprise (RCCM, IFU, Etats financiers)
+     * référencés pour une pièce donnée du dossier : appliqué immédiatement
+     * à chaque coche/décoche (case à cocher multiple, puisqu'un même
+     * dossier peut avoir besoin de plusieurs Etats financiers - un par
+     * année). Référence directe, jamais de copie de fichier.
+     */
+    public function applyEntrepriseDocumentSelection(Request $request, Dossier $dossier)
+    {
+        $data = $request->validate([
+            'dossier_document_id' => ['required', 'integer'],
+            'entreprise_document_ids' => ['nullable', 'array'],
+            'entreprise_document_ids.*' => ['integer'],
+        ]);
+
+        $dossierDocument = DossierDocument::where('dossier_id', $dossier->id)
+            ->whereKey($data['dossier_document_id'])
+            ->first();
+        if (!$dossierDocument) {
+            return back()->with('error', 'Pièce introuvable sur ce dossier.');
+        }
+
+        $pickerType = $this->entrepriseDocumentPickerType($dossierDocument);
+        if (!$pickerType) {
+            return back()->with('error', 'Cette pièce ne prend pas en charge les documents de l\'entreprise.');
+        }
+
+        $validIds = EntrepriseDocument::where('entreprise_id', $dossier->entreprise_id)
+            ->where('type', $pickerType)
+            ->whereIn('id', $data['entreprise_document_ids'] ?? [])
+            ->pluck('id')
+            ->all();
+
+        $dossierDocument->linked_entreprise_document_ids = $validIds;
+        $dossierDocument->save();
+
+        return back()->with('success', 'Documents de l\'entreprise mis à jour pour cette pièce.');
     }
 
     /**

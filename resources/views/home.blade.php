@@ -1120,6 +1120,71 @@
         </div>
         @endif
     </div>
+
+    <!-- Documents administratifs des entreprises qui expirent -->
+    <div class="table-section" style="margin-top: 2rem;">
+        <div class="table-header">
+            <h3 class="table-title">📋 Documents administratifs à renouveler</h3>
+        </div>
+
+        @if($expiringEntrepriseDocuments->count() > 0)
+        <div style="overflow-x: auto;">
+            <table class="modern-table">
+                <thead>
+                    <tr>
+                        <th>Entreprise</th>
+                        <th>Document</th>
+                        <th>Obtenu le</th>
+                        <th>Expiration</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @php
+                        $entrepriseDocLabels = [
+                            'non_exclusion' => 'Attestation de non-exclusion',
+                            'categorisation' => 'Attestation de catégorisation',
+                            'regularite_fiscale' => 'Attestation de régularité fiscale',
+                            'cnss' => 'Attestation de régularité à la CNSS',
+                            'non_faillite' => 'Attestation de non-faillite',
+                        ];
+                    @endphp
+                    @foreach($expiringEntrepriseDocuments as $doc)
+                        <tr>
+                            <td>
+                                <div class="table-name">
+                                    <div class="name-avatar">{{ substr($doc->entreprise->nom ?? '?', 0, 1) }}</div>
+                                    <strong>{{ $doc->entreprise->nom ?? '—' }}</strong>
+                                </div>
+                            </td>
+                            <td>{{ $entrepriseDocLabels[$doc->type] ?? $doc->type }}</td>
+                            <td>{{ optional($doc->date_delivrance)->format('d/m/Y') ?? '—' }}</td>
+                            <td>
+                                {{ $doc->date_expiration->format('d/m/Y') }}
+                                @if($doc->estExpire())
+                                    <span class="status-badge" style="background:#fee2e2;color:#991b1b;">⚠ Expiré</span>
+                                @else
+                                    <span class="status-badge" style="background:#ffedd5;color:#9a3412;">⚠ Expire bientôt</span>
+                                @endif
+                            </td>
+                            <td>
+                                <div class="action-btns">
+                                    <a href="{{ route('entreprises.edit', $doc->entreprise_id) }}" class="action-btn btn-view">▶ Renouveler</a>
+                                </div>
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+        @else
+        <div class="empty-state">
+            <div class="empty-icon">🎉</div>
+            <h4 class="empty-title">Rien à signaler</h4>
+            <p class="empty-desc">Aucun document administratif expiré ni proche de l'expiration</p>
+        </div>
+        @endif
+    </div>
 </div>
 
 <script>

@@ -80,6 +80,8 @@
 
         @include('entreprises.partials.personnel_section', ['personnelData' => collect()])
 
+        @include('entreprises.partials.documents_administratifs_section', ['entrepriseDocuments' => collect()])
+
         <button type="submit" class="btn btn-success">Enregistrer</button>
         <a href="{{ route('entreprises.index') }}" class="btn btn-secondary">Annuler</a>
     </form>

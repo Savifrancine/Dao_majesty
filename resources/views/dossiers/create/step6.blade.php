@@ -741,6 +741,98 @@
                                     </div>
                                 @endif
 
+                                @php
+                                    $entrepriseDocPickerMap = [
+                                        'RCCM' => 'rccm',
+                                        "Copie legalisee de l'Identifiant Fiscal Unique (IFU)" => 'ifu',
+                                        'Etats financiers certifiés' => 'etat_financier',
+                                        'Attestation de non-exclusion de la commande publique' => 'non_exclusion',
+                                        'Attestation de catégorisation' => 'categorisation',
+                                        "Attestation d'imposition ou de situation fiscale en cours de validite" => 'regularite_fiscale',
+                                        'Attestation de regularite a la CNSS' => 'cnss',
+                                        'Attestation de non-faillite datant de moins de trois (03) mois' => 'non_faillite',
+                                        "Relevé d'identité bancaire (RIB)" => 'rib',
+                                    ];
+                                    $entrepriseDocPickerLabels = [
+                                        'rccm' => "RCCM de l'entreprise",
+                                        'ifu' => "IFU de l'entreprise",
+                                        'etat_financier' => 'État financier',
+                                        'non_exclusion' => 'Attestation de non-exclusion',
+                                        'categorisation' => 'Attestation de catégorisation',
+                                        'regularite_fiscale' => 'Attestation de régularité fiscale',
+                                        'cnss' => 'Attestation de régularité à la CNSS',
+                                        'non_faillite' => 'Attestation de non-faillite',
+                                        'rib' => 'RIB',
+                                    ];
+                                    $entrepriseDocPickerType = $entrepriseDocPickerMap[trim($currentDocument->nom ?? '')] ?? null;
+                                @endphp
+                                @if($entrepriseDocPickerType && $dossier->entreprise && $dossierDocument)
+                                    @php
+                                        $entrepriseDocsOrderColumn = match($entrepriseDocPickerType) {
+                                            'etat_financier' => 'annee',
+                                            'rib' => 'banque',
+                                            default => 'date_delivrance',
+                                        };
+                                        $entrepriseDocsForPicker = $dossier->entreprise->documentsAdministratifs()
+                                            ->where('type', $entrepriseDocPickerType)
+                                            ->with('fichiers')
+                                            ->orderByDesc($entrepriseDocsOrderColumn)
+                                            ->get();
+                                        $linkedEntrepriseIds = $dossierDocument->linked_entreprise_document_ids ?? [];
+                                    @endphp
+                                    @if($entrepriseDocsForPicker->isNotEmpty())
+                                        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px;margin-bottom:12px">
+                                            <div style="font-weight:700;margin-bottom:8px">Documents de l'entreprise disponibles</div>
+                                            @foreach($entrepriseDocsForPicker as $edoc)
+                                                <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+                                                    <input type="checkbox"
+                                                        class="entreprise-doc-checkbox-{{ $dossierDocument->id }}"
+                                                        value="{{ $edoc->id }}"
+                                                        onchange="window.applyEntrepriseDocumentSelection({{ $dossierDocument->id }})"
+                                                        {{ in_array($edoc->id, $linkedEntrepriseIds, true) ? 'checked' : '' }}>
+                                                    @if($entrepriseDocPickerType === 'etat_financier')
+                                                        {{ $entrepriseDocPickerLabels[$entrepriseDocPickerType] . ' ' . $edoc->annee }}
+                                                    @elseif($entrepriseDocPickerType === 'rib')
+                                                        {{ $edoc->banque ?: 'RIB (banque non précisée)' }}
+                                                    @else
+                                                        {{ $entrepriseDocPickerLabels[$entrepriseDocPickerType] }}
+                                                    @endif
+                                                    ({{ $edoc->fichiers->count() }} fichier(s))
+                                                    @if($edoc->date_expiration)
+                                                        @if($edoc->estExpire())
+                                                            <span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:0.78rem;font-weight:600;color:#991b1b;background:#fee2e2;">⚠ Expiré le {{ $edoc->date_expiration->format('d/m/Y') }}</span>
+                                                        @elseif($edoc->expireBientot())
+                                                            <span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:0.78rem;font-weight:600;color:#9a3412;background:#ffedd5;">⚠ Expire le {{ $edoc->date_expiration->format('d/m/Y') }}</span>
+                                                        @else
+                                                            <span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:0.78rem;font-weight:600;color:#166534;background:#dcfce7;">Valide jusqu'au {{ $edoc->date_expiration->format('d/m/Y') }}</span>
+                                                        @endif
+                                                    @endif
+                                                </label>
+                                            @endforeach
+                                        </div>
+
+                                        @php $linkedEntrepriseFichiers = $dossierDocument->entrepriseFichiers(); @endphp
+                                        @if($linkedEntrepriseFichiers->isNotEmpty())
+                                            @php $excludedEntrepriseIds = $dossierDocument->excluded_entreprise_fichier_ids ?? []; @endphp
+                                            <div style="margin-bottom:8px">
+                                                <div style="font-weight:700;margin-bottom:6px">Pièces de l'entreprise référencées</div>
+                                                @foreach($linkedEntrepriseFichiers as $ef)
+                                                    <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
+                                                        <a href="{{ asset('storage/' . $ef->chemin_fichier) }}" target="_blank">{{ $ef->nom_original ?: basename($ef->chemin_fichier) }}</a>
+                                                        <label style="font-size:0.9rem;color:#b91c1c">
+                                                            <input type="checkbox" name="exclude_entreprise_fichier_ids[]" value="{{ $ef->id }}" {{ in_array($ef->id, $excludedEntrepriseIds, true) ? 'checked' : '' }}> Retirer pour ce dossier
+                                                        </label>
+                                                    </div>
+                                                @endforeach
+                                            </div>
+                                        @endif
+                                    @else
+                                        <div class="wizard-alert" style="margin-bottom:8px">
+                                            Aucun document "{{ trim($currentDocument->nom) }}" n'est encore enregistré sur la fiche de l'entreprise. Vous pouvez en ajouter un sur la page de l'entreprise, ou téléverser directement ci-dessous pour ce dossier uniquement.
+                                        </div>
+                                    @endif
+                                @endif
+
                                 @if($existingFiles && $existingFiles->count() > 0)
                                     <div style="margin-bottom:8px">
                                         <div style="font-weight:700;margin-bottom:6px">Fichiers existants</div>
@@ -753,7 +845,10 @@
                                     </div>
                                 @endif
 
-                                <input type="file" class="form-control wizard-input" name="fichiers[{{ $currentDocument->id }}][]" id="fichier_{{ $currentDocument->id }}" multiple {{ ($existingFiles && $existingFiles->count() > 0) ? '' : 'required' }}>
+                                @php
+                                    $hasEntrepriseFichiers = $dossierDocument && !empty($dossierDocument->linked_entreprise_document_ids) && $dossierDocument->entrepriseFichiers()->isNotEmpty();
+                                @endphp
+                                <input type="file" class="form-control wizard-input" name="fichiers[{{ $currentDocument->id }}][]" id="fichier_{{ $currentDocument->id }}" multiple {{ (($existingFiles && $existingFiles->count() > 0) || $hasEntrepriseFichiers) ? '' : 'required' }}>
                             @endif
                         </div>
                 </div>
@@ -773,6 +868,41 @@
         </div>
     </div>
 </div>
+
+<script>
+    // Meme principe que window.applyEntreprisePersonnelCv (Formulaire PER) :
+    // un formulaire independant, directement attache au body, pour eviter
+    // de casser le formulaire principal de l'etape 6 (pas de <form> imbrique)
+    // et appliquer le choix immediatement a chaque coche/decoche.
+    window.applyEntrepriseDocumentSelection = function (dossierDocumentId) {
+        const checkboxes = document.querySelectorAll('.entreprise-doc-checkbox-' + dossierDocumentId);
+        const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}';
+
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '{{ route('dossiers.applyEntrepriseDocumentSelection', $dossier->id) }}';
+        form.style.display = 'none';
+
+        const addField = (name, value) => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = name;
+            input.value = value;
+            form.appendChild(input);
+        };
+
+        addField('_token', token);
+        addField('dossier_document_id', dossierDocumentId);
+        checkboxes.forEach((checkbox) => {
+            if (checkbox.checked) {
+                addField('entreprise_document_ids[]', checkbox.value);
+            }
+        });
+
+        document.body.appendChild(form);
+        form.submit();
+    };
+</script>
 
 <script src="{{ asset('js/dossier-presence.js') }}"></script>
 <script>

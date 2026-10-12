@@ -17,6 +17,13 @@ class DossierDocument extends Model
         'statut',
         'content',
         'reference_model',
+        'linked_entreprise_document_ids',
+        'excluded_entreprise_fichier_ids',
+    ];
+
+    protected $casts = [
+        'linked_entreprise_document_ids' => 'array',
+        'excluded_entreprise_fichier_ids' => 'array',
     ];
 
     /**
@@ -57,5 +64,28 @@ class DossierDocument extends Model
     public function bordereau(): HasMany
     {
         return $this->hasMany(Bordereau::class);
+    }
+
+    /**
+     * Fichiers des documents administratifs de l'entreprise (RCCM, IFU,
+     * etats financiers...) lies a cette piece du dossier - references
+     * directement, jamais copies, moins ceux explicitement exclus pour ce
+     * dossier. Meme principe que FormulairePER::cvFichiers().
+     */
+    public function entrepriseFichiers(): \Illuminate\Support\Collection
+    {
+        $linkedIds = $this->linked_entreprise_document_ids ?? [];
+        if (empty($linkedIds)) {
+            return collect();
+        }
+
+        $excluded = $this->excluded_entreprise_fichier_ids ?? [];
+
+        return EntrepriseDocument::whereIn('id', $linkedIds)
+            ->with('fichiers')
+            ->get()
+            ->flatMap(fn (EntrepriseDocument $d) => $d->fichiers)
+            ->reject(fn (EntrepriseDocumentFichier $f) => in_array($f->id, $excluded, true))
+            ->values();
     }
 }

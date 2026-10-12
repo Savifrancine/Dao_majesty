@@ -115,6 +115,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/dossiers/{dossier}/documents/ordre-standard', [App\Http\Controllers\DossierController::class, 'applyStandardOrder'])->name('dossiers.standardOrder');
     Route::post('/dossiers/{dossier}/presence', [App\Http\Controllers\DossierController::class, 'presencePing'])->name('dossiers.presence');
     Route::post('/dossiers/{dossier}/appliquer-cv-personnel', [App\Http\Controllers\DossierController::class, 'applyEntreprisePersonnelCv'])->name('dossiers.applyEntreprisePersonnelCv');
+    Route::post('/dossiers/{dossier}/appliquer-document-entreprise', [App\Http\Controllers\DossierController::class, 'applyEntrepriseDocumentSelection'])->name('dossiers.applyEntrepriseDocumentSelection');
 
     // Wizard steps
     Route::get('/dossiers/create', [App\Http\Controllers\DossierController::class, 'create'])->name('dossiers.create');

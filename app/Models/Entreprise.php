@@ -47,4 +47,14 @@ class Entreprise extends Model
     {
         return $this->hasMany(EntreprisePersonnel::class);
     }
+
+    /**
+     * Documents administratifs de l'entreprise (RCCM, IFU, etats financiers
+     * par annee...) : references directement depuis un dossier, jamais
+     * copies, sur le meme principe que les CV des personnels.
+     */
+    public function documentsAdministratifs(): HasMany
+    {
+        return $this->hasMany(EntrepriseDocument::class);
+    }
 }

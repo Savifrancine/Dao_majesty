@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Entreprise;
+use App\Models\EntrepriseDocument;
+use App\Models\EntrepriseDocumentFichier;
 use App\Models\EntreprisePersonnel;
 use App\Models\EntreprisePersonnelFichier;
 use Illuminate\Http\Request;
@@ -49,6 +51,7 @@ class EntrepriseController extends Controller
 
         $entreprise = Entreprise::create($data);
         $this->syncPersonnels($request, $entreprise);
+        $this->syncDocumentsAdministratifs($request, $entreprise);
 
         return redirect()->route('entreprises.index')->with('success', 'Entreprise créée avec succès.');
     }
@@ -89,6 +92,7 @@ class EntrepriseController extends Controller
 
         $entreprise->update($data);
         $this->syncPersonnels($request, $entreprise);
+        $this->syncDocumentsAdministratifs($request, $entreprise);
 
         return redirect()->route('entreprises.index')->with('success', 'Entreprise mise à jour.');
     }
@@ -106,6 +110,12 @@ class EntrepriseController extends Controller
 
         foreach ($entreprise->personnels()->with('fichiers')->get() as $personnel) {
             foreach ($personnel->fichiers as $fichier) {
+                Storage::disk('public')->delete($fichier->chemin_fichier);
+            }
+        }
+
+        foreach ($entreprise->documentsAdministratifs()->with('fichiers')->get() as $document) {
+            foreach ($document->fichiers as $fichier) {
                 Storage::disk('public')->delete($fichier->chemin_fichier);
             }
         }
@@ -285,6 +295,152 @@ class EntrepriseController extends Controller
                 Storage::disk('public')->delete($fichier->chemin_fichier);
             }
             $personnel->delete();
+        }
+    }
+
+    /**
+     * Documents administratifs de l'entreprise : RCCM et IFU (un seul
+     * emplacement chacun, plusieurs fichiers possibles - ex. plusieurs
+     * pages scannees) + des types "repetables" : Etats financiers (un
+     * emplacement par annee), Attestation de non-exclusion (renouvelee
+     * chaque annee) et Attestation de categorisation (renouvelee tous les
+     * 5 ans) - un emplacement par date d'expiration, pour garder l'historique
+     * au lieu d'ecraser l'ancienne piece a chaque renouvellement. Ces
+     * documents sont ensuite references (jamais copies) depuis un dossier,
+     * sur le meme principe que les CV des personnels.
+     */
+    private function syncDocumentsAdministratifs(Request $request, Entreprise $entreprise): void
+    {
+        $validated = $request->validate([
+            'documents_administratifs' => ['nullable', 'array'],
+            'documents_administratifs.rccm.delete_fichier_ids' => ['nullable', 'array'],
+            'documents_administratifs.rccm.delete_fichier_ids.*' => ['integer'],
+            'documents_administratifs.ifu.delete_fichier_ids' => ['nullable', 'array'],
+            'documents_administratifs.ifu.delete_fichier_ids.*' => ['integer'],
+            'etats_financiers' => ['nullable', 'array'],
+            'etats_financiers.*.annee' => ['nullable', 'integer', 'min:1900', 'max:2100'],
+            'etats_financiers.*.delete_fichier_ids' => ['nullable', 'array'],
+            'etats_financiers.*.delete_fichier_ids.*' => ['integer'],
+            'non_exclusion' => ['nullable', 'array'],
+            'non_exclusion.*.date_delivrance' => ['nullable', 'date'],
+            'non_exclusion.*.delete_fichier_ids' => ['nullable', 'array'],
+            'non_exclusion.*.delete_fichier_ids.*' => ['integer'],
+            'categorisation' => ['nullable', 'array'],
+            'categorisation.*.date_delivrance' => ['nullable', 'date'],
+            'categorisation.*.delete_fichier_ids' => ['nullable', 'array'],
+            'categorisation.*.delete_fichier_ids.*' => ['integer'],
+            'regularite_fiscale' => ['nullable', 'array'],
+            'regularite_fiscale.*.date_delivrance' => ['nullable', 'date'],
+            'regularite_fiscale.*.delete_fichier_ids' => ['nullable', 'array'],
+            'regularite_fiscale.*.delete_fichier_ids.*' => ['integer'],
+            'cnss' => ['nullable', 'array'],
+            'cnss.*.date_delivrance' => ['nullable', 'date'],
+            'cnss.*.delete_fichier_ids' => ['nullable', 'array'],
+            'cnss.*.delete_fichier_ids.*' => ['integer'],
+            'non_faillite' => ['nullable', 'array'],
+            'non_faillite.*.date_delivrance' => ['nullable', 'date'],
+            'non_faillite.*.delete_fichier_ids' => ['nullable', 'array'],
+            'non_faillite.*.delete_fichier_ids.*' => ['integer'],
+            'rib' => ['nullable', 'array'],
+            'rib.*.banque' => ['nullable', 'string', 'max:255'],
+            'rib.*.delete_fichier_ids' => ['nullable', 'array'],
+            'rib.*.delete_fichier_ids.*' => ['integer'],
+        ]);
+
+        foreach (['rccm', 'ifu'] as $type) {
+            $document = EntrepriseDocument::firstOrCreate([
+                'entreprise_id' => $entreprise->id,
+                'type' => $type,
+            ]);
+
+            $row = $validated['documents_administratifs'][$type] ?? [];
+            $this->deleteEntrepriseDocumentFichiers($document, $row['delete_fichier_ids'] ?? []);
+            $this->storeEntrepriseDocumentFichiers($request, $document, "documents_administratifs.$type.fichiers");
+        }
+
+        $this->syncRepeatableEntrepriseDocuments($request, $entreprise, 'etat_financier', 'annee', $validated['etats_financiers'] ?? [], 'etats_financiers_fichiers');
+        $this->syncRepeatableEntrepriseDocuments($request, $entreprise, 'non_exclusion', 'date_delivrance', $validated['non_exclusion'] ?? [], 'non_exclusion_fichiers');
+        $this->syncRepeatableEntrepriseDocuments($request, $entreprise, 'categorisation', 'date_delivrance', $validated['categorisation'] ?? [], 'categorisation_fichiers');
+        $this->syncRepeatableEntrepriseDocuments($request, $entreprise, 'regularite_fiscale', 'date_delivrance', $validated['regularite_fiscale'] ?? [], 'regularite_fiscale_fichiers');
+        $this->syncRepeatableEntrepriseDocuments($request, $entreprise, 'cnss', 'date_delivrance', $validated['cnss'] ?? [], 'cnss_fichiers');
+        $this->syncRepeatableEntrepriseDocuments($request, $entreprise, 'non_faillite', 'date_delivrance', $validated['non_faillite'] ?? [], 'non_faillite_fichiers');
+        $this->syncRepeatableEntrepriseDocuments($request, $entreprise, 'rib', 'banque', $validated['rib'] ?? [], 'rib_fichiers');
+    }
+
+    /**
+     * Synchronise un type de document "repetable" (plusieurs emplacements
+     * distincts pour un meme type, un par annee ou par date d'expiration) :
+     * cree/met a jour chaque bloc soumis (cle = id existant ou "new_N"),
+     * puis supprime (avec ses fichiers) tout emplacement existant qui n'a
+     * pas ete soumis a nouveau.
+     */
+    private function syncRepeatableEntrepriseDocuments(Request $request, Entreprise $entreprise, string $type, string $column, array $rows, string $fichiersField): void
+    {
+        $submittedIds = [];
+
+        foreach ($rows as $key => $row) {
+            $value = $row[$column] ?? null;
+            if (!$value) {
+                continue;
+            }
+
+            $document = is_numeric($key)
+                ? EntrepriseDocument::where('entreprise_id', $entreprise->id)->where('type', $type)->find((int) $key)
+                : null;
+
+            if ($document) {
+                $document->update([$column => $value]);
+            } else {
+                $document = EntrepriseDocument::create([
+                    'entreprise_id' => $entreprise->id,
+                    'type' => $type,
+                    $column => $value,
+                ]);
+            }
+
+            $submittedIds[] = $document->id;
+
+            $this->deleteEntrepriseDocumentFichiers($document, $row['delete_fichier_ids'] ?? []);
+            $this->storeEntrepriseDocumentFichiers($request, $document, "$fichiersField.$key");
+        }
+
+        $removed = EntrepriseDocument::where('entreprise_id', $entreprise->id)
+            ->where('type', $type)
+            ->whereNotIn('id', $submittedIds)
+            ->with('fichiers')
+            ->get();
+        foreach ($removed as $document) {
+            foreach ($document->fichiers as $fichier) {
+                Storage::disk('public')->delete($fichier->chemin_fichier);
+            }
+            $document->delete();
+        }
+    }
+
+    private function deleteEntrepriseDocumentFichiers(EntrepriseDocument $document, array $fichierIds): void
+    {
+        foreach ($fichierIds as $fichierId) {
+            $fichier = EntrepriseDocumentFichier::where('entreprise_document_id', $document->id)->find($fichierId);
+            if ($fichier) {
+                Storage::disk('public')->delete($fichier->chemin_fichier);
+                $fichier->delete();
+            }
+        }
+    }
+
+    private function storeEntrepriseDocumentFichiers(Request $request, EntrepriseDocument $document, string $fileInputKey): void
+    {
+        foreach ($request->file($fileInputKey, []) as $uploaded) {
+            if (!$uploaded) {
+                continue;
+            }
+            $chemin = $uploaded->store('entreprise_documents/pieces', 'public');
+            EntrepriseDocumentFichier::create([
+                'entreprise_document_id' => $document->id,
+                'chemin_fichier' => $chemin,
+                'nom_original' => $uploaded->getClientOriginalName(),
+                'utilisateur_id' => auth()->id(),
+            ]);
         }
     }
 }
