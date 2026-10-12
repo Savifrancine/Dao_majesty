@@ -979,7 +979,7 @@
                 <thead>
                     <tr>
                         <th>Nom du dossier</th>
-                        <th>Type</th>
+                        <th>Offre</th>
                         <th>Entreprise</th>
                         <th>Statut</th>
                         <th>Visibilité</th>
@@ -996,7 +996,7 @@
                                 <strong>{{ $dossier->nom_dossier }}</strong>
                             </div>
                         </td>
-                        <td>{{ $dossier->typeDossier->nom }}</td>
+                        <td>@include('dossiers.partials.offre_badge', ['dossier' => $dossier])</td>
                         <td>{{ $dossier->entreprise->nom }}</td>
                         <td>
                             @if($dossier->statut === 'en_cours')
@@ -1019,6 +1019,10 @@
                             <div class="action-btns">
                                 <a href="{{ route('dossiers.show', $dossier) }}" class="action-btn btn-view">▶ Continuer</a>
                                 <a href="{{ route('dossiers.show', $dossier) }}" class="action-btn btn-view">✎ Modifier</a>
+                                <form action="{{ route('dossiers.duplicate', $dossier) }}" method="POST" style="display:inline" onsubmit="return confirm('Dupliquer ce dossier ? Les pièces jointes téléversées ne seront pas copiées.');">
+                                    @csrf
+                                    <button type="submit" class="action-btn btn-view">⧉ Dupliquer</button>
+                                </form>
                                 <form action="{{ route('dossiers.destroy', $dossier) }}" method="POST" style="display:inline">
                                     @csrf
                                     <button type="submit" class="action-btn" style="background:#fee2e2;color:#991b1b;border-radius:8px;padding:8px 10px;font-weight:700">🗑 Supprimer</button>

@@ -4557,6 +4557,7 @@ class DossierController extends Controller
                     ->orWhere('lot', 'like', "%{$search}%")
                     ->orWhere('public_prive', 'like', "%{$search}%")
                     ->orWhere('statut', 'like', "%{$search}%")
+                    ->orWhere('type_offre', 'like', "%{$search}%")
                     ->orWhereHas('entreprise', function ($q2) use ($search) {
                         $q2->where('nom', 'like', "%{$search}%")
                             ->orWhere('sigle', 'like', "%{$search}%");

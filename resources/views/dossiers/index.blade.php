@@ -61,7 +61,7 @@
                 type="search"
                 name="search"
                 class="form-control border-0"
-                placeholder="Rechercher par nom, entreprise, type, statut ou date (JJ/MM/AAAA)"
+                placeholder="Rechercher par nom, entreprise, offre, statut ou date (JJ/MM/AAAA)"
                 value="{{ request('search') }}"
                 aria-label="Rechercher des dossiers"
             />
@@ -79,7 +79,7 @@
                 <thead class="table-dark">
                     <tr>
                         <th>Nom</th>
-                        <th>Type</th>
+                        <th>Offre</th>
                         <th>Entreprise</th>
                         <th>Statut</th>
                         <th>Créé le</th>
@@ -100,7 +100,7 @@
                                 <span class="badge bg-info-subtle text-info-emphasis">🌐 Public</span>
                             @endif
                         </td>
-                        <td>{{ $dossier->typeDossier->nom }}</td>
+                        <td>@include('dossiers.partials.offre_badge', ['dossier' => $dossier])</td>
                         <td>{{ $dossier->entreprise->nom }}</td>
                         <td>
                             @if($dossier->statut === 'en_cours')
@@ -134,6 +134,10 @@
                                 @endif
 
                                 <a href="{{ route('dossiers.show', $dossier) }}" class="btn btn-sm btn-outline-primary">✎ Modifier</a>
+                                <form action="{{ route('dossiers.duplicate', $dossier) }}" method="POST" style="display:inline" onsubmit="return confirm('Dupliquer ce dossier ? Les pièces jointes téléversées ne seront pas copiées.');">
+                                    @csrf
+                                    <button class="btn btn-sm btn-outline-secondary" type="submit">⧉ Dupliquer</button>
+                                </form>
                                 <form action="{{ route('dossiers.destroy', $dossier) }}" method="POST" style="display:inline">
                                     @csrf
                                     <button class="btn btn-sm btn-outline-danger" type="submit">🗑 Supprimer</button>
