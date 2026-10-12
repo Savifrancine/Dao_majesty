@@ -15,6 +15,7 @@ class FormulairePER extends Model
         'dossier_id',
         'personnel_position',
         'source_entreprise_personnel_id',
+        'excluded_cv_fichier_ids',
         'nom_candidat',
         'poste',
         'nom_personnel',
@@ -38,6 +39,7 @@ class FormulairePER extends Model
         'date_naissance' => 'date',
         'date_signature' => 'date',
         'experiences' => 'array',
+        'excluded_cv_fichier_ids' => 'array',
     ];
 
     public function dossier(): BelongsTo
@@ -58,5 +60,23 @@ class FormulairePER extends Model
     public function sourceEntreprisePersonnel(): BelongsTo
     {
         return $this->belongsTo(EntreprisePersonnel::class, 'source_entreprise_personnel_id');
+    }
+
+    /**
+     * Pieces jointes du CV lie (entreprise_personnel_fichiers), moins
+     * celles explicitement exclues pour ce dossier (bouton "Retirer" cote
+     * Formulaire PER). Vide si aucun CV n'est lie a cette personne.
+     */
+    public function cvFichiers(): \Illuminate\Support\Collection
+    {
+        if (!$this->sourceEntreprisePersonnel) {
+            return collect();
+        }
+
+        $excluded = $this->excluded_cv_fichier_ids ?? [];
+
+        return $this->sourceEntreprisePersonnel->fichiers
+            ->reject(fn (EntreprisePersonnelFichier $f) => in_array($f->id, $excluded, true))
+            ->values();
     }
 }

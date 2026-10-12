@@ -158,10 +158,11 @@
 
         <!-- Signature section removed as requested -->
 
-        @if($formulaire_per->fichiers->isNotEmpty())
+        @php $toutesLesPieces = $formulaire_per->fichiers->concat($formulaire_per->cvFichiers()); @endphp
+        @if($toutesLesPieces->isNotEmpty())
             <div style="margin-top:16px; font-size:11px; font-weight:700;">Pièces jointes</div>
             <div style="font-size:10px;">
-                @foreach($formulaire_per->fichiers as $fichier)
+                @foreach($toutesLesPieces as $fichier)
                     <div>— {{ $fichier->nom_original ?: basename($fichier->chemin_fichier) }}</div>
                 @endforeach
             </div>

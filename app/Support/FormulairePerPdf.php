@@ -9,7 +9,7 @@ class FormulairePerPdf
 {
     public static function render(FormulairePER $formulaire_per): string
     {
-        $formulaire_per->loadMissing('fichiers');
+        $formulaire_per->loadMissing(['fichiers', 'sourceEntreprisePersonnel.fichiers']);
         $html = view('formulaire_per.pdf', compact('formulaire_per'))->render();
 
         $dompdf = new Dompdf();

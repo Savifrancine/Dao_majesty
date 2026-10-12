@@ -3,7 +3,7 @@
         $formulairesPer = \App\Models\FormulairePER::where('dossier_id', $dossier->id)
             ->whereNotNull('personnel_position')
             ->orderBy('personnel_position')
-            ->with(['fichiers', 'sourceEntreprisePersonnel'])
+            ->with(['fichiers', 'sourceEntreprisePersonnel.fichiers'])
             ->get();
 
         $entreprisePersonnels = $dossier->entreprise
@@ -126,6 +126,22 @@
 
                 <div style="margin-top:14px;">
                     <label class="wizard-label">Pièces jointes (diplômes, certificats...)</label>
+
+                    @php $cvFichiers = $f->cvFichiers(); @endphp
+                    @if($cvFichiers->isNotEmpty())
+                        <div style="font-size:12px; color:#6b7280; margin-bottom:4px;">Déjà enregistrées sur le CV « {{ $f->sourceEntreprisePersonnel->intitule ?: 'sans intitulé' }} » :</div>
+                        <div style="margin-bottom:10px;">
+                            @foreach($cvFichiers as $fichier)
+                                <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
+                                    <a href="{{ asset('storage/' . $fichier->chemin_fichier) }}" target="_blank" rel="noopener noreferrer">{{ $fichier->nom_original ?: basename($fichier->chemin_fichier) }}</a>
+                                    <label style="font-size:0.85rem; color:#b91c1c;">
+                                        <input type="checkbox" name="per[{{ $f->id }}][exclude_cv_fichier_ids][]" value="{{ $fichier->id }}"> Retirer pour ce dossier
+                                    </label>
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
+
                     @if($f->fichiers->isNotEmpty())
                         <div style="margin-bottom:6px;">
                             @foreach($f->fichiers as $fichier)
@@ -139,6 +155,7 @@
                         </div>
                     @endif
                     <input type="file" name="per_fichiers[{{ $f->id }}][]" multiple class="form-control" style="max-width:420px;">
+                    <div style="font-size:11px; color:#9ca3af; margin-top:2px;">Ajoutez ici des pièces propres à ce dossier, en plus de celles déjà sur le CV.</div>
                 </div>
 
                 <div style="text-align:right; margin-top:8px;">

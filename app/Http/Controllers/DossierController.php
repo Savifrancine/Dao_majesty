@@ -1188,12 +1188,14 @@ class DossierController extends Controller
     }
 
     /**
-     * Applique un CV de l'entreprise sur un Formulaire PER : copie les champs
+     * Lie un CV de l'entreprise a un Formulaire PER : copie les champs
      * (fill-empty-only par defaut, ou ecrase si $forceOverwrite - choix
-     * explicite via le bouton "Appliquer") et copie ses pieces jointes de
-     * facon additive (jamais de doublon, jamais de suppression de celles
-     * deja ajoutees manuellement sur ce dossier). Poste et nom restent
-     * toujours derives de la Liste du personnel, jamais de l'entreprise.
+     * explicite via le bouton "Appliquer"). Les pieces jointes du CV ne sont
+     * PAS dupliquees : elles restent sur l'entreprise et sont affichees
+     * directement partout ou ce Formulaire PER est consulte (formulaire,
+     * apercu, PDF genere) via $record->cvFichiers() - voir FormulairePER.
+     * Poste et nom restent toujours derives de la Liste du personnel,
+     * jamais de l'entreprise.
      */
     private function applyEntreprisePersonnelToFormulairePer(FormulairePER $record, EntreprisePersonnel $entreprisePersonnel, bool $forceOverwrite): void
     {
@@ -1216,36 +1218,14 @@ class DossierController extends Controller
             }
         }
 
+        // Changer de CV rend les exclusions precedentes (qui visaient les
+        // pieces de l'ANCIEN CV) sans objet.
+        if ($forceOverwrite && $record->source_entreprise_personnel_id !== $entreprisePersonnel->id) {
+            $record->excluded_cv_fichier_ids = [];
+        }
+
         $record->source_entreprise_personnel_id = $entreprisePersonnel->id;
         $record->save();
-
-        $alreadyCopied = FormulairePerFichier::where('formulaire_per_id', $record->id)
-            ->whereNotNull('source_fichier_id')
-            ->pluck('source_fichier_id')
-            ->all();
-
-        foreach ($entreprisePersonnel->fichiers as $sourceFichier) {
-            if (in_array($sourceFichier->id, $alreadyCopied, true)) {
-                continue;
-            }
-
-            $sourcePath = storage_path('app/public/' . ltrim($sourceFichier->chemin_fichier, '/'));
-            if (!file_exists($sourcePath)) {
-                continue;
-            }
-
-            $ext = pathinfo($sourcePath, PATHINFO_EXTENSION);
-            $newRelativePath = 'formulaire_per/pieces/' . \Illuminate\Support\Str::random(40) . ($ext !== '' ? '.' . $ext : '');
-            Storage::disk('public')->put($newRelativePath, file_get_contents($sourcePath));
-
-            FormulairePerFichier::create([
-                'formulaire_per_id' => $record->id,
-                'source_fichier_id' => $sourceFichier->id,
-                'chemin_fichier' => $newRelativePath,
-                'nom_original' => $sourceFichier->nom_original,
-                'utilisateur_id' => auth()->id(),
-            ]);
-        }
     }
 
     /**
@@ -1260,19 +1240,22 @@ class DossierController extends Controller
         FormulairePER::where('dossier_id', $dossier->id)
             ->whereNotNull('personnel_position')
             ->orderBy('personnel_position')
-            ->with('fichiers')
+            ->with(['fichiers', 'sourceEntreprisePersonnel.fichiers'])
             ->get()
             ->each(function (FormulairePER $record) use (&$paths) {
                 $path = tempnam(sys_get_temp_dir(), 'formulaire_per_') . '.pdf';
                 file_put_contents($path, FormulairePerPdf::render($record));
                 $paths[] = $path;
 
-                // Pieces jointes de cette personne (diplomes, certificats...) :
+                // Pieces jointes de cette personne : celles ajoutees
+                // directement sur ce dossier, PLUS celles du CV de
+                // l'entreprise lie (moins celles explicitement exclues) -
                 // inserees juste apres sa page, avant de passer a la personne
                 // suivante. On travaille sur des COPIES temporaires (jamais le
                 // fichier original) puisque l'appelant supprime tout ce que
                 // cette methode renvoie une fois la fusion terminee.
-                foreach ($record->fichiers as $fichier) {
+                $toutesLesPieces = $record->fichiers->concat($record->cvFichiers());
+                foreach ($toutesLesPieces as $fichier) {
                     $fullPath = storage_path('app/public/' . ltrim($fichier->chemin_fichier, '/'));
                     if (!file_exists($fullPath)) {
                         continue;
@@ -2104,12 +2087,20 @@ class DossierController extends Controller
                     'per.*.experiences' => ['nullable', 'string'],
                     'per.*.delete_fichier_ids' => ['nullable', 'array'],
                     'per.*.delete_fichier_ids.*' => ['integer'],
+                    'per.*.exclude_cv_fichier_ids' => ['nullable', 'array'],
+                    'per.*.exclude_cv_fichier_ids.*' => ['integer'],
                     'per_fichiers' => ['nullable', 'array'],
                 ]);
 
                 foreach ($validated['per'] ?? [] as $id => $data) {
                     $deleteFichierIds = $data['delete_fichier_ids'] ?? [];
                     unset($data['delete_fichier_ids']);
+
+                    // Pieces du CV de l'entreprise que l'utilisateur ne veut
+                    // pas inclure pour CE dossier (ne supprime rien cote
+                    // entreprise, juste exclu de ce Formulaire PER).
+                    $data['excluded_cv_fichier_ids'] = array_map('intval', $data['exclude_cv_fichier_ids'] ?? []);
+                    unset($data['exclude_cv_fichier_ids']);
 
                     if (array_key_exists('experiences', $data)) {
                         $decodedExp = json_decode((string) $data['experiences'], true);
