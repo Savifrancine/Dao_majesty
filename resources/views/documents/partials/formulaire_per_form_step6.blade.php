@@ -35,12 +35,11 @@
                             Choisissez celui adapté à ce dossier :
                         </div>
                         <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-                            <select id="cvSelect-{{ $f->id }}" class="form-control" style="max-width:320px;">
+                            <select id="cvSelect-{{ $f->id }}" class="form-control" style="max-width:320px;" onchange="window.applyEntreprisePersonnelCv({{ $f->id }})">
                                 @foreach($matchingCvs as $cv)
                                     <option value="{{ $cv->id }}" @selected(optional($f->sourceEntreprisePersonnel)->id === $cv->id)>{{ $cv->intitule ?: ('CV #' . $cv->id) }}</option>
                                 @endforeach
                             </select>
-                            <button type="button" class="btn-action" style="background:#2563eb; color:#fff;" onclick="window.applyEntreprisePersonnelCv({{ $f->id }})">Appliquer ce CV</button>
                         </div>
                     </div>
                 @elseif($f->sourceEntreprisePersonnel)
@@ -167,15 +166,13 @@
 </div>
 
 <script>
-    // Soumis en dehors du formulaire principal de l'etape 6 (un element form
-    // ne peut pas en contenir un autre - le navigateur fermerait le formulaire
-    // de l'etape 6 en avance, rendant le bouton "Continuer" inoperant). On
-    // cree donc un formulaire independant, directement attache au body, au
-    // moment du clic.
+    // Declenche directement au changement du menu (plus besoin d'un bouton
+    // "Appliquer" separe). Soumis en dehors du formulaire principal de
+    // l'etape 6 (un element form ne peut pas en contenir un autre - le
+    // navigateur fermerait le formulaire de l'etape 6 en avance, rendant le
+    // bouton "Continuer" inoperant). On cree donc un formulaire independant,
+    // directement attache au body, au moment du changement.
     window.applyEntreprisePersonnelCv = function (formulairePerId) {
-        if (!confirm('Appliquer ce CV ? Les champs correspondants de cette personne seront remplacés par ceux de ce CV.')) {
-            return;
-        }
         const select = document.getElementById('cvSelect-' + formulairePerId);
         const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}';
 
