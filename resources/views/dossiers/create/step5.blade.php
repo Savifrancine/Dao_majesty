@@ -413,27 +413,17 @@
                 <input type="hidden" name="dossier_id" value="{{ $dossier->id }}">
 
                 <div class="wizard-field" style="margin-bottom:16px;">
-                    <label for="signataire_id" class="wizard-label">Signataire (pour déclaration de garantie)</label>
-                    <select id="signataire_id" name="signataire_id" class="form-control wizard-input">
-                        <option value="">-- Aucun --</option>
-                        @foreach($signataires as $signataire)
-                            <option value="{{ $signataire->id }}"
-                                {{ old('signataire_id') == $signataire->id ? 'selected' : '' }}>
-                                {{ $signataire->nom }} {{ $signataire->prenom }}{{ $signataire->fonction ? ' – ' . $signataire->fonction : '' }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
-
-                <div class="wizard-field" style="margin-bottom:16px;">
                     <label for="sommaireModele" class="wizard-label">Modèle de sommaire</label>
                     <select id="sommaireModele" class="form-control wizard-input">
                         <option value="">Sélection manuelle</option>
                         <option value="financiere" @if(str_contains(\Illuminate\Support\Str::lower($dossier->type_offre ?? ''), 'financ')) selected @endif>
                             Offre financière (pré-sélection standard)
                         </option>
+                        <option value="technique" @if(str_contains(\Illuminate\Support\Str::lower($dossier->type_offre ?? ''), 'techni')) selected @endif>
+                            Offre technique (pré-sélection standard)
+                        </option>
                     </select>
-                    <small style="color:#64748b;">Pré-coche les pièces habituelles de l'offre financière ; vous pouvez ensuite en ajouter ou en retirer librement.</small>
+                    <small style="color:#64748b;">Pré-coche les pièces habituelles de l'offre choisie ; vous pouvez ensuite en ajouter ou en retirer librement.</small>
                 </div>
 
                 <div class="wizard-field" style="margin-bottom:16px;">
@@ -633,13 +623,48 @@ const SOMMAIRE_FINANCIERE = [
     "Cadres de sous détails des prix unitaire",
 ];
 
+const SOMMAIRE_TECHNIQUE = [
+    "Formulaire ELI – 1.1 : Formulaire de renseignements sur le candidat",
+    "Déclaration de garantie d'offre",
+    "Attestation d'identification de statut",
+    "Formulaire de qualification",
+    "Formulaire EXP – 4.1 : Expérience générale de fournitures/services",
+    "Formulaire EXP – 4.2 a) Expérience spécifique de fournitures/services",
+    "Formulaire EXP – 4.2 a) (suite) Expérience spécifique de fournitures/services dans les activités principales (suite)",
+    "Formulaire EXP – 4.2 b)  Expérience spécifique de fournitures",
+    "Formulaire EXP – 4.2 b) (suite) Expérience spécifique de fournitures/services dans les activités principales (suite)",
+    "Formulaire ANT-2 : Formulaire renseignant sur les antécédents de marchés non exécutés, de litiges en instance et d'antécédents de litiges",
+    "Engagement du soumissionnaire à respecter le code d'éthique et de déontologie",
+    "Listes des Fournitures et Calendrier de livraison",
+    "Description technique des fournitures/services",
+    "Liste de Matériel",
+    "Fiche technique de chaque article, délivrée par le fabricant",
+    "Attestation de bonne fin",
+    "Bon de commande et contrats",
+    "Copie de l'arrêté du Ministre de la Santé portant autorisation d'importation, de détention et de vente des équipements médicaux",
+    "RCCM",
+    "Copie legalisee de l'Identifiant Fiscal Unique (IFU)",
+    "Attestation de non-faillite datant de moins de trois (03) mois",
+    "Attestation d'imposition ou de situation fiscale en cours de validite",
+    "Attestation de regularite a la CNSS",
+    "Attestation de non-exclusion de la commande publique",
+    "Relevé d'identité bancaire (RIB)",
+    "Formulaire de divulgation des bénéficiaires effectifs",
+    "Pièce d'identité du premier responsable",
+    "Déclaration de l'autorité contractante",
+    "Plan de charge",
+    "Formulaire MTC/FIN – 3.5 : Marchés de fournitures/services en cours",
+];
+
 const sommaireModeleSelect = document.getElementById('sommaireModele');
 
 function applySommaireModele(modele) {
-    if (modele !== 'financiere') return;
+    const listes = { financiere: SOMMAIRE_FINANCIERE, technique: SOMMAIRE_TECHNIQUE };
+    const liste = listes[modele];
+    if (!liste) return;
     checkboxes.forEach(cb => {
         if (cb.disabled) return;
-        if (SOMMAIRE_FINANCIERE.includes(cb.dataset.piece)) {
+        if (liste.includes(cb.dataset.piece)) {
             cb.checked = true;
         }
     });

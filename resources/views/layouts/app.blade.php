@@ -503,10 +503,9 @@
                 {{-- Formulaire MAT : retire du menu, genere automatiquement par
                      materiel depuis la Liste de Materiel du dossier (routes et
                      pages conservees, utilisees par les liens "PDF" de l'etape 6). --}}
-                    <a href="{{ route('chiffres.index') }}" class="menu-item">
-                        <span class="icon">📈</span>
-                        <span>Chiffres d'affaires</span>
-                    </a>
+                {{-- Chiffres d'affaires : retire du menu (routes et pages
+                     conservees, la bibliotheque reste alimentee automatiquement
+                     depuis la section Finance de l'entreprise). --}}
                 <a href="{{ route('dossiers.index') }}" class="menu-item">
                     <span class="icon">📂</span>
                     <span>Listes</span>
