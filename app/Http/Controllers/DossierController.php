@@ -4520,6 +4520,16 @@ class DossierController extends Controller
             'categorie_cible' => ['required', 'string', 'in:' . implode(',', array_keys(self::OFFER_CATEGORIES))],
         ]);
 
+        // Re-verifie cote serveur que cette categorie n'existe pas deja pour
+        // ce marche (meme reference_dossier + meme entreprise) : le bouton
+        // n'est normalement propose que si elle manque, mais on se protege
+        // ici d'un double-clic, d'une page restee ouverte ou d'un appel
+        // direct de la route une fois l'offre deja creee par ailleurs.
+        if (!array_key_exists($data['categorie_cible'], $this->missingOfferCategories($dossier))) {
+            return redirect()->route('dossiers.show', $dossier->id)
+                ->with('error', 'Cette offre existe déjà pour ce marché.');
+        }
+
         $newLabel = self::OFFER_CATEGORIES[$data['categorie_cible']]['label'];
 
         $copy = $this->replicateDossierData($dossier);
