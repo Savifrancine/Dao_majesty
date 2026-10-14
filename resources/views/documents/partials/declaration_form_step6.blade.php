@@ -16,7 +16,7 @@
         <label class="wizard-label">Choisir un modèle</label>
         <select id="template-select" name="template_id" class="form-control wizard-input">
             <option value="">-- Aucun --</option>
-            @foreach(App\Models\Template::where('type','declaration')->get() as $t)
+            @foreach(App\Models\Template::whereRaw('LOWER(TRIM(type)) = ?', ['declaration'])->get() as $t)
                 <option value="{{ $t->id }}" {{ (string) $value('template_id') === (string) $t->id ? 'selected' : '' }}>{{ $t->nom }}</option>
             @endforeach
         </select>

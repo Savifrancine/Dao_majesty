@@ -304,7 +304,7 @@ class EntrepriseController extends Controller
      * pages scannees) + des types "repetables" : Etats financiers (un
      * emplacement par annee), Attestation de non-exclusion (renouvelee
      * chaque annee) et Attestation de categorisation (renouvelee tous les
-     * 5 ans) - un emplacement par date d'expiration, pour garder l'historique
+     * 3 ans) - un emplacement par date d'expiration, pour garder l'historique
      * au lieu d'ecraser l'ancienne piece a chaque renouvellement. Ces
      * documents sont ensuite references (jamais copies) depuis un dossier,
      * sur le meme principe que les CV des personnels.
@@ -313,10 +313,8 @@ class EntrepriseController extends Controller
     {
         $validated = $request->validate([
             'documents_administratifs' => ['nullable', 'array'],
-            'documents_administratifs.rccm.delete_fichier_ids' => ['nullable', 'array'],
-            'documents_administratifs.rccm.delete_fichier_ids.*' => ['integer'],
-            'documents_administratifs.ifu.delete_fichier_ids' => ['nullable', 'array'],
-            'documents_administratifs.ifu.delete_fichier_ids.*' => ['integer'],
+            'documents_administratifs.*.delete_fichier_ids' => ['nullable', 'array'],
+            'documents_administratifs.*.delete_fichier_ids.*' => ['integer'],
             'etats_financiers' => ['nullable', 'array'],
             'etats_financiers.*.annee' => ['nullable', 'integer', 'min:1900', 'max:2100'],
             'etats_financiers.*.delete_fichier_ids' => ['nullable', 'array'],
@@ -345,9 +343,17 @@ class EntrepriseController extends Controller
             'rib.*.banque' => ['nullable', 'string', 'max:255'],
             'rib.*.delete_fichier_ids' => ['nullable', 'array'],
             'rib.*.delete_fichier_ids.*' => ['integer'],
+            'bonne_fin' => ['nullable', 'array'],
+            'bonne_fin.*.intitule' => ['nullable', 'string', 'max:255'],
+            'bonne_fin.*.delete_fichier_ids' => ['nullable', 'array'],
+            'bonne_fin.*.delete_fichier_ids.*' => ['integer'],
+            'bon_commande_contrats' => ['nullable', 'array'],
+            'bon_commande_contrats.*.intitule' => ['nullable', 'string', 'max:255'],
+            'bon_commande_contrats.*.delete_fichier_ids' => ['nullable', 'array'],
+            'bon_commande_contrats.*.delete_fichier_ids.*' => ['integer'],
         ]);
 
-        foreach (['rccm', 'ifu'] as $type) {
+        foreach (['rccm', 'ifu', 'identification_statut', 'arrete_ministre_sante', 'piece_identite_responsable'] as $type) {
             $document = EntrepriseDocument::firstOrCreate([
                 'entreprise_id' => $entreprise->id,
                 'type' => $type,
@@ -365,6 +371,8 @@ class EntrepriseController extends Controller
         $this->syncRepeatableEntrepriseDocuments($request, $entreprise, 'cnss', 'date_delivrance', $validated['cnss'] ?? [], 'cnss_fichiers');
         $this->syncRepeatableEntrepriseDocuments($request, $entreprise, 'non_faillite', 'date_delivrance', $validated['non_faillite'] ?? [], 'non_faillite_fichiers');
         $this->syncRepeatableEntrepriseDocuments($request, $entreprise, 'rib', 'banque', $validated['rib'] ?? [], 'rib_fichiers');
+        $this->syncRepeatableEntrepriseDocuments($request, $entreprise, 'bonne_fin', 'intitule', $validated['bonne_fin'] ?? [], 'bonne_fin_fichiers');
+        $this->syncRepeatableEntrepriseDocuments($request, $entreprise, 'bon_commande_contrats', 'intitule', $validated['bon_commande_contrats'] ?? [], 'bon_commande_contrats_fichiers');
     }
 
     /**

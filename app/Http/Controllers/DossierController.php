@@ -7,11 +7,13 @@ use App\Models\TypeMarche;
 use App\Models\Signataire;
 use App\Models\Entreprise;
 use App\Models\EntrepriseDocument;
+use App\Models\EntrepriseDocumentFichier;
 use App\Models\EntreprisePersonnel;
 use App\Models\TypeDossier;
 use App\Models\TypeDocument;
 use App\Models\DossierDocument;
 use App\Models\DossierChangeLog;
+use App\Models\DossierVersionFinale;
 use App\Models\DossierPresence;
 use App\Models\ChampDocument;
 use App\Models\ValeurDocument;
@@ -34,6 +36,7 @@ use App\Support\Exp42bSuitePdf;
 use App\Support\FormulairePerPdf;
 use App\Support\FormulaireMatPdf;
 use App\Support\MarcheIdentification;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Http\Request;
 use Dompdf\Dompdf;
@@ -106,6 +109,20 @@ class DossierController extends Controller
     private const LISTE_MATERIEL_NOM = 'Liste de Matériel';
 
     /**
+     * Les 3 categories d'offre reconnues pour un meme marche (detectees dans
+     * le champ libre "type_offre" via un mot-cle, comme deja fait par
+     * isOffreFinanciere() / offre_badge.blade.php) : sert a proposer, depuis
+     * un dossier deja rempli, de creer directement les offres manquantes du
+     * meme marche (ex: l'offre technique est faite, on propose de creer la
+     * financiere et l'administrative).
+     */
+    private const OFFER_CATEGORIES = [
+        'financiere' => ['keyword' => 'financ', 'label' => 'Offre financière'],
+        'technique' => ['keyword' => 'techniq', 'label' => 'Offre technique'],
+        'administrative' => ['keyword' => 'administrat', 'label' => 'Offre administrative'],
+    ];
+
+    /**
      * Afficher le dashboard home avec les dossiers
      */
     public function dashboardHome()
@@ -134,7 +151,7 @@ class DossierController extends Controller
             ->values();
 
         // Documents administratifs des entreprises qui expirent (Attestation de
-        // non-exclusion : 1 an, Attestation de categorisation : 5 ans) : pour
+        // non-exclusion : 1 an, Attestation de categorisation : 3 ans) : pour
         // chaque entreprise et chaque type, seul le renouvellement le plus
         // recent compte (les plus anciens restent en historique sans alerter).
         $expiringEntrepriseDocuments = EntrepriseDocument::whereIn('type', ['non_exclusion', 'categorisation', 'regularite_fiscale', 'cnss', 'non_faillite'])
@@ -685,11 +702,7 @@ class DossierController extends Controller
                 ]);
             }
 
-            foreach ($prefill as $field => $value) {
-                if (($record->{$field} === null || $record->{$field} === '') && $value !== null && $value !== '') {
-                    $record->{$field} = $value;
-                }
-            }
+            $this->applyExp42Prefill($record, $prefill);
             $record->save();
         }
 
@@ -697,6 +710,31 @@ class DossierController extends Controller
             ->whereNotNull('marche_position')
             ->where('marche_position', '>=', count($marches))
             ->delete();
+    }
+
+    /**
+     * Applique un pre-remplissage EXP 4.2 a)/b) a un enregistrement : les
+     * champs d'identification (marche, autorite, dates, role, contacts...)
+     * suivent toujours leur source (EXP 4.1, formulaire de qualification, ou
+     * EXP 4.2 a) pour b) - une correction y est donc repercutee a chaque
+     * sync, meme si le champ etait deja rempli. Seuls les montants
+     * (montant_total, montant_part) restent "rempli une fois" : un montant
+     * deja saisi n'est jamais ecrase, l'utilisateur garde la main dessus
+     * (voir knownMontantForMarche).
+     */
+    private function applyExp42Prefill(Model $record, array $prefill): void
+    {
+        $fillOnce = ['montant_total', 'montant_part'];
+
+        foreach ($prefill as $field => $value) {
+            if ($value === null || $value === '') {
+                continue;
+            }
+            if (in_array($field, $fillOnce, true) && $record->{$field} !== null && $record->{$field} !== '') {
+                continue;
+            }
+            $record->{$field} = $value;
+        }
     }
 
     /**
@@ -839,11 +877,7 @@ class DossierController extends Controller
                 ]);
             }
 
-            foreach ($prefill as $field => $value) {
-                if (($record->{$field} === null || $record->{$field} === '') && $value !== null && $value !== '') {
-                    $record->{$field} = $value;
-                }
-            }
+            $this->applyExp42Prefill($record, $prefill);
             $record->save();
         }
 
@@ -1414,6 +1448,31 @@ class DossierController extends Controller
     }
 
     /**
+     * Numerote les pages d'un rendu Dompdf deja effectue ("Page X / Y"),
+     * calcule a partir du nombre reel de pages de CE rendu, centre en bas
+     * de chaque page. Utilise uniquement quand le dossier entier tient dans
+     * un seul rendu Dompdf (aucune piece jointe a fusionner - voir le
+     * branchement "sans fusion" de generatePDF()). Meme mecanisme que
+     * resources/views/daos/correctionn.blade.php.
+     */
+    private function addPageNumbers(Dompdf $dompdf): void
+    {
+        try {
+            $canvas = $dompdf->get_canvas();
+            $font = $dompdf->getFontMetrics()->get_font('Helvetica', 'normal');
+            $size = 9;
+            $pageCount = $canvas->get_page_count();
+            $sample = "Page {$pageCount} / {$pageCount}";
+            $textWidth = $dompdf->getFontMetrics()->get_text_width($sample, $font, $size);
+            $x = ($canvas->get_width() - $textWidth) / 2;
+            $y = $canvas->get_height() - 36;
+            $canvas->page_text($x, $y, 'Page {PAGE_NUM} / {PAGE_COUNT}', $font, $size, [0, 0, 0]);
+        } catch (\Throwable $e) {
+            // En cas d'erreur, on continue sans numérotation.
+        }
+    }
+
+    /**
      * Documents administratifs de l'entreprise (RCCM, IFU, Etats financiers
      * certifiés) pouvant être référencés directement depuis cette pièce du
      * dossier, sans être re-téléversés. Retourne le "type" EntrepriseDocument
@@ -1434,6 +1493,11 @@ class DossierController extends Controller
             'Attestation de regularite a la CNSS' => 'cnss',
             'Attestation de non-faillite datant de moins de trois (03) mois' => 'non_faillite',
             "Relevé d'identité bancaire (RIB)" => 'rib',
+            "Attestation d'identification de statut" => 'identification_statut',
+            'Attestation de bonne fin' => 'bonne_fin',
+            'Bon de commande et contrats' => 'bon_commande_contrats',
+            "Copie de l'arrêté du Ministre de la Santé portant autorisation d'importation, de détention et de vente des équipements médicaux" => 'arrete_ministre_sante',
+            "Pièce d'identité du premier responsable" => 'piece_identite_responsable',
             default => null,
         };
     }
@@ -3521,6 +3585,7 @@ class DossierController extends Controller
                 $dompdf->loadHtml($html);
                 $dompdf->setPaper('A4', 'portrait');
                 $dompdf->render();
+                $this->addPageNumbers($dompdf);
 
                 $output = $dompdf->output();
                 $finalFilename = 'dossiers/documents/dossier_' . $dossier->id . '_base_' . time() . '.pdf';
@@ -3558,7 +3623,7 @@ class DossierController extends Controller
             $dompdfCover->render();
             $coverTemp = tempnam(sys_get_temp_dir(), 'dossier_cover_') . '.pdf';
             file_put_contents($coverTemp, $dompdfCover->output());
-            $filesToMerge[] = $coverTemp;
+            $filesToMerge[] = $this->numberedEntry($coverTemp);
             $tempFiles[] = $coverTemp;
 
             $htmlSummary = view('dossiers.pdf', compact('dossier', 'pageGardeDataUri', 'documents'))
@@ -3570,7 +3635,7 @@ class DossierController extends Controller
             $dompdfSummary->render();
             $summaryTemp = tempnam(sys_get_temp_dir(), 'dossier_summary_') . '.pdf';
             file_put_contents($summaryTemp, $dompdfSummary->output());
-            $filesToMerge[] = $summaryTemp;
+            $filesToMerge[] = $this->numberedEntry($summaryTemp);
             $tempFiles[] = $summaryTemp;
 
             foreach ($documents as $doc) {
@@ -3616,7 +3681,7 @@ class DossierController extends Controller
                 $dompdfTitle->render();
                 $titleTemp = tempnam(sys_get_temp_dir(), 'dossier_title_') . '.pdf';
                 file_put_contents($titleTemp, $dompdfTitle->output());
-                $filesToMerge[] = $titleTemp;
+                $filesToMerge[] = $this->numberedEntry($titleTemp);
                 $tempFiles[] = $titleTemp;
 
                 if (!$skipHtmlDocPage && !$hasNothingToShow) {
@@ -3633,55 +3698,55 @@ class DossierController extends Controller
                     $dompdfDoc->render();
                     $docTemp = tempnam(sys_get_temp_dir(), 'dossier_doc_') . '.pdf';
                     file_put_contents($docTemp, $dompdfDoc->output());
-                    $filesToMerge[] = $docTemp;
+                    $filesToMerge[] = $this->numberedEntry($docTemp);
                     $tempFiles[] = $docTemp;
                 }
 
                 foreach ($plan['pdfs'] as $f) {
-                    $filesToMerge[] = ['file' => storage_path('app/public/' . ltrim($f->chemin_fichier, '/')), 'label' => $doc->typeDocument->nom];
+                    $filesToMerge[] = $this->attachmentEntry(storage_path('app/public/' . ltrim($f->chemin_fichier, '/')), $doc->typeDocument->nom);
                 }
                 if ($plan['others']->isNotEmpty()) {
-                    $filesToMerge[] = ['placeholder' => true, 'label' => $doc->typeDocument->nom];
+                    $filesToMerge[] = $this->placeholderEntry($doc->typeDocument->nom);
                 }
                 if ($isExp42a) {
                     foreach ($this->exp42aPdfPaths($dossier) as $path) {
-                        $filesToMerge[] = $path;
+                        $filesToMerge[] = $this->numberedEntry($path);
                         $tempFiles[] = $path;
                     }
                 }
                 if ($isExp42b) {
                     foreach ($this->exp42bPdfPaths($dossier) as $path) {
-                        $filesToMerge[] = $path;
+                        $filesToMerge[] = $this->numberedEntry($path);
                         $tempFiles[] = $path;
                     }
                 }
                 if ($isExp42aSuite) {
                     foreach ($this->exp42aSuitePdfPaths($dossier) as $path) {
-                        $filesToMerge[] = $path;
+                        $filesToMerge[] = $this->numberedEntry($path);
                         $tempFiles[] = $path;
                     }
                 }
                 if ($isExp42bSuite) {
                     foreach ($this->exp42bSuitePdfPaths($dossier) as $path) {
-                        $filesToMerge[] = $path;
+                        $filesToMerge[] = $this->numberedEntry($path);
                         $tempFiles[] = $path;
                     }
                 }
                 if ($isFormulairePer) {
                     foreach ($this->formulairePerPdfPaths($dossier) as $path) {
-                        $filesToMerge[] = $path;
+                        $filesToMerge[] = $this->numberedEntry($path);
                         $tempFiles[] = $path;
                     }
                 }
                 if ($isFormulaireMat) {
                     foreach ($this->formulaireMatPdfPaths($dossier) as $path) {
-                        $filesToMerge[] = $path;
+                        $filesToMerge[] = $this->numberedEntry($path);
                         $tempFiles[] = $path;
                     }
                 }
                 if ($this->entrepriseDocumentPickerType($doc) !== null) {
                     foreach ($this->entrepriseDocumentPdfPaths($doc) as $path) {
-                        $filesToMerge[] = $path;
+                        $filesToMerge[] = $this->attachmentEntry($path, $doc->typeDocument->nom);
                         $tempFiles[] = $path;
                     }
                 }
@@ -3753,7 +3818,7 @@ class DossierController extends Controller
             $dompdfTitle->render();
             $titleTemp = tempnam(sys_get_temp_dir(), 'apercu_title_') . '.pdf';
             file_put_contents($titleTemp, $dompdfTitle->output());
-            $filesToMerge[] = $titleTemp;
+            $filesToMerge[] = $this->numberedEntry($titleTemp);
             $tempFiles[] = $titleTemp;
 
             $plan = $this->attachmentPlan($document);
@@ -3793,55 +3858,55 @@ class DossierController extends Controller
                 $dompdfDoc->render();
                 $docTemp = tempnam(sys_get_temp_dir(), 'apercu_doc_') . '.pdf';
                 file_put_contents($docTemp, $dompdfDoc->output());
-                $filesToMerge[] = $docTemp;
+                $filesToMerge[] = $this->numberedEntry($docTemp);
                 $tempFiles[] = $docTemp;
             }
 
             foreach ($plan['pdfs'] as $f) {
-                $filesToMerge[] = ['file' => storage_path('app/public/' . ltrim($f->chemin_fichier, '/')), 'label' => $docName];
+                $filesToMerge[] = $this->attachmentEntry(storage_path('app/public/' . ltrim($f->chemin_fichier, '/')), $docName);
             }
             if ($plan['others']->isNotEmpty()) {
-                $filesToMerge[] = ['placeholder' => true, 'label' => $docName];
+                $filesToMerge[] = $this->placeholderEntry($docName);
             }
             if ($this->isExp42aDoc($document)) {
                 foreach ($this->exp42aPdfPaths($dossier) as $path) {
-                    $filesToMerge[] = $path;
+                    $filesToMerge[] = $this->numberedEntry($path);
                     $tempFiles[] = $path;
                 }
             }
             if ($this->isExp42bDoc($document)) {
                 foreach ($this->exp42bPdfPaths($dossier) as $path) {
-                    $filesToMerge[] = $path;
+                    $filesToMerge[] = $this->numberedEntry($path);
                     $tempFiles[] = $path;
                 }
             }
             if ($this->isExp42aSuiteDoc($document)) {
                 foreach ($this->exp42aSuitePdfPaths($dossier) as $path) {
-                    $filesToMerge[] = $path;
+                    $filesToMerge[] = $this->numberedEntry($path);
                     $tempFiles[] = $path;
                 }
             }
             if ($this->isExp42bSuiteDoc($document)) {
                 foreach ($this->exp42bSuitePdfPaths($dossier) as $path) {
-                    $filesToMerge[] = $path;
+                    $filesToMerge[] = $this->numberedEntry($path);
                     $tempFiles[] = $path;
                 }
             }
             if ($this->isFormulairePerDoc($document)) {
                 foreach ($this->formulairePerPdfPaths($dossier) as $path) {
-                    $filesToMerge[] = $path;
+                    $filesToMerge[] = $this->numberedEntry($path);
                     $tempFiles[] = $path;
                 }
             }
             if ($this->isFormulaireMatDoc($document)) {
                 foreach ($this->formulaireMatPdfPaths($dossier) as $path) {
-                    $filesToMerge[] = $path;
+                    $filesToMerge[] = $this->numberedEntry($path);
                     $tempFiles[] = $path;
                 }
             }
             if ($this->entrepriseDocumentPickerType($document) !== null) {
                 foreach ($this->entrepriseDocumentPdfPaths($document) as $path) {
-                    $filesToMerge[] = $path;
+                    $filesToMerge[] = $this->attachmentEntry($path, $docName);
                     $tempFiles[] = $path;
                 }
             }
@@ -3862,9 +3927,44 @@ class DossierController extends Controller
     }
 
     /**
-     * Fusionne plusieurs fichiers PDF en un seul fichier de sortie en utilisant FPDI.
+     * Pièce de fusion correspondant à un document GÉNÉRÉ par l'appli (page de
+     * garde, sommaire, page de titre, rendu HTML d'un document, EXP 4.1/4.2,
+     * Formulaire PER/MAT...) : ses pages comptent dans la numérotation finale
+     * du dossier.
+     */
+    private function numberedEntry(string $path): array
+    {
+        return ['file' => $path, 'numbered' => true];
+    }
+
+    /**
+     * Pièce de fusion correspondant à une PIÈCE JOINTE brute (RCCM, IFU, RIB,
+     * attestation scannée...) : intégrée telle quelle dans le PDF final, mais
+     * jamais numérotée, car ce n'est pas un contenu généré par l'appli.
+     */
+    private function attachmentEntry(string $path, ?string $label = null): array
+    {
+        return ['file' => $path, 'label' => $label, 'numbered' => false];
+    }
+
+    /**
+     * Page "signalétique" générée pour une pièce jointe dans un format non
+     * convertible : jamais numérotée, au même titre que les pièces jointes.
+     */
+    private function placeholderEntry(string $label): array
+    {
+        return ['placeholder' => true, 'label' => $label, 'numbered' => false];
+    }
+
+    /**
+     * Fusionne plusieurs fichiers PDF en un seul fichier de sortie en utilisant
+     * FPDI, puis numérote ("Page X / Y") uniquement les pages issues d'entrées
+     * marquées "numbered" (voir numberedEntry()/attachmentEntry()/
+     * placeholderEntry()) - les pièces jointes brutes du dossier (RCCM, IFU,
+     * RIB, attestations...) ne sont jamais numérotées, seul le contenu généré
+     * par l'appli l'est, en continu sur l'ensemble du dossier.
      * Nécessite l'installation de setasign/fpdi (+ fpdf ou tcpdf selon la configuration).
-     * @param array $files Chemins absolus vers les fichiers PDF à fusionner
+     * @param array $files Entrées à fusionner (voir les helpers *Entry() ci-dessus)
      * @param string $outputFull Chemin absolu du fichier de sortie
      * @throws \Throwable
      */
@@ -3879,43 +3979,116 @@ class DossierController extends Controller
             throw new \RuntimeException('FPDI non disponible. Exécutez `composer require setasign/fpdi setasign/fpdf`');
         }
 
+        $rawMerged = tempnam(sys_get_temp_dir(), 'dossier_raw_merge_') . '.pdf';
+        try {
+            $numberedFlags = $this->mergePdfsRaw($files, $rawMerged);
+            $this->applyNumberingToMergedPdf($rawMerged, $numberedFlags, $outputFull);
+        } finally {
+            if (file_exists($rawMerged)) {
+                @unlink($rawMerged);
+            }
+        }
+    }
+
+    /**
+     * Fait la fusion brute (sans numérotation) et retourne, pour chaque page
+     * du PDF final dans l'ordre, si elle provient d'une entrée "numbered" ou
+     * non - utilisé ensuite par applyNumberingToMergedPdf().
+     */
+    private function mergePdfsRaw(array $files, string $outputFull): array
+    {
         $pdf = new \setasign\Fpdi\Fpdi();
+        $flags = [];
 
         foreach ($files as $entry) {
+            $numbered = is_array($entry) ? (bool) ($entry['numbered'] ?? false) : true;
+            $pagesBefore = $pdf->PageNo();
+
             if (is_array($entry) && !empty($entry['placeholder'])) {
                 $this->addAttachmentPlaceholderPage($pdf, $entry['label']);
-                continue;
-            }
-
-            $file = is_array($entry) ? $entry['file'] : $entry;
-            $label = is_array($entry) ? $entry['label'] : basename($file);
-            if (!file_exists($file)) {
-                continue;
-            }
-
-            try {
-                $pageCount = $pdf->setSourceFile($file);
-                for ($pageNo = 1; $pageNo <= $pageCount; $pageNo++) {
-                    $tplIdx = $pdf->importPage($pageNo);
-                    $specs = $pdf->getTemplateSize($tplIdx);
-                    $orientation = $specs['orientation'] ?? ($specs['width'] > $specs['height'] ? 'L' : 'P');
-                    $pdf->AddPage($orientation, [$specs['width'], $specs['height']]);
-                    $pdf->useTemplate($tplIdx);
+            } else {
+                $file = is_array($entry) ? $entry['file'] : $entry;
+                $label = is_array($entry) ? ($entry['label'] ?? basename($file)) : basename($file);
+                if (!file_exists($file)) {
+                    continue;
                 }
-            } catch (\Throwable $e) {
-                // Le parseur FPDI gratuit ne supporte pas toutes les techniques de
-                // compression PDF (courant pour les scans). On rabat alors sur une
-                // conversion en image de chaque page, pour pouvoir quand même
-                // inclure ce fichier dans le dossier fusionné.
-                $pagesBefore = $pdf->PageNo();
-                $this->appendPdfAsImages($pdf, $file);
-                if ($pdf->PageNo() === $pagesBefore) {
-                    $this->addAttachmentPlaceholderPage($pdf, $label);
+
+                try {
+                    $pageCount = $pdf->setSourceFile($file);
+                    for ($pageNo = 1; $pageNo <= $pageCount; $pageNo++) {
+                        $tplIdx = $pdf->importPage($pageNo);
+                        $specs = $pdf->getTemplateSize($tplIdx);
+                        $orientation = $specs['orientation'] ?? ($specs['width'] > $specs['height'] ? 'L' : 'P');
+                        $pdf->AddPage($orientation, [$specs['width'], $specs['height']]);
+                        $pdf->useTemplate($tplIdx);
+                    }
+                } catch (\Throwable $e) {
+                    // Le parseur FPDI gratuit ne supporte pas toutes les techniques de
+                    // compression PDF (courant pour les scans). On rabat alors sur une
+                    // conversion en image de chaque page, pour pouvoir quand même
+                    // inclure ce fichier dans le dossier fusionné.
+                    $this->appendPdfAsImages($pdf, $file);
+                    if ($pdf->PageNo() === $pagesBefore) {
+                        $this->addAttachmentPlaceholderPage($pdf, $label);
+                    }
+                }
+            }
+
+            $added = $pdf->PageNo() - $pagesBefore;
+            for ($i = 0; $i < $added; $i++) {
+                $flags[] = $numbered;
+            }
+        }
+
+        $pdf->Output('F', $outputFull);
+
+        return $flags;
+    }
+
+    /**
+     * Reprend un PDF déjà fusionné page par page (FPDI) et superpose
+     * "Page X / Y" uniquement sur les pages marquées numérotées dans $flags,
+     * X/Y étant comptés uniquement parmi ces pages (les pièces jointes ne
+     * décalent jamais la numérotation).
+     */
+    private function applyNumberingToMergedPdf(string $rawMerged, array $flags, string $outputFull): void
+    {
+        $totalNumbered = count(array_filter($flags));
+        if ($totalNumbered === 0) {
+            copy($rawMerged, $outputFull);
+            return;
+        }
+
+        $pdf = new \setasign\Fpdi\Fpdi();
+        // Le stamp de numerotation est pose pres du bas de page (12mm), a
+        // l'interieur de la marge de saut de page automatique par defaut de
+        // FPDF (20mm) : sans ceci, Cell() declenche une page vierge en plus
+        // pour chaque page numerotee.
+        $pdf->SetAutoPageBreak(false);
+        $pageCount = $pdf->setSourceFile($rawMerged);
+        $seq = 0;
+
+        for ($pageNo = 1; $pageNo <= $pageCount; $pageNo++) {
+            $tplIdx = $pdf->importPage($pageNo);
+            $specs = $pdf->getTemplateSize($tplIdx);
+            $orientation = $specs['orientation'] ?? ($specs['width'] > $specs['height'] ? 'L' : 'P');
+            $pdf->AddPage($orientation, [$specs['width'], $specs['height']]);
+            $pdf->useTemplate($tplIdx);
+
+            if (!empty($flags[$pageNo - 1])) {
+                $seq++;
+                try {
+                    $text = "Page {$seq} / {$totalNumbered}";
+                    $pdf->SetFont('Arial', '', 9);
+                    $textWidth = $pdf->GetStringWidth($text);
+                    $pdf->SetXY(($specs['width'] - $textWidth) / 2, $specs['height'] - 12);
+                    $pdf->Cell($textWidth, 5, $text);
+                } catch (\Throwable $e) {
+                    // En cas d'erreur, on continue sans numérotation pour cette page.
                 }
             }
         }
 
-        // Sauvegarder le PDF fusionné
         $pdf->Output('F', $outputFull);
     }
 
@@ -4173,6 +4346,195 @@ class DossierController extends Controller
         return str_contains($this->normalizeSommaireName((string) $dossier->type_offre), 'financ');
     }
 
+    /**
+     * Categorie d'offre ('financiere', 'technique', 'administrative') pour un
+     * texte "type_offre" libre, ou null si aucun mot-cle connu n'y est trouve.
+     */
+    private function offerCategoryFor(?string $typeOffre): ?string
+    {
+        $normalized = $this->normalizeSommaireName((string) $typeOffre);
+        if ($normalized === '') {
+            return null;
+        }
+
+        foreach (self::OFFER_CATEGORIES as $key => $info) {
+            if (str_contains($normalized, $info['keyword'])) {
+                return $key;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Categories d'offre (financiere/technique/administrative) qui n'existent
+     * pas encore pour le meme marche que ce dossier - detecte par meme
+     * reference_dossier ET meme entreprise. Renvoie [] si le dossier n'a pas
+     * encore de reference_dossier renseignee (impossible de grouper les
+     * dossiers du meme marche sans cela).
+     */
+    private function missingOfferCategories(Dossier $dossier): array
+    {
+        $reference = trim((string) $dossier->reference_dossier);
+        if ($reference === '') {
+            return [];
+        }
+
+        $siblingTypeOffres = Dossier::where('reference_dossier', $dossier->reference_dossier)
+            ->where('entreprise_id', $dossier->entreprise_id)
+            ->pluck('type_offre');
+
+        $present = [];
+        foreach ($siblingTypeOffres as $typeOffre) {
+            $category = $this->offerCategoryFor($typeOffre);
+            if ($category) {
+                $present[$category] = true;
+            }
+        }
+
+        $missingKeys = array_diff(array_keys(self::OFFER_CATEGORIES), array_keys($present));
+
+        $missing = [];
+        foreach ($missingKeys as $key) {
+            $missing[$key] = self::OFFER_CATEGORIES[$key]['label'];
+        }
+
+        return $missing;
+    }
+
+    /**
+     * Renomme le dossier duplique pour la nouvelle categorie d'offre : si le
+     * nom d'origine contient deja le libelle de son ancienne offre (ex: "DAO
+     * Fournitures - Offre technique"), le remplace par le nouveau libelle ;
+     * sinon, ajoute simplement ce libelle a la suite.
+     */
+    private function renameForOfferCategory(string $originalName, ?string $originalTypeOffre, string $newLabel): string
+    {
+        $originalCategory = $this->offerCategoryFor($originalTypeOffre);
+        if ($originalCategory) {
+            $originalLabel = self::OFFER_CATEGORIES[$originalCategory]['label'];
+            if (stripos($originalName, $originalLabel) !== false) {
+                return str_ireplace($originalLabel, $newLabel, $originalName);
+            }
+        }
+
+        return trim($originalName) . ' — ' . $newLabel;
+    }
+
+    /**
+     * Cree les pieces du modele de sommaire standard (technique ou
+     * financiere, selon le type_offre actuel du dossier - voir
+     * isOffreFinanciere()) qui manquent encore au dossier, sans jamais
+     * toucher a celles deja presentes, puis reordonne l'ensemble. Meme
+     * logique additive que le select "Modele de sommaire" de l'etape 5, mais
+     * cote serveur (utilise par createOtherOffer()).
+     */
+    private function ensureStandardSommairePieces(Dossier $dossier): void
+    {
+        $names = $this->isOffreFinanciere($dossier) ? self::STANDARD_SOMMAIRE_FINANCIERE : self::STANDARD_SOMMAIRE;
+        $typeIds = TypeDocument::whereIn('nom', $names)->pluck('id', 'nom');
+        $ordre = (int) $dossier->documents()->max('ordre');
+
+        foreach ($names as $nom) {
+            $typeId = $typeIds[$nom] ?? null;
+            if (!$typeId) {
+                continue;
+            }
+            $exists = DossierDocument::where('dossier_id', $dossier->id)->where('type_document_id', $typeId)->exists();
+            if ($exists) {
+                continue;
+            }
+            $ordre++;
+            DossierDocument::create([
+                'dossier_id' => $dossier->id,
+                'type_document_id' => $typeId,
+                'ordre' => $ordre,
+                'statut' => 'vide',
+            ]);
+        }
+
+        $dossier->unsetRelation('documents');
+        $this->applySommaireStandardOrder($dossier);
+    }
+
+    /**
+     * Duplique les donnees d'un dossier (hors pieces jointes) vers une
+     * nouvelle instance deja persistee : entreprise, signataires,
+     * utilisateurs partages, chiffres d'affaires, et le sommaire complet
+     * (documents + bordereaux/lignes) avec tout contenu deja saisi. Utilise
+     * par duplicate() et createOtherOffer().
+     */
+    private function replicateDossierData(Dossier $dossier): Dossier
+    {
+        $dossier->load(['documents.bordereau.lignes', 'signataires', 'utilisateurs', 'chiffresAffaires']);
+
+        $copy = $dossier->replicate();
+        $copy->statut = 'en_cours';
+        $copy->save();
+
+        foreach ($dossier->signataires as $signataire) {
+            $copy->signataires()->attach($signataire->id, ['role_signataire' => $signataire->pivot->role_signataire]);
+        }
+
+        foreach ($dossier->utilisateurs as $utilisateur) {
+            $copy->utilisateurs()->attach($utilisateur->id);
+        }
+
+        foreach ($dossier->chiffresAffaires as $chiffre) {
+            $newChiffre = $chiffre->replicate();
+            $newChiffre->dossier_id = $copy->id;
+            $newChiffre->save();
+        }
+
+        foreach ($dossier->documents as $doc) {
+            $newDoc = $doc->replicate();
+            $newDoc->dossier_id = $copy->id;
+            $newDoc->save();
+
+            foreach ($doc->bordereau as $bordereau) {
+                $newBordereau = $bordereau->replicate();
+                $newBordereau->dossier_document_id = $newDoc->id;
+                $newBordereau->save();
+
+                foreach ($bordereau->lignes as $ligne) {
+                    $newLigne = $ligne->replicate();
+                    $newLigne->bordereau_id = $newBordereau->id;
+                    $newLigne->save();
+                }
+            }
+        }
+
+        return $copy;
+    }
+
+    /**
+     * Cree, a partir de ce dossier deja rempli, l'offre d'une autre
+     * categorie pour le meme marche (ex: l'offre technique est faite, on
+     * cree directement l'offre financiere) : duplique toutes les donnees
+     * deja saisies, bascule le type d'offre, et complete le sommaire avec les
+     * pieces standard de la nouvelle categorie qui manquent encore.
+     */
+    public function createOtherOffer(Request $request, Dossier $dossier)
+    {
+        $data = $request->validate([
+            'categorie_cible' => ['required', 'string', 'in:' . implode(',', array_keys(self::OFFER_CATEGORIES))],
+        ]);
+
+        $newLabel = self::OFFER_CATEGORIES[$data['categorie_cible']]['label'];
+
+        $copy = $this->replicateDossierData($dossier);
+        $copy->nom_dossier = $this->renameForOfferCategory($dossier->nom_dossier, $dossier->type_offre, $newLabel);
+        $copy->type_offre = $newLabel;
+        $copy->save();
+
+        $this->ensureStandardSommairePieces($copy);
+
+        $this->logChange($copy, 'dossier_duplique', "« {$newLabel} » créée depuis « {$dossier->nom_dossier} » (#{$dossier->id}).");
+
+        return redirect()->route('dossiers.show', $copy->id)
+            ->with('success', "« {$copy->nom_dossier} » créé avec le sommaire {$newLabel}. Les pièces jointes ne sont pas copiées : vérifiez et retéléversez-les si besoin avant de générer le PDF.");
+    }
+
     private function applySommaireStandardOrder(Dossier $dossier): void
     {
         $rankNames = $this->isOffreFinanciere($dossier) ? self::STANDARD_SOMMAIRE_FINANCIERE : self::STANDARD_SOMMAIRE;
@@ -4255,44 +4617,9 @@ class DossierController extends Controller
      */
     public function duplicate(Dossier $dossier)
     {
-        $dossier->load(['documents.bordereau.lignes', 'signataires', 'utilisateurs', 'chiffresAffaires']);
-
-        $copy = $dossier->replicate();
+        $copy = $this->replicateDossierData($dossier);
         $copy->nom_dossier = trim($dossier->nom_dossier) . ' (copie)';
-        $copy->statut = 'en_cours';
         $copy->save();
-
-        foreach ($dossier->signataires as $signataire) {
-            $copy->signataires()->attach($signataire->id, ['role_signataire' => $signataire->pivot->role_signataire]);
-        }
-
-        foreach ($dossier->utilisateurs as $utilisateur) {
-            $copy->utilisateurs()->attach($utilisateur->id);
-        }
-
-        foreach ($dossier->chiffresAffaires as $chiffre) {
-            $newChiffre = $chiffre->replicate();
-            $newChiffre->dossier_id = $copy->id;
-            $newChiffre->save();
-        }
-
-        foreach ($dossier->documents as $doc) {
-            $newDoc = $doc->replicate();
-            $newDoc->dossier_id = $copy->id;
-            $newDoc->save();
-
-            foreach ($doc->bordereau as $bordereau) {
-                $newBordereau = $bordereau->replicate();
-                $newBordereau->dossier_document_id = $newDoc->id;
-                $newBordereau->save();
-
-                foreach ($bordereau->lignes as $ligne) {
-                    $newLigne = $ligne->replicate();
-                    $newLigne->bordereau_id = $newBordereau->id;
-                    $newLigne->save();
-                }
-            }
-        }
 
         $this->logChange($copy, 'dossier_duplique', "Dossier dupliqué depuis « {$dossier->nom_dossier} » (#{$dossier->id}).");
 
@@ -4334,8 +4661,55 @@ class DossierController extends Controller
 
         $coherenceWarnings = $this->coherenceWarnings($dossier);
         $changeLogs = $dossier->changeLogs()->with('utilisateur')->limit(50)->get();
+        $missingOfferCategories = $this->missingOfferCategories($dossier);
+        $versionsFinales = $dossier->versionsFinales()->with('utilisateur')->get();
 
-        return view('dossiers.show', compact('dossier', 'resumeIndex', 'resumeDocumentIds', 'coherenceWarnings', 'changeLogs'));
+        return view('dossiers.show', compact('dossier', 'resumeIndex', 'resumeDocumentIds', 'coherenceWarnings', 'changeLogs', 'missingOfferCategories', 'versionsFinales'));
+    }
+
+    /**
+     * Archive une version finale du dossier téléversée manuellement (document
+     * modifié après téléchargement, éventuellement signé puis scanné). Le
+     * fichier est conservé tel quel, sans traitement ni fusion : simple
+     * archivage, avec horodatage et auteur, consultable depuis la fiche
+     * dossier.
+     */
+    public function uploadVersionFinale(Request $request, Dossier $dossier)
+    {
+        $request->validate([
+            'fichier' => 'required|file|max:20480',
+            'commentaire' => 'nullable|string|max:255',
+        ]);
+
+        $chemin = $request->file('fichier')->store('dossiers/versions-finales', 'public');
+
+        DossierVersionFinale::create([
+            'dossier_id' => $dossier->id,
+            'chemin_fichier' => $chemin,
+            'nom_original' => $request->file('fichier')->getClientOriginalName(),
+            'commentaire' => $request->input('commentaire'),
+            'utilisateur_id' => auth()->id(),
+        ]);
+
+        return redirect()->route('dossiers.show', $dossier->id)
+            ->with('success', 'Version finale archivée.');
+    }
+
+    /**
+     * Retire une version finale archivée par erreur (mauvais fichier,
+     * doublon...). Supprime aussi le fichier physique sur le disque public.
+     */
+    public function destroyVersionFinale(DossierVersionFinale $versionFinale)
+    {
+        $dossierId = $versionFinale->dossier_id;
+
+        if ($versionFinale->chemin_fichier && Storage::disk('public')->exists($versionFinale->chemin_fichier)) {
+            Storage::disk('public')->delete($versionFinale->chemin_fichier);
+        }
+        $versionFinale->delete();
+
+        return redirect()->route('dossiers.show', $dossierId)
+            ->with('success', 'Version finale supprimée.');
     }
 
     /**
@@ -4504,6 +4878,62 @@ class DossierController extends Controller
         $dossierDocument->save();
 
         return back()->with('success', 'Documents de l\'entreprise mis à jour pour cette pièce.');
+    }
+
+    /**
+     * Ajoute un nouveau document de l'entreprise (intitulé + fichiers)
+     * directement depuis le choix des pièces d'un dossier (ex: une nouvelle
+     * Attestation de bonne fin ou un nouveau Bon de commande qui n'était pas
+     * encore enregistré sur la fiche entreprise), et le lie immédiatement à
+     * cette pièce du dossier - sans repasser par la page de l'entreprise.
+     * Le nouveau document reste disponible ensuite pour les autres dossiers.
+     */
+    public function createEntrepriseDocumentFromPicker(Request $request, Dossier $dossier)
+    {
+        $data = $request->validate([
+            'dossier_document_id' => ['required', 'integer'],
+            'intitule' => ['required', 'string', 'max:255'],
+            'fichiers' => ['required', 'array', 'min:1'],
+            'fichiers.*' => ['file'],
+        ]);
+
+        $dossierDocument = DossierDocument::where('dossier_id', $dossier->id)
+            ->whereKey($data['dossier_document_id'])
+            ->first();
+        if (!$dossierDocument) {
+            return back()->with('error', 'Pièce introuvable sur ce dossier.');
+        }
+
+        $pickerType = $this->entrepriseDocumentPickerType($dossierDocument);
+        if (!$pickerType) {
+            return back()->with('error', 'Cette pièce ne prend pas en charge les documents de l\'entreprise.');
+        }
+
+        $entrepriseDocument = EntrepriseDocument::create([
+            'entreprise_id' => $dossier->entreprise_id,
+            'type' => $pickerType,
+            'intitule' => $data['intitule'],
+        ]);
+
+        foreach ($request->file('fichiers', []) as $uploaded) {
+            if (!$uploaded) {
+                continue;
+            }
+            $chemin = $uploaded->store('entreprise_documents/pieces', 'public');
+            EntrepriseDocumentFichier::create([
+                'entreprise_document_id' => $entrepriseDocument->id,
+                'chemin_fichier' => $chemin,
+                'nom_original' => $uploaded->getClientOriginalName(),
+                'utilisateur_id' => auth()->id(),
+            ]);
+        }
+
+        $linkedIds = $dossierDocument->linked_entreprise_document_ids ?? [];
+        $linkedIds[] = $entrepriseDocument->id;
+        $dossierDocument->linked_entreprise_document_ids = array_values(array_unique($linkedIds));
+        $dossierDocument->save();
+
+        return back()->with('success', "« {$data['intitule']} » ajouté et lié à ce dossier.");
     }
 
     /**
@@ -4737,7 +5167,12 @@ class DossierController extends Controller
             ];
         }
 
-        return view('dossiers.index', compact('dossiers', 'resumeInfo'));
+        $missingOffersByDossier = [];
+        foreach ($dossiers as $dossier) {
+            $missingOffersByDossier[$dossier->id] = $this->missingOfferCategories($dossier);
+        }
+
+        return view('dossiers.index', compact('dossiers', 'resumeInfo', 'missingOffersByDossier'));
     }
 
     /**

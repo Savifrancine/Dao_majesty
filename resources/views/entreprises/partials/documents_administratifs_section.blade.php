@@ -10,6 +10,11 @@
     $cnss = $allDocs->where('type', 'cnss')->sortByDesc('date_delivrance')->values();
     $nonFaillites = $allDocs->where('type', 'non_faillite')->sortByDesc('date_delivrance')->values();
     $ribs = $allDocs->where('type', 'rib')->sortBy('banque')->values();
+    $bonnesFin = $allDocs->where('type', 'bonne_fin')->sortBy('intitule')->values();
+    $bonsCommandeContrats = $allDocs->where('type', 'bon_commande_contrats')->sortBy('intitule')->values();
+    $identificationStatutDoc = $allDocs->firstWhere('type', 'identification_statut');
+    $arreteMinistreSanteDoc = $allDocs->firstWhere('type', 'arrete_ministre_sante');
+    $pieceIdentiteResponsableDoc = $allDocs->firstWhere('type', 'piece_identite_responsable');
 
     $expirationBadge = function ($doc) {
         if (!$doc->date_expiration) {
@@ -28,90 +33,59 @@
 <h5 class="mt-4 mb-3">Documents administratifs de l'entreprise</h5>
 <p class="text-muted" style="font-size:13px;">RCCM, IFU, états financiers, et les attestations qui se renouvellent : à téléverser une seule fois ici, puis à choisir directement dans chaque dossier sans avoir à les re-téléverser.</p>
 
-<div class="card mb-3">
-    <div class="card-body">
-        <div class="fw-bold mb-2">RCCM</div>
-        @if($rccmDoc && $rccmDoc->fichiers->isNotEmpty())
-            <div class="mb-2">
-                @foreach($rccmDoc->fichiers as $fichier)
-                    <div class="d-flex align-items-center gap-2 mb-1">
-                        <a href="{{ asset('storage/' . $fichier->chemin_fichier) }}" target="_blank" rel="noopener noreferrer">{{ $fichier->nom_original ?: basename($fichier->chemin_fichier) }}</a>
-                        <label class="text-danger" style="font-size:0.85rem;">
-                            <input type="checkbox" name="documents_administratifs[rccm][delete_fichier_ids][]" value="{{ $fichier->id }}"> Supprimer
-                        </label>
-                    </div>
-                @endforeach
-            </div>
-        @endif
-        <input type="file" name="documents_administratifs[rccm][fichiers][]" multiple class="form-control" style="max-width:420px;">
-    </div>
-</div>
+@include('entreprises.partials._singleton_document_block', ['doc' => $rccmDoc, 'requestKey' => 'rccm', 'label' => 'RCCM'])
+@include('entreprises.partials._singleton_document_block', ['doc' => $ifuDoc, 'requestKey' => 'ifu', 'label' => 'IFU'])
+@include('entreprises.partials._singleton_document_block', ['doc' => $identificationStatutDoc, 'requestKey' => 'identification_statut', 'label' => "Attestation d'identification de statut"])
+@include('entreprises.partials._singleton_document_block', ['doc' => $arreteMinistreSanteDoc, 'requestKey' => 'arrete_ministre_sante', 'label' => "Copie de l'arrêté du Ministre de la Santé (importation/détention/vente d'équipements médicaux)"])
+@include('entreprises.partials._singleton_document_block', ['doc' => $pieceIdentiteResponsableDoc, 'requestKey' => 'piece_identite_responsable', 'label' => "Pièce d'identité du premier responsable"])
 
-<div class="card mb-3">
-    <div class="card-body">
-        <div class="fw-bold mb-2">IFU</div>
-        @if($ifuDoc && $ifuDoc->fichiers->isNotEmpty())
-            <div class="mb-2">
-                @foreach($ifuDoc->fichiers as $fichier)
-                    <div class="d-flex align-items-center gap-2 mb-1">
-                        <a href="{{ asset('storage/' . $fichier->chemin_fichier) }}" target="_blank" rel="noopener noreferrer">{{ $fichier->nom_original ?: basename($fichier->chemin_fichier) }}</a>
-                        <label class="text-danger" style="font-size:0.85rem;">
-                            <input type="checkbox" name="documents_administratifs[ifu][delete_fichier_ids][]" value="{{ $fichier->id }}"> Supprimer
-                        </label>
-                    </div>
-                @endforeach
-            </div>
-        @endif
-        <input type="file" name="documents_administratifs[ifu][fichiers][]" multiple class="form-control" style="max-width:420px;">
-    </div>
-</div>
+@include('entreprises.partials._repeatable_labeled_document_block', [
+    'items' => $ribs,
+    'requestKey' => 'rib',
+    'fichiersKey' => 'rib_fichiers',
+    'label' => "Relevé d'identité bancaire (RIB)",
+    'description' => "Ne change pas, comme l'IFU — mais une entreprise peut avoir plusieurs RIB (une banque différente pour chacun) : ajoutez un bloc par banque, le bon sera choisi dossier par dossier.",
+    'containerId' => 'ribBlocks',
+    'addBtnId' => 'addRibBtn',
+    'blockClass' => 'rib-block',
+    'removeClass' => 'remove-rib',
+    'fieldName' => 'banque',
+    'fieldLabel' => 'Nom de la banque',
+    'fieldPlaceholder' => 'Ex : Ecobank',
+    'addBtnLabel' => '+ Ajouter une banque',
+])
 
-<div class="fw-bold mt-2 mb-2">Relevé d'identité bancaire (RIB)</div>
-<p class="text-muted" style="font-size:13px;">Ne change pas, comme l'IFU — mais une entreprise peut avoir plusieurs RIB (une banque différente pour chacun) : ajoutez un bloc par banque, le bon sera choisi dossier par dossier.</p>
+@include('entreprises.partials._repeatable_labeled_document_block', [
+    'items' => $bonnesFin,
+    'requestKey' => 'bonne_fin',
+    'fichiersKey' => 'bonne_fin_fichiers',
+    'label' => 'Attestation de bonne fin',
+    'description' => "Une entreprise peut en avoir plusieurs (une par marché) : ajoutez un bloc par attestation, avec un intitulé pour la reconnaître. Dans un dossier, vous choisirez celle(s) qui conviennent, ou vous pourrez en ajouter une nouvelle directement depuis le dossier si besoin.",
+    'containerId' => 'bonneFinBlocks',
+    'addBtnId' => 'addBonneFinBtn',
+    'blockClass' => 'bonne-fin-block',
+    'removeClass' => 'remove-bonne-fin',
+    'fieldName' => 'intitule',
+    'fieldLabel' => 'Intitulé',
+    'fieldPlaceholder' => 'Ex : Marché XYZ 2024',
+    'addBtnLabel' => '+ Ajouter une attestation',
+])
 
-<div id="ribBlocks">
-    @forelse($ribs as $rib)
-        <div class="rib-block card mb-2" data-key="{{ $rib->id }}">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                    <div class="mb-0" style="max-width:260px;">
-                        <label class="form-label">Nom de la banque</label>
-                        <input type="text" name="rib[{{ $rib->id }}][banque]" value="{{ old("rib.{$rib->id}.banque", $rib->banque) }}" class="form-control" placeholder="Ex : Ecobank">
-                    </div>
-                    <button type="button" class="btn btn-sm btn-danger remove-rib ms-2" style="margin-top:28px;">Supprimer</button>
-                </div>
-                @if($rib->fichiers->isNotEmpty())
-                    <div class="mb-2">
-                        @foreach($rib->fichiers as $fichier)
-                            <div class="d-flex align-items-center gap-2 mb-1">
-                                <a href="{{ asset('storage/' . $fichier->chemin_fichier) }}" target="_blank" rel="noopener noreferrer">{{ $fichier->nom_original ?: basename($fichier->chemin_fichier) }}</a>
-                                <label class="text-danger" style="font-size:0.85rem;">
-                                    <input type="checkbox" name="rib[{{ $rib->id }}][delete_fichier_ids][]" value="{{ $fichier->id }}"> Supprimer
-                                </label>
-                            </div>
-                        @endforeach
-                    </div>
-                @endif
-                <input type="file" name="rib_fichiers[{{ $rib->id }}][]" multiple class="form-control" style="max-width:420px;">
-            </div>
-        </div>
-    @empty
-        <div class="rib-block card mb-2" data-key="new_1">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                    <div class="mb-0" style="max-width:260px;">
-                        <label class="form-label">Nom de la banque</label>
-                        <input type="text" name="rib[new_1][banque]" class="form-control" placeholder="Ex : Ecobank">
-                    </div>
-                    <button type="button" class="btn btn-sm btn-danger remove-rib ms-2" style="margin-top:28px;">Supprimer</button>
-                </div>
-                <input type="file" name="rib_fichiers[new_1][]" multiple class="form-control" style="max-width:420px;">
-            </div>
-        </div>
-    @endforelse
-</div>
-
-<button type="button" id="addRibBtn" class="btn btn-outline-secondary mb-4">+ Ajouter une banque</button>
+@include('entreprises.partials._repeatable_labeled_document_block', [
+    'items' => $bonsCommandeContrats,
+    'requestKey' => 'bon_commande_contrats',
+    'fichiersKey' => 'bon_commande_contrats_fichiers',
+    'label' => 'Bon de commande et contrats',
+    'description' => "Une entreprise peut en avoir plusieurs (un par marché/fournisseur) : ajoutez un bloc par document, avec un intitulé pour le reconnaître. Dans un dossier, vous choisirez celui ou ceux qui conviennent, ou vous pourrez en ajouter un nouveau directement depuis le dossier si besoin.",
+    'containerId' => 'bonCommandeContratsBlocks',
+    'addBtnId' => 'addBonCommandeContratsBtn',
+    'blockClass' => 'bon-commande-contrats-block',
+    'removeClass' => 'remove-bon-commande-contrats',
+    'fieldName' => 'intitule',
+    'fieldLabel' => 'Intitulé',
+    'fieldPlaceholder' => 'Ex : Contrat Fournisseur ABC',
+    'addBtnLabel' => '+ Ajouter un bon de commande/contrat',
+])
 
 <div class="fw-bold mt-2 mb-2">États financiers</div>
 <p class="text-muted" style="font-size:13px;">Souvent demandés sur les 3 dernières années : ajoutez un bloc par exercice.</p>
@@ -178,7 +152,7 @@
     'requestKey' => 'categorisation',
     'fichiersKey' => 'categorisation_fichiers',
     'label' => "Attestation de catégorisation",
-    'description' => "Valable 5 ans : indiquez la date à laquelle elle a été obtenue, la plateforme calcule elle-même la date d'expiration et vous prévient quand elle approche ou est dépassée. Ajoutez un nouveau bloc à chaque renouvellement, l'ancien reste disponible pour l'historique.",
+    'description' => "Valable 3 ans : indiquez la date à laquelle elle a été obtenue, la plateforme calcule elle-même la date d'expiration et vous prévient quand elle approche ou est dépassée. Ajoutez un nouveau bloc à chaque renouvellement, l'ancien reste disponible pour l'historique.",
     'containerId' => 'categorisationBlocks',
     'addBtnId' => 'addCategorisationBtn',
     'blockClass' => 'categorisation-block',
@@ -254,18 +228,24 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    setupRepeatableBlocks('ribBlocks', 'addRibBtn', 'rib-block', 'remove-rib', (key) => `
-        <div class="card-body">
-            <div class="d-flex justify-content-between align-items-start mb-2">
-                <div class="mb-0" style="max-width:260px;">
-                    <label class="form-label">Nom de la banque</label>
-                    <input type="text" name="rib[${key}][banque]" class="form-control" placeholder="Ex : Ecobank">
+    function buildLabeledFieldHtml(requestKey, fichiersKey, removeClass, fieldName, fieldLabel, fieldPlaceholder) {
+        return (key) => `
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div class="mb-0" style="max-width:260px;">
+                        <label class="form-label">${fieldLabel}</label>
+                        <input type="text" name="${requestKey}[${key}][${fieldName}]" class="form-control" placeholder="${fieldPlaceholder}">
+                    </div>
+                    <button type="button" class="btn btn-sm btn-danger ${removeClass} ms-2" style="margin-top:28px;">Supprimer</button>
                 </div>
-                <button type="button" class="btn btn-sm btn-danger remove-rib ms-2" style="margin-top:28px;">Supprimer</button>
+                <input type="file" name="${fichiersKey}[${key}][]" multiple class="form-control" style="max-width:420px;">
             </div>
-            <input type="file" name="rib_fichiers[${key}][]" multiple class="form-control" style="max-width:420px;">
-        </div>
-    `);
+        `;
+    }
+
+    setupRepeatableBlocks('ribBlocks', 'addRibBtn', 'rib-block', 'remove-rib', buildLabeledFieldHtml('rib', 'rib_fichiers', 'remove-rib', 'banque', 'Nom de la banque', 'Ex : Ecobank'));
+    setupRepeatableBlocks('bonneFinBlocks', 'addBonneFinBtn', 'bonne-fin-block', 'remove-bonne-fin', buildLabeledFieldHtml('bonne_fin', 'bonne_fin_fichiers', 'remove-bonne-fin', 'intitule', 'Intitulé', 'Ex : Marché XYZ 2024'));
+    setupRepeatableBlocks('bonCommandeContratsBlocks', 'addBonCommandeContratsBtn', 'bon-commande-contrats-block', 'remove-bon-commande-contrats', buildLabeledFieldHtml('bon_commande_contrats', 'bon_commande_contrats_fichiers', 'remove-bon-commande-contrats', 'intitule', 'Intitulé', 'Ex : Contrat Fournisseur ABC'));
 
     setupRepeatableBlocks('etatsFinanciersBlocks', 'addEtatFinancierBtn', 'etat-financier-block', 'remove-etat-financier', (key) => `
         <div class="card-body">

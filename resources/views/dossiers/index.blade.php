@@ -138,6 +138,13 @@
                                     @csrf
                                     <button class="btn btn-sm btn-outline-secondary" type="submit">⧉ Dupliquer</button>
                                 </form>
+                                @foreach(($missingOffersByDossier[$dossier->id] ?? []) as $categorieCible => $label)
+                                    <form action="{{ route('dossiers.createOtherOffer', $dossier) }}" method="POST" style="display:inline" onsubmit="return confirm('Créer « {{ $label }} » pour ce marché, à partir de ce dossier ? Les pièces jointes téléversées ne seront pas copiées.');">
+                                        @csrf
+                                        <input type="hidden" name="categorie_cible" value="{{ $categorieCible }}">
+                                        <button class="btn btn-sm btn-outline-secondary" type="submit">+ {{ $label }}</button>
+                                    </form>
+                                @endforeach
                                 <form action="{{ route('dossiers.destroy', $dossier) }}" method="POST" style="display:inline">
                                     @csrf
                                     <button class="btn btn-sm btn-outline-danger" type="submit">🗑 Supprimer</button>

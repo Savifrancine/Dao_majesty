@@ -11,7 +11,13 @@
         </div>
         <div class="mb-3">
             <label>Type</label>
-            <input type="text" name="type" class="form-control" placeholder="declaration|lettre|page_garde" required>
+            <select name="type" class="form-control" required>
+                <option value="">-- Sélectionner --</option>
+                <option value="declaration">Déclaration de garantie d'offre</option>
+                <option value="engagement">Engagement du soumissionnaire (code d'éthique et de déontologie)</option>
+                <option value="libre">Document libre</option>
+            </select>
+            <small class="text-muted">Détermine où ce modèle apparaîtra dans la liste à choisir, à l'étape 6 d'un dossier.</small>
         </div>
         <div class="mb-3">
             <label>Contenu (texte)</label>

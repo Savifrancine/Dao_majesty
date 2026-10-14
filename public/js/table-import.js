@@ -8,23 +8,52 @@
             .trim();
     }
 
+    // En-tetes qui designent une colonne de numerotation de ligne (N°, Numero,
+    // No...) ou une colonne sans intitule : jamais une vraie donnee, on les
+    // exclut d'emblee pour qu'elles ne soient jamais happees par erreur par un
+    // autre champ (ex: designation) a cause d'une correspondance partielle.
+    const NUMERO_HEADER_PATTERNS = ['', 'numero', 'num', 'no', 'n', 'rang', 'ordre', 'index'];
+
     function resolveColumnMapping(headers, fieldSynonyms) {
         const normalizedHeaders = headers.map(normalize);
         const usedColumns = new Set();
         const mapping = {};
 
+        normalizedHeaders.forEach((header, idx) => {
+            if (NUMERO_HEADER_PATTERNS.includes(header)) {
+                usedColumns.add(idx);
+            }
+        });
+
         Object.keys(fieldSynonyms).forEach((fieldKey) => {
-            const synonyms = fieldSynonyms[fieldKey].map(normalize);
+            const synonyms = fieldSynonyms[fieldKey].map(normalize).filter(Boolean);
             let bestCol = -1;
+
+            // 1) correspondance exacte en priorite.
             synonyms.forEach((syn) => {
                 if (bestCol !== -1) return;
                 normalizedHeaders.forEach((header, idx) => {
                     if (bestCol !== -1 || usedColumns.has(idx)) return;
-                    if (header === syn || header.includes(syn) || syn.includes(header)) {
-                        bestCol = idx;
-                    }
+                    if (header === syn) bestCol = idx;
                 });
             });
+
+            // 2) a defaut, inclusion partielle - seulement pour des en-tetes
+            // d'au moins 3 caracteres, pour qu'un en-tete court et non reconnu
+            // (colonne de numerotation oubliee ci-dessus, ex: "No") ne soit
+            // jamais happe par un synonyme qui le contient incidemment.
+            if (bestCol === -1) {
+                synonyms.forEach((syn) => {
+                    if (bestCol !== -1) return;
+                    normalizedHeaders.forEach((header, idx) => {
+                        if (bestCol !== -1 || usedColumns.has(idx) || header.length < 3) return;
+                        if (header.includes(syn) || syn.includes(header)) {
+                            bestCol = idx;
+                        }
+                    });
+                });
+            }
+
             if (bestCol !== -1) {
                 mapping[bestCol] = fieldKey;
                 usedColumns.add(bestCol);
@@ -158,6 +187,11 @@
     window.DaoTableImport = {
         setupCrossTableFill,
         _crossTableIndex: null,
+        // Un bouton d'import par tableau (plutôt qu'un seul bouton global ne
+        // ciblant jamais que le premier) : un MutationObserver injecte
+        // automatiquement un bouton dans chaque nouveau tableau ajouté via
+        // "+ Ajouter un tableau", sans rien changer au JS propre à chaque
+        // formulaire qui construit ces tableaux.
         setup(options) {
             const { buttonId, statusId, sectionsContainerId, fieldSynonyms, importUrl } = options;
             const selectors = {
@@ -165,15 +199,15 @@
                 lines: options.linesSelector || '.bordereau-lines',
                 addLineButton: options.addLineButtonSelector || '.addBordereauLine',
             };
-            const button = document.getElementById(buttonId);
             const sectionsContainer = document.getElementById(sectionsContainerId);
-            if (!button || !sectionsContainer) return;
+            if (!sectionsContainer) return;
 
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.accept = '.csv,.xlsx,.txt,.docx';
-            input.style.display = 'none';
-            button.insertAdjacentElement('afterend', input);
+            // L'ancien bouton global unique n'a plus de raison d'être : masqué
+            // plutôt que supprimé du DOM, pour ne rien casser côté Blade.
+            if (buttonId) {
+                const legacyButton = document.getElementById(buttonId);
+                if (legacyButton) legacyButton.style.display = 'none';
+            }
 
             const statusEl = statusId ? document.getElementById(statusId) : null;
             const setStatus = (message, isError) => {
@@ -182,12 +216,7 @@
                 statusEl.style.color = isError ? '#dc2626' : '#059669';
             };
 
-            button.addEventListener('click', () => input.click());
-
-            input.addEventListener('change', () => {
-                const file = input.files[0];
-                if (!file) return;
-
+            function handleFile(file, targetSection) {
                 setStatus('Lecture du fichier…', false);
 
                 uploadFile(file, importUrl)
@@ -200,12 +229,6 @@
                         const mappedRows = mapRows(headers, rows, fieldSynonyms);
                         if (!mappedRows.length) {
                             setStatus("Colonnes non reconnues : vérifiez les intitulés (désignation, quantité, unité...).", true);
-                            return;
-                        }
-
-                        const targetSection = sectionsContainer.querySelector(selectors.section);
-                        if (!targetSection) {
-                            setStatus("Ajoutez d'abord un tableau avant d'importer.", true);
                             return;
                         }
 
@@ -230,11 +253,61 @@
                     })
                     .catch((err) => {
                         setStatus(err.message || 'Erreur lors de la lecture du fichier.', true);
-                    })
-                    .finally(() => {
-                        input.value = '';
                     });
+            }
+
+            function injectButton(sectionEl) {
+                if (!sectionEl.querySelector || sectionEl.querySelector(':scope > .import-tableau-wrapper')) {
+                    return;
+                }
+
+                const wrapper = document.createElement('div');
+                wrapper.className = 'import-tableau-wrapper';
+                wrapper.style.marginBottom = '10px';
+
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'btn btn-outline-secondary btn-sm import-tableau-btn';
+                btn.textContent = 'Importer depuis un fichier (Excel/CSV)';
+
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '.csv,.xlsx,.txt,.docx';
+                input.style.display = 'none';
+
+                btn.addEventListener('click', () => input.click());
+                input.addEventListener('change', () => {
+                    const file = input.files[0];
+                    if (!file) return;
+                    handleFile(file, sectionEl);
+                    input.value = '';
+                });
+
+                wrapper.appendChild(btn);
+                wrapper.appendChild(input);
+                sectionEl.insertBefore(wrapper, sectionEl.firstChild);
+            }
+
+            function injectAll() {
+                sectionsContainer.querySelectorAll(selectors.section).forEach(injectButton);
+            }
+
+            injectAll();
+
+            const observer = new MutationObserver((mutations) => {
+                mutations.forEach((mutation) => {
+                    mutation.addedNodes.forEach((node) => {
+                        if (node.nodeType !== 1) return;
+                        if (node.matches && node.matches(selectors.section)) {
+                            injectButton(node);
+                        }
+                        if (node.querySelectorAll) {
+                            node.querySelectorAll(selectors.section).forEach(injectButton);
+                        }
+                    });
+                });
             });
+            observer.observe(sectionsContainer, { childList: true });
         },
     };
 })();

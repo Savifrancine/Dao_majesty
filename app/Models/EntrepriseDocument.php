@@ -15,6 +15,7 @@ class EntrepriseDocument extends Model
         'type',
         'annee',
         'banque',
+        'intitule',
         'date_delivrance',
     ];
 
@@ -31,7 +32,7 @@ class EntrepriseDocument extends Model
      */
     private const DUREES_VALIDITE_MOIS = [
         'non_exclusion' => 12,
-        'categorisation' => 60,
+        'categorisation' => 36,
         'regularite_fiscale' => 3,
         'cnss' => 3,
         'non_faillite' => 3,
@@ -65,7 +66,7 @@ class EntrepriseDocument extends Model
     /**
      * Vrai si la date d'expiration (calculee) est deja passee (ex:
      * renouvellement annuel de l'Attestation de non-exclusion, ou tous les
-     * 5 ans pour l'Attestation de categorisation).
+     * 3 ans pour l'Attestation de categorisation).
      */
     public function estExpire(): bool
     {

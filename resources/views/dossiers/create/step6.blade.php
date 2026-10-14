@@ -752,6 +752,11 @@
                                         'Attestation de regularite a la CNSS' => 'cnss',
                                         'Attestation de non-faillite datant de moins de trois (03) mois' => 'non_faillite',
                                         "Relevé d'identité bancaire (RIB)" => 'rib',
+                                        "Attestation d'identification de statut" => 'identification_statut',
+                                        'Attestation de bonne fin' => 'bonne_fin',
+                                        'Bon de commande et contrats' => 'bon_commande_contrats',
+                                        "Copie de l'arrêté du Ministre de la Santé portant autorisation d'importation, de détention et de vente des équipements médicaux" => 'arrete_ministre_sante',
+                                        "Pièce d'identité du premier responsable" => 'piece_identite_responsable',
                                     ];
                                     $entrepriseDocPickerLabels = [
                                         'rccm' => "RCCM de l'entreprise",
@@ -763,6 +768,11 @@
                                         'cnss' => 'Attestation de régularité à la CNSS',
                                         'non_faillite' => 'Attestation de non-faillite',
                                         'rib' => 'RIB',
+                                        'identification_statut' => "Attestation d'identification de statut",
+                                        'bonne_fin' => 'Attestation de bonne fin',
+                                        'bon_commande_contrats' => 'Bon de commande et contrats',
+                                        'arrete_ministre_sante' => "Arrêté du Ministre de la Santé",
+                                        'piece_identite_responsable' => "Pièce d'identité du premier responsable",
                                     ];
                                     $entrepriseDocPickerType = $entrepriseDocPickerMap[trim($currentDocument->nom ?? '')] ?? null;
                                 @endphp
@@ -771,6 +781,7 @@
                                         $entrepriseDocsOrderColumn = match($entrepriseDocPickerType) {
                                             'etat_financier' => 'annee',
                                             'rib' => 'banque',
+                                            'bonne_fin', 'bon_commande_contrats' => 'intitule',
                                             default => 'date_delivrance',
                                         };
                                         $entrepriseDocsForPicker = $dossier->entreprise->documentsAdministratifs()
@@ -794,6 +805,8 @@
                                                         {{ $entrepriseDocPickerLabels[$entrepriseDocPickerType] . ' ' . $edoc->annee }}
                                                     @elseif($entrepriseDocPickerType === 'rib')
                                                         {{ $edoc->banque ?: 'RIB (banque non précisée)' }}
+                                                    @elseif(in_array($entrepriseDocPickerType, ['bonne_fin', 'bon_commande_contrats'], true))
+                                                        {{ $edoc->intitule ?: ($entrepriseDocPickerLabels[$entrepriseDocPickerType] . ' (sans intitulé)') }}
                                                     @else
                                                         {{ $entrepriseDocPickerLabels[$entrepriseDocPickerType] }}
                                                     @endif
@@ -829,6 +842,25 @@
                                     @else
                                         <div class="wizard-alert" style="margin-bottom:8px">
                                             Aucun document "{{ trim($currentDocument->nom) }}" n'est encore enregistré sur la fiche de l'entreprise. Vous pouvez en ajouter un sur la page de l'entreprise, ou téléverser directement ci-dessous pour ce dossier uniquement.
+                                        </div>
+                                    @endif
+
+                                    @if(in_array($entrepriseDocPickerType, ['bonne_fin', 'bon_commande_contrats'], true))
+                                        <div style="margin-bottom:12px">
+                                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('newEntDoc-{{ $dossierDocument->id }}').style.display='block'; this.style.display='none';">
+                                                + Ajouter {{ $entrepriseDocPickerType === 'bonne_fin' ? 'une nouvelle attestation' : 'un nouveau bon de commande/contrat' }} (si celui qu'il vous faut n'est pas dans la liste)
+                                            </button>
+                                            <div id="newEntDoc-{{ $dossierDocument->id }}" style="display:none; margin-top:8px; padding:10px; border:1px dashed #cbd5e1; border-radius:8px;">
+                                                <div style="margin-bottom:8px">
+                                                    <label class="wizard-label">Intitulé</label>
+                                                    <input type="text" id="newEntDocIntitule-{{ $dossierDocument->id }}" class="form-control wizard-input" placeholder="Ex : Marché XYZ 2024">
+                                                </div>
+                                                <div style="margin-bottom:8px">
+                                                    <label class="wizard-label">Fichier(s)</label>
+                                                    <input type="file" id="newEntDocFichiers-{{ $dossierDocument->id }}" multiple class="form-control wizard-input">
+                                                </div>
+                                                <button type="button" class="btn btn-sm btn-success" onclick="window.createEntrepriseDocumentFromDossier({{ $dossierDocument->id }})">Ajouter et lier à ce dossier</button>
+                                            </div>
                                         </div>
                                     @endif
                                 @endif
@@ -898,6 +930,50 @@
                 addField('entreprise_document_ids[]', checkbox.value);
             }
         });
+
+        document.body.appendChild(form);
+        form.submit();
+    };
+
+    // Ajoute un nouveau document de l'entreprise (intitule + fichiers) et le
+    // lie immediatement a cette piece du dossier, sans repasser par la fiche
+    // entreprise. Le vrai <input type="file"> (avec sa selection) est
+    // deplace tel quel dans le formulaire independant : un navigateur ne
+    // permet pas de reconstituer une FileList par script.
+    window.createEntrepriseDocumentFromDossier = function (dossierDocumentId) {
+        const intituleInput = document.getElementById('newEntDocIntitule-' + dossierDocumentId);
+        const filesInput = document.getElementById('newEntDocFichiers-' + dossierDocumentId);
+        const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}';
+
+        if (!intituleInput.value.trim()) {
+            alert('Veuillez saisir un intitulé.');
+            return;
+        }
+        if (!filesInput.files || filesInput.files.length === 0) {
+            alert('Veuillez choisir au moins un fichier.');
+            return;
+        }
+
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '{{ route('dossiers.createEntrepriseDocumentFromPicker', $dossier->id) }}';
+        form.enctype = 'multipart/form-data';
+        form.style.display = 'none';
+
+        const addField = (name, value) => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = name;
+            input.value = value;
+            form.appendChild(input);
+        };
+
+        addField('_token', token);
+        addField('dossier_document_id', dossierDocumentId);
+        addField('intitule', intituleInput.value);
+
+        filesInput.name = 'fichiers[]';
+        form.appendChild(filesInput);
 
         document.body.appendChild(form);
         form.submit();

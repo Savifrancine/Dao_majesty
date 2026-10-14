@@ -137,4 +137,13 @@ class Dossier extends Model
     {
         return $this->hasMany(DossierChangeLog::class)->latest('id');
     }
+
+    /**
+     * Versions finales archivées manuellement (document modifié, signé et/ou
+     * scanné après téléchargement), les plus récentes en premier.
+     */
+    public function versionsFinales(): HasMany
+    {
+        return $this->hasMany(DossierVersionFinale::class)->latest('id');
+    }
 }

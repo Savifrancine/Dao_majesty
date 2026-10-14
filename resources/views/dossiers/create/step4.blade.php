@@ -365,7 +365,7 @@
 
                 <div class="wizard-field">
                     <label for="nom_dossier" class="wizard-label">Nom du dossier <span class="text-danger">*</span></label>
-                    <small class="wizard-hint">Apparaît en grand, dans le cadre bleu au centre de la page de garde.</small>
+                    <small class="wizard-hint">Nom interne du dossier, pour le retrouver dans vos listes. Apparaît en grand, dans le cadre bleu au centre de la page de garde.</small>
                     <input type="text" class="form-control wizard-input @error('nom_dossier') is-invalid @enderror" id="nom_dossier" name="nom_dossier" placeholder="Ex: DAO Fournitures 2026" required value="{{ old('nom_dossier') }}">
                     @error('nom_dossier')
                         <div class="invalid-feedback d-block">{{ $message }}</div>
@@ -374,7 +374,7 @@
 
                 <div class="wizard-field">
                     <label for="titre_dossier" class="wizard-label">Titre principal du dossier</label>
-                    <small class="wizard-hint">Apparaît en haut de la page de garde, juste au-dessus de la référence.</small>
+                    <small class="wizard-hint">Titre principal du document (ex: type de procédure). Apparaît en haut de la page de garde, juste au-dessus de la référence.</small>
                     <input type="text" class="form-control wizard-input @error('titre_dossier') is-invalid @enderror" id="titre_dossier" name="titre_dossier" placeholder="Ex: DOSSIER D'APPEL D'OFFRES" value="{{ old('titre_dossier') }}">
                     @error('titre_dossier')
                         <div class="invalid-feedback d-block">{{ $message }}</div>
@@ -385,7 +385,7 @@
                     <div class="col-md-12">
                         <div class="wizard-field">
                             <label for="republique" class="wizard-label">Republique</label>
-                            <small class="wizard-hint">Apparaît en haut de la page de garde (ex: RÉPUBLIQUE DU BÉNIN).</small>
+                            <small class="wizard-hint">Nom du pays organisant le marché. Apparaît en haut de la page de garde (ex: RÉPUBLIQUE DU BÉNIN).</small>
                             <input type="text" name="republique" id="republique" class="form-control wizard-input" placeholder="Ex: RÉPUBLIQUE DU BÉNIN" value="{{ old('republique') }}">
                         </div>
                     </div>
@@ -395,14 +395,14 @@
                     <div class="col-md-6">
                         <div class="wizard-field">
                             <label for="ministere" class="wizard-label">Ministere</label>
-                            <small class="wizard-hint">Apparaît juste sous la République, sur la page de garde.</small>
+                            <small class="wizard-hint">Ministère ou institution qui lance le marché. Apparaît juste sous la République, sur la page de garde.</small>
                             <input type="text" name="ministere" id="ministere" class="form-control wizard-input" value="{{ old('ministere') }}">
                         </div>
                     </div>
                     <div class="col-md-6">
                         <div class="wizard-field">
                             <label for="direction" class="wizard-label">Direction</label>
-                            <small class="wizard-hint">N'apparaît pas sur la page de garde (information interne).</small>
+                            <small class="wizard-hint">Direction interne concernée. N'apparaît pas sur la page de garde (information interne).</small>
                             <input type="text" name="direction" id="direction" class="form-control wizard-input" value="{{ old('direction') }}">
                         </div>
                     </div>
@@ -410,13 +410,13 @@
 
                 <div class="wizard-field">
                     <label for="services_projet" class="wizard-label">Services / Projet</label>
-                    <small class="wizard-hint">Apparaît sous le Ministère, sur la page de garde.</small>
+                    <small class="wizard-hint">Service ou projet rattaché au marché. Apparaît sous le Ministère, sur la page de garde.</small>
                     <input type="text" name="services_projet" id="services_projet" class="form-control wizard-input" value="{{ old('services_projet') }}">
                 </div>
 
                 <div class="wizard-field">
                     <label for="destinataires" class="wizard-label">Destinataires</label>
-                    <small class="wizard-hint">Apparaît sous « LA PERSONNE RESPONSABLE DES MARCHÉS PUBLICS », sur la page de garde.</small>
+                    <small class="wizard-hint">À qui s'adresse le dossier. Apparaît sous « LA PERSONNE RESPONSABLE DES MARCHÉS PUBLICS », sur la page de garde.</small>
                     <textarea name="destinataires" id="destinataires" rows="2" class="form-control wizard-textarea">{{ old('destinataires') }}</textarea>
                 </div>
 
@@ -424,13 +424,13 @@
                     <div class="col-md-6">
                         <div class="wizard-field">
                             <label for="reference_dossier" class="wizard-label">Reference du dossier</label>
-                            <small class="wizard-hint">Apparaît avec la date de lancement, juste avant « PORTANT : », sur la page de garde.</small>
+                            <small class="wizard-hint">Référence/numéro officiel du dossier d'appel d'offres. Apparaît avec la date de lancement, juste avant « PORTANT : », sur la page de garde.</small>
                             <input type="text" name="reference_dossier" id="reference_dossier" class="form-control wizard-input" value="{{ old('reference_dossier') }}">
                         </div>
 
                         <div class="wizard-field">
                             <label for="ref" class="wizard-label">Ref</label>
-                            <small class="wizard-hint">Apparaît sous le titre, en « RÉFÉRENCE DU DOSSIER: ... », sur la page de garde.</small>
+                            <small class="wizard-hint">Référence courte du dossier (code interne). Apparaît sous le titre, en « RÉFÉRENCE DU DOSSIER: ... », sur la page de garde.</small>
                             <input type="text" name="ref" id="ref" class="form-control wizard-input @error('ref') is-invalid @enderror" placeholder="Ex: REF-123" value="{{ old('ref') }}">
                             @error('ref')
                                 <div class="invalid-feedback d-block">{{ $message }}</div>
@@ -440,13 +440,13 @@
                     <div class="col-md-6">
                         <div class="wizard-field">
                             <label for="date_lancement" class="wizard-label">Date de lancement</label>
-                            <small class="wizard-hint">Apparaît avec la référence du dossier, juste avant « PORTANT : », sur la page de garde.</small>
+                            <small class="wizard-hint">Date à laquelle le marché est officiellement lancé. Apparaît avec la référence du dossier, juste avant « PORTANT : », sur la page de garde.</small>
                             <input type="date" name="date_lancement" id="date_lancement" class="form-control wizard-input" value="{{ old('date_lancement') }}">
                         </div>
 
                         <div class="wizard-field">
                             <label for="date_soumission" class="wizard-label">Date de soumission</label>
-                            <small class="wizard-hint">N'apparaît pas sur la page de garde — utilisée plus loin dans certains documents du dossier.</small>
+                            <small class="wizard-hint">Date limite à laquelle les offres doivent être soumises. N'apparaît pas sur la page de garde — utilisée plus loin dans certains documents du dossier.</small>
                             <input type="date" name="date_soumission" id="date_soumission" class="form-control wizard-input" value="{{ old('date_soumission') }}">
                         </div>
                     </div>
@@ -456,32 +456,32 @@
                     <div class="col-md-6">
                         <div class="wizard-field">
                             <label for="reference_step" class="wizard-label">Ref STEP</label>
-                            <small class="wizard-hint">Apparaît sous le type d'offre, en « Ref STEP : ... », sur la page de garde.</small>
+                            <small class="wizard-hint">Référence STEP du marché, si financé par ce mécanisme. Apparaît sous le type d'offre, en « Ref STEP : ... », sur la page de garde.</small>
                             <input type="text" name="reference_step" id="reference_step" class="form-control wizard-input" value="{{ old('reference_step') }}">
                         </div>
 
                         <div class="wizard-field">
                             <label for="source_financement" class="wizard-label">Source de financement</label>
-                            <small class="wizard-hint">Apparaît sous le type d'offre, en « Source de financement : ... », sur la page de garde.</small>
+                            <small class="wizard-hint">Organisme ou fonds qui finance le marché. Apparaît sous le type d'offre, en « Source de financement : ... », sur la page de garde.</small>
                             <input type="text" name="source_financement" id="source_financement" class="form-control wizard-input" value="{{ old('source_financement') }}">
                         </div>
 
                         <div class="wizard-field">
                             <label for="gestion" class="wizard-label">Gestion</label>
-                            <small class="wizard-hint">Apparaît sous le type d'offre, en « Gestion : ... », sur la page de garde.</small>
+                            <small class="wizard-hint">Mode de gestion du marché (ex: régie, délégation...). Apparaît sous le type d'offre, en « Gestion : ... », sur la page de garde.</small>
                             <input type="text" name="gestion" id="gestion" class="form-control wizard-input" value="{{ old('gestion') }}">
                         </div>
                     </div>
                     <div class="col-md-6">
                         <div class="wizard-field">
                             <label for="imputation_budgetaire" class="wizard-label">Imputation Budgétaire</label>
-                            <small class="wizard-hint">Apparaît sous le type d'offre, en « Imputation Budgétaire : ... », sur la page de garde.</small>
+                            <small class="wizard-hint">Ligne budgétaire sur laquelle le marché est imputé. Apparaît sous le type d'offre, en « Imputation Budgétaire : ... », sur la page de garde.</small>
                             <input type="text" name="imputation_budgetaire" id="imputation_budgetaire" class="form-control wizard-input" value="{{ old('imputation_budgetaire') }}">
                         </div>
 
                         <div class="wizard-field">
                             <label for="accord_pret" class="wizard-label">Accord de Prêt</label>
-                            <small class="wizard-hint">Apparaît sous le type d'offre, en « Accord de Prêt : ... », sur la page de garde.</small>
+                            <small class="wizard-hint">Référence de l'accord de prêt finançant le marché, le cas échéant. Apparaît sous le type d'offre, en « Accord de Prêt : ... », sur la page de garde.</small>
                             <input type="text" name="accord_pret" id="accord_pret" class="form-control wizard-input" value="{{ old('accord_pret') }}">
                         </div>
                     </div>
@@ -491,7 +491,7 @@
                     <div class="col-md-12">
                         <div class="wizard-field">
                             <label for="type_offre" class="wizard-label">Type d'offres</label>
-                            <small class="wizard-hint">Apparaît en grand, juste sous le cadre bleu, sur la page de garde.</small>
+                            <small class="wizard-hint">Nature de l'offre demandée (technique, financière, administrative). Apparaît en grand, juste sous le cadre bleu, sur la page de garde.</small>
                             <input type="text" name="type_offre" id="type_offre" class="form-control wizard-input @error('type_offre') is-invalid @enderror" value="{{ old('type_offre') }}" placeholder="Ex: Offre technique, Offre financiere">
                             @error('type_offre')
                                 <div class="invalid-feedback d-block">{{ $message }}</div>
@@ -502,7 +502,7 @@
 
                 <div class="wizard-field">
                     <label for="lots" class="wizard-label">Lots concernes</label>
-                    <small class="wizard-hint">Apparaît dans le cadre bleu, précédé d'une flèche ➤, sur la page de garde.</small>
+                    <small class="wizard-hint">Lot(s) concerné(s) par ce dossier, si le marché est découpé en lots. Apparaît dans le cadre bleu, précédé d'une flèche ➤, sur la page de garde.</small>
                     <input type="text" class="form-control wizard-input @error('lots') is-invalid @enderror" id="lots" name="lots" placeholder="Ex: Lot 1, Lot 2" value="{{ old('lots', old('lot')) }}">
                     @error('lots')
                         <div class="invalid-feedback d-block">{{ $message }}</div>
@@ -511,13 +511,13 @@
 
                 <div class="wizard-field">
                     <label for="titre_lot" class="wizard-label">Titre du lot</label>
-                    <small class="wizard-hint">Apparaît dans le cadre bleu, juste sous le nom du dossier, sur la page de garde.</small>
+                    <small class="wizard-hint">Intitulé du lot concerné. Apparaît dans le cadre bleu, juste sous le nom du dossier, sur la page de garde.</small>
                     <input type="text" name="titre_lot" id="titre_lot" class="form-control wizard-input" value="{{ old('titre_lot') }}">
                 </div>
 
                 <div class="wizard-field">
                     <label for="autres_details" class="wizard-label">Autres details</label>
-                    <small class="wizard-hint">N'apparaît pas sur la page de garde (information interne).</small>
+                    <small class="wizard-hint">Informations complémentaires diverses. N'apparaît pas sur la page de garde (information interne).</small>
                     <textarea name="autres_details" id="autres_details" rows="3" class="form-control wizard-textarea">{{ old('autres_details') }}</textarea>
                 </div>
 
@@ -525,7 +525,7 @@
                     <div class="col-md-6">
                         <div class="wizard-field">
                             <label for="mois_depot" class="wizard-label">Mois de depot</label>
-                            <small class="wizard-hint">Apparaît tout en bas de la page de garde, avec l'année de dépôt.</small>
+                            <small class="wizard-hint">Mois de dépôt prévu du dossier. Apparaît tout en bas de la page de garde, avec l'année de dépôt.</small>
                             @php
                                 $moisListe = [
                                     'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
@@ -544,7 +544,7 @@
                     <div class="col-md-6">
                         <div class="wizard-field">
                             <label for="annee_depot" class="wizard-label">Annee de depot</label>
-                            <small class="wizard-hint">Apparaît tout en bas de la page de garde, avec le mois de dépôt.</small>
+                            <small class="wizard-hint">Année de dépôt prévue du dossier. Apparaît tout en bas de la page de garde, avec le mois de dépôt.</small>
                             @php
                                 $anneeBaseDepot = (int) now()->format('Y');
                                 $selectedAnneeDepot = old('annee_depot');

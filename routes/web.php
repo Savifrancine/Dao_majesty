@@ -108,6 +108,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/dossiers', [App\Http\Controllers\DossierController::class, 'index'])->name('dossiers.index');
     Route::get('/dossiers/show/{dossier}', [App\Http\Controllers\DossierController::class, 'show'])->name('dossiers.show');
     Route::post('/dossiers/{dossier}/dupliquer', [App\Http\Controllers\DossierController::class, 'duplicate'])->name('dossiers.duplicate');
+    Route::post('/dossiers/{dossier}/creer-autre-offre', [App\Http\Controllers\DossierController::class, 'createOtherOffer'])->name('dossiers.createOtherOffer');
     Route::get('/dossiers/{dossier}/continuer', [App\Http\Controllers\DossierController::class, 'continueCreation'])->name('dossiers.continuer');
     Route::get('/dossiers/{dossier}/select-documents', [App\Http\Controllers\DossierController::class, 'selectDocuments'])->name('dossiers.selectDocuments');
     Route::delete('/dossiers/{dossier}/document/{document}', [App\Http\Controllers\DossierController::class, 'destroyDocument'])->name('dossiers.destroyDocument');
@@ -116,6 +117,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/dossiers/{dossier}/presence', [App\Http\Controllers\DossierController::class, 'presencePing'])->name('dossiers.presence');
     Route::post('/dossiers/{dossier}/appliquer-cv-personnel', [App\Http\Controllers\DossierController::class, 'applyEntreprisePersonnelCv'])->name('dossiers.applyEntreprisePersonnelCv');
     Route::post('/dossiers/{dossier}/appliquer-document-entreprise', [App\Http\Controllers\DossierController::class, 'applyEntrepriseDocumentSelection'])->name('dossiers.applyEntrepriseDocumentSelection');
+    Route::post('/dossiers/{dossier}/ajouter-document-entreprise', [App\Http\Controllers\DossierController::class, 'createEntrepriseDocumentFromPicker'])->name('dossiers.createEntrepriseDocumentFromPicker');
+    Route::post('/dossiers/{dossier}/versions-finales', [App\Http\Controllers\DossierController::class, 'uploadVersionFinale'])->name('dossiers.versionsFinales.store');
+    Route::delete('/dossiers/versions-finales/{versionFinale}', [App\Http\Controllers\DossierController::class, 'destroyVersionFinale'])->name('dossiers.versionsFinales.destroy');
 
     // Wizard steps
     Route::get('/dossiers/create', [App\Http\Controllers\DossierController::class, 'create'])->name('dossiers.create');

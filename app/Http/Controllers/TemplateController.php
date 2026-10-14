@@ -25,6 +25,7 @@ class TemplateController extends Controller
             'type' => 'required|string|max:100',
             'content' => 'nullable|string'
         ]);
+        $data['type'] = trim(strtolower($data['type']));
 
         Template::create($data);
         return redirect()->route('templates.index')->with('success', 'Modèle enregistré');
@@ -42,6 +43,7 @@ class TemplateController extends Controller
             'type' => 'required|string|max:100',
             'content' => 'nullable|string'
         ]);
+        $data['type'] = trim(strtolower($data['type']));
 
         $template->update($data);
         return redirect()->route('templates.index')->with('success', 'Modèle mis à jour');

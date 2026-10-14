@@ -498,6 +498,14 @@
                     <button type="submit" class="btn btn-ghost">Dupliquer</button>
                 </form>
 
+                @foreach($missingOfferCategories ?? [] as $categorieCible => $label)
+                    <form action="{{ route('dossiers.createOtherOffer', $dossier) }}" method="POST" style="display:inline;" onsubmit="return confirm('Créer « {{ $label }} » pour ce marché, à partir de ce dossier ? Les pièces jointes téléversées ne seront pas copiées.');">
+                        @csrf
+                        <input type="hidden" name="categorie_cible" value="{{ $categorieCible }}">
+                        <button type="submit" class="btn btn-ghost">+ Créer {{ $label }}</button>
+                    </form>
+                @endforeach
+
                 <a href="{{ route('dossiers.index') }}" class="btn btn-ghost">Retour</a>
             </div>
         </div>
@@ -744,6 +752,61 @@
                     </div>
                 @else
                     <p style="color:#64748b; font-size:13px;">Aucune modification enregistrée pour l'instant.</p>
+                @endif
+            </div>
+
+            <div class="section-card">
+                <div class="section-title">Versions finales archivées</div>
+                <p style="color:#64748b; font-size:13px; margin-top:-4px;">
+                    Après téléchargement, si le document est modifié, signé puis scanné (ou autrement finalisé en dehors de l'appli), archivez ici cette version finale pour la retrouver plus tard.
+                </p>
+
+                <form action="{{ route('dossiers.versionsFinales.store', $dossier) }}" method="POST" enctype="multipart/form-data" style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; margin-bottom:14px;">
+                    @csrf
+                    <div>
+                        <label style="display:block; font-size:12px; color:#475569; margin-bottom:4px;">Fichier</label>
+                        <input type="file" name="fichier" required>
+                    </div>
+                    <div style="flex:1; min-width:180px;">
+                        <label style="display:block; font-size:12px; color:#475569; margin-bottom:4px;">Commentaire (optionnel)</label>
+                        <input type="text" name="commentaire" maxlength="255" placeholder="ex: version signée et scannée" style="width:100%;">
+                    </div>
+                    <button type="submit" class="btn btn-ghost">+ Archiver cette version</button>
+                </form>
+
+                @if($versionsFinales->isNotEmpty())
+                    <div class="table-wrap">
+                        <table class="simple-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Utilisateur</th>
+                                    <th>Fichier</th>
+                                    <th>Commentaire</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($versionsFinales as $version)
+                                <tr>
+                                    <td>{{ $version->created_at->format('d/m/Y H:i') }}</td>
+                                    <td>{{ $version->utilisateur ? trim($version->utilisateur->prenom . ' ' . $version->utilisateur->nom) : '—' }}</td>
+                                    <td><a href="{{ asset('storage/' . $version->chemin_fichier) }}" target="_blank" rel="noopener noreferrer">{{ $version->nom_original ?: basename($version->chemin_fichier) }}</a></td>
+                                    <td>{{ $version->commentaire ?: '—' }}</td>
+                                    <td>
+                                        <form action="{{ route('dossiers.versionsFinales.destroy', $version) }}" method="POST" onsubmit="return confirm('Supprimer cette version archivée ?');">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button class="btn-action btn-delete" type="submit" title="Supprimer cette version">🗑 Supprimer</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @else
+                    <p style="color:#64748b; font-size:13px;">Aucune version finale archivée pour l'instant.</p>
                 @endif
             </div>
         </div>
