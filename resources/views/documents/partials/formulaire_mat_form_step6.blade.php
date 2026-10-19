@@ -47,10 +47,11 @@
                 <div class="row" style="display:flex; gap:12px; margin-bottom:10px; flex-wrap:wrap;">
                     <div style="flex:1; min-width:200px;">
                         <label class="wizard-label">Provenance</label>
-                        <select name="mat[{{ $f->id }}][provenance]" class="form-control">
+                        @php $provenanceValue = old("mat.$f->id.provenance", $f->provenance); @endphp
+                        <select name="mat[{{ $f->id }}][provenance]" class="form-control mat-provenance" data-record-id="{{ $f->id }}">
                             <option value="">-- Sélectionner --</option>
                             @foreach(['En possession' => 'en_possession', 'En location' => 'en_location', 'En location-vente' => 'en_location_vente', 'Fabriqué spécialement' => 'fabrique_specialement'] as $label => $value)
-                                <option value="{{ $value }}" @selected(old("mat.$f->id.provenance", $f->provenance) === $value)>{{ $label }}</option>
+                                <option value="{{ $value }}" @selected($provenanceValue === $value)>{{ $label }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -66,6 +67,45 @@
                         </select>
                     </div>
                 </div>
+
+                <div class="mat-proprietaire-block" data-record-id="{{ $f->id }}" style="{{ in_array($provenanceValue, ['en_location', 'en_location_vente', 'fabrique_specialement'], true) ? '' : 'display:none;' }} margin:10px 0; padding:10px; background:#f9fafb; border:1px dashed #cbd5e1; border-radius:6px;">
+                    <div style="font-size:12px; color:#6b7280; margin-bottom:8px;">Ces renseignements sont omis si le matériel est « en possession » du candidat.</div>
+                    <div class="row" style="display:flex; gap:12px; margin-bottom:10px; flex-wrap:wrap;">
+                        <div style="flex:1; min-width:200px;">
+                            <label class="wizard-label">Nom du Propriétaire</label>
+                            <input type="text" name="mat[{{ $f->id }}][nom_proprietaire]" value="{{ old("mat.$f->id.nom_proprietaire", $f->nom_proprietaire) }}" class="form-control">
+                        </div>
+                        <div style="flex:1; min-width:200px;">
+                            <label class="wizard-label">Adresse du Propriétaire</label>
+                            <input type="text" name="mat[{{ $f->id }}][adresse_proprietaire]" value="{{ old("mat.$f->id.adresse_proprietaire", $f->adresse_proprietaire) }}" class="form-control">
+                        </div>
+                    </div>
+                    <div class="row" style="display:flex; gap:12px; margin-bottom:10px; flex-wrap:wrap;">
+                        <div style="flex:1; min-width:160px;">
+                            <label class="wizard-label">Téléphone</label>
+                            <input type="text" name="mat[{{ $f->id }}][telephone_proprietaire]" value="{{ old("mat.$f->id.telephone_proprietaire", $f->telephone_proprietaire) }}" class="form-control">
+                        </div>
+                        <div style="flex:1; min-width:200px;">
+                            <label class="wizard-label">Nom et titre de la personne à contacter</label>
+                            <input type="text" name="mat[{{ $f->id }}][contact_nom_titre]" value="{{ old("mat.$f->id.contact_nom_titre", $f->contact_nom_titre) }}" class="form-control">
+                        </div>
+                    </div>
+                    <div class="row" style="display:flex; gap:12px; margin-bottom:10px; flex-wrap:wrap;">
+                        <div style="flex:1; min-width:160px;">
+                            <label class="wizard-label">Télécopie</label>
+                            <input type="text" name="mat[{{ $f->id }}][telecopie_proprietaire]" value="{{ old("mat.$f->id.telecopie_proprietaire", $f->telecopie_proprietaire) }}" class="form-control">
+                        </div>
+                        <div style="flex:1; min-width:160px;">
+                            <label class="wizard-label">Télex</label>
+                            <input type="text" name="mat[{{ $f->id }}][telex_proprietaire]" value="{{ old("mat.$f->id.telex_proprietaire", $f->telex_proprietaire) }}" class="form-control">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="wizard-label">Détails de la location / location-vente / accord de fabrication</label>
+                        <textarea name="mat[{{ $f->id }}][accords_details]" class="form-control" rows="2">{{ old("mat.$f->id.accords_details", $f->accords_details) }}</textarea>
+                    </div>
+                </div>
+
                 <div class="row" style="display:flex; gap:12px; margin-bottom:10px; flex-wrap:wrap;">
                     <div style="flex:1; min-width:200px;">
                         <label class="wizard-label">Lieu (fait à)</label>
@@ -82,5 +122,20 @@
                 </div>
             </div>
         @endforeach
+
+        <script>
+            (function () {
+                function toggle(select) {
+                    var block = document.querySelector('.mat-proprietaire-block[data-record-id="' + select.dataset.recordId + '"]');
+                    if (!block) return;
+                    var show = ['en_location', 'en_location_vente', 'fabrique_specialement'].includes(select.value);
+                    block.style.display = show ? '' : 'none';
+                }
+                document.querySelectorAll('.mat-provenance').forEach(function (select) {
+                    toggle(select);
+                    select.addEventListener('change', function () { toggle(select); });
+                });
+            })();
+        </script>
     @endif
 </div>

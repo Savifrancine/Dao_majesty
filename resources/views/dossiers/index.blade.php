@@ -120,7 +120,7 @@
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-dark">
                     <tr>
-                        <th>Marché / Dossier</th>
+                        <th>Nom du dossier</th>
                         <th>Offres</th>
                         <th>Document archivé</th>
                         <th>Entreprise</th>

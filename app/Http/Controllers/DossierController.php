@@ -3535,6 +3535,13 @@ class DossierController extends Controller
                     'mat.*.localisation' => ['nullable', 'string', 'max:255'],
                     'mat.*.engagements' => ['nullable', 'string'],
                     'mat.*.provenance' => ['nullable', 'string', 'max:50'],
+                    'mat.*.nom_proprietaire' => ['nullable', 'string', 'max:255'],
+                    'mat.*.adresse_proprietaire' => ['nullable', 'string', 'max:1000'],
+                    'mat.*.telephone_proprietaire' => ['nullable', 'string', 'max:100'],
+                    'mat.*.contact_nom_titre' => ['nullable', 'string', 'max:255'],
+                    'mat.*.telecopie_proprietaire' => ['nullable', 'string', 'max:100'],
+                    'mat.*.telex_proprietaire' => ['nullable', 'string', 'max:100'],
+                    'mat.*.accords_details' => ['nullable', 'string'],
                     'mat.*.signataire_id' => ['nullable', 'exists:signataires,id'],
                     'mat.*.lieu_fait' => ['nullable', 'string', 'max:255'],
                     'mat.*.date_fait' => ['nullable', 'date'],
@@ -5514,9 +5521,7 @@ class DossierController extends Controller
         return $groups->map(function ($groupDossiers) use ($missingOffersByDossier) {
             $sorted = $groupDossiers->sortByDesc('created_at')->values();
             $first = $sorted->first();
-            $title = trim((string) $first->titre_dossier) !== ''
-                ? $first->titre_dossier
-                : (trim((string) $first->objet_marche) !== '' ? $first->objet_marche : $first->nom_dossier);
+            $title = $first->nom_dossier;
 
             return [
                 'title' => $title,

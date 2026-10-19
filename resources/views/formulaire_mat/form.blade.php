@@ -47,6 +47,49 @@
         </select>
         @error('provenance')<div class="invalid-feedback">{{ $message }}</div>@enderror
     </div>
+
+    @php $provenanceValue = old('provenance', $formulaireMat->provenance ?? ''); @endphp
+    <div class="col-12 mat-proprietaire-block" style="{{ in_array($provenanceValue, ['en_location', 'en_location_vente', 'fabrique_specialement'], true) ? '' : 'display:none;' }}">
+        <div class="row g-3 p-3" style="background:#f9fafb; border:1px dashed #cbd5e1; border-radius:6px;">
+            <div class="col-12" style="font-size:12px; color:#6b7280;">Ces renseignements sont omis si le matériel est « en possession » du candidat.</div>
+            <div class="col-md-6">
+                <label class="form-label">Nom du Propriétaire</label>
+                <input type="text" name="nom_proprietaire" class="form-control @error('nom_proprietaire') is-invalid @enderror" value="{{ old('nom_proprietaire', $formulaireMat->nom_proprietaire ?? '') }}">
+                @error('nom_proprietaire')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Adresse du Propriétaire</label>
+                <input type="text" name="adresse_proprietaire" class="form-control @error('adresse_proprietaire') is-invalid @enderror" value="{{ old('adresse_proprietaire', $formulaireMat->adresse_proprietaire ?? '') }}">
+                @error('adresse_proprietaire')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Téléphone</label>
+                <input type="text" name="telephone_proprietaire" class="form-control @error('telephone_proprietaire') is-invalid @enderror" value="{{ old('telephone_proprietaire', $formulaireMat->telephone_proprietaire ?? '') }}">
+                @error('telephone_proprietaire')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Nom et titre de la personne à contacter</label>
+                <input type="text" name="contact_nom_titre" class="form-control @error('contact_nom_titre') is-invalid @enderror" value="{{ old('contact_nom_titre', $formulaireMat->contact_nom_titre ?? '') }}">
+                @error('contact_nom_titre')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Télécopie</label>
+                <input type="text" name="telecopie_proprietaire" class="form-control @error('telecopie_proprietaire') is-invalid @enderror" value="{{ old('telecopie_proprietaire', $formulaireMat->telecopie_proprietaire ?? '') }}">
+                @error('telecopie_proprietaire')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Télex</label>
+                <input type="text" name="telex_proprietaire" class="form-control @error('telex_proprietaire') is-invalid @enderror" value="{{ old('telex_proprietaire', $formulaireMat->telex_proprietaire ?? '') }}">
+                @error('telex_proprietaire')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            </div>
+            <div class="col-12">
+                <label class="form-label">Détails de la location / location-vente / accord de fabrication</label>
+                <textarea name="accords_details" rows="3" class="form-control @error('accords_details') is-invalid @enderror">{{ old('accords_details', $formulaireMat->accords_details ?? '') }}</textarea>
+                @error('accords_details')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            </div>
+        </div>
+    </div>
+
     <div class="col-12">
         <label class="form-label">Détails sur les engagements courants</label>
         <textarea name="engagements" rows="4" class="form-control @error('engagements') is-invalid @enderror">{{ old('engagements', $formulaireMat->engagements ?? '') }}</textarea>
@@ -81,3 +124,15 @@
         <a href="{{ route('formulaire_mat.index') }}" class="btn btn-secondary">Annuler</a>
     </div>
 </form>
+
+<script>
+    (function () {
+        var select = document.querySelector('select[name="provenance"]');
+        var block = document.querySelector('.mat-proprietaire-block');
+        if (!select || !block) return;
+        function toggle() {
+            block.style.display = ['en_location', 'en_location_vente', 'fabrique_specialement'].includes(select.value) ? '' : 'none';
+        }
+        select.addEventListener('change', toggle);
+    })();
+</script>

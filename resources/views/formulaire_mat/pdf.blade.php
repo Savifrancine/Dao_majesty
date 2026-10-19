@@ -47,8 +47,7 @@
         .sig-line { width: 180px; border-bottom: 1px solid #000; height: 2px; }
         
         /* Checkbox */
-        .checkbox { display: inline-block; border: 1px solid #000; width: 14px; height: 14px; margin: 0 4px; vertical-align: middle; }
-        .checkbox.checked::after { content: "✓"; font-weight: bold; font-size: 12px; }
+        .checkbox { display: inline-block; border: 1px solid #000; width: 14px; height: 14px; margin: 0 4px; vertical-align: middle; text-align: center; line-height: 14px; font-weight: 700; font-size: 13px; }
     </style>
 </head>
 <body>
@@ -174,15 +173,44 @@
                 <td class="content" colspan="2">
                     <strong>Indiquer la provenance du matériel :</strong><br><br>
                     <div style="margin-top: 4px;">
-                        <span class="checkbox @if($formulaireMat->provenance === 'en_possession') checked @endif"></span> en possession
-                        <span class="checkbox @if($formulaireMat->provenance === 'en_location') checked @endif"></span> en location
-                        <span class="checkbox @if($formulaireMat->provenance === 'en_location_vente') checked @endif"></span> en location-vente
-                        <span class="checkbox @if($formulaireMat->provenance === 'fabrique_specialement') checked @endif"></span> fabriqué spécialement
+                        <span class="checkbox">{{ $formulaireMat->provenance === 'en_possession' ? 'X' : '' }}</span> en possession
+                        <span class="checkbox">{{ $formulaireMat->provenance === 'en_location' ? 'X' : '' }}</span> en location
+                        <span class="checkbox">{{ $formulaireMat->provenance === 'en_location_vente' ? 'X' : '' }}</span> en location-vente
+                        <span class="checkbox">{{ $formulaireMat->provenance === 'fabrique_specialement' ? 'X' : '' }}</span> fabriqué spécialement
                     </div>
                 </td>
             </tr>
         </table>
-        
+
+        @if(in_array($formulaireMat->provenance, ['en_location', 'en_location_vente', 'fabrique_specialement'], true))
+            <table class="main-table" style="margin-bottom: 14px; margin-top: 10px;">
+                <tr>
+                    <td class="label" rowspan="3" style="vertical-align: top;">Propriétaire</td>
+                    <td class="content" colspan="2">
+                        <strong>Nom du Propriétaire :</strong> {{ $formulaireMat->nom_proprietaire ?? '-' }}
+                        <div style="margin-top: 6px;"><strong>Adresse du Propriétaire :</strong> {{ $formulaireMat->adresse_proprietaire ?? '-' }}</div>
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>Téléphone :</strong> {{ $formulaireMat->telephone_proprietaire ?? '-' }}</td>
+                    <td><strong>Nom et titre de la personne à contacter :</strong> {{ $formulaireMat->contact_nom_titre ?? '-' }}</td>
+                </tr>
+                <tr>
+                    <td><strong>Télécopie :</strong> {{ $formulaireMat->telecopie_proprietaire ?? '-' }}</td>
+                    <td><strong>Télex :</strong> {{ $formulaireMat->telex_proprietaire ?? '-' }}</td>
+                </tr>
+                <tr>
+                    <td class="label" style="vertical-align: top;">Accords</td>
+                    <td class="content" colspan="2">
+                        <strong>Détails de la location / location-vente / accord de fabrication :</strong>
+                        <div style="margin-top: 4px; padding: 6px; background: #fafafa; border: 1px solid #ddd; min-height: 40px;">
+                            {{ $formulaireMat->accords_details ?? '' }}
+                        </div>
+                    </td>
+                </tr>
+            </table>
+        @endif
+
         <!-- Signature -->
         <div class="signature-section">
             <div style="font-weight: 700; margin-bottom: 8px; font-size: 12px;">
