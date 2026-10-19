@@ -28,7 +28,7 @@
         .pdf-header .title { font-weight: 700; }
         .pdf-header .subtitle { font-size: 10px; color: #0b63b5; }
 
-        .cover { text-align:center; padding: 4mm 18px 4mm; }
+        .cover { text-align:center; padding: 6mm 18px 6mm; }
 
         .title-page {
             width: 100%;
@@ -69,17 +69,17 @@
         .head-title { font-size:22px; font-weight:700; margin-top:6px; }
         .head-sub { font-size:13px; margin-top:6px; }
 
-        .framed { margin:10px auto; max-width:90%; border:8px solid #0b63b5; padding:4px; background:#0b63b5; }
-        .framed .inner { background:#fff; padding:12px 14px; text-align:center; color:#0b63b5; }
-        .framed .inner .main { font-size:21px; font-weight:800; line-height:1.15; }
-        .framed .inner .sub { margin-top:6px; font-size:14px; line-height:1.2; }
+        .framed { margin:12px auto; max-width:90%; border:9px solid #0b63b5; padding:5px; background:#0b63b5; }
+        .framed .inner { background:#fff; padding:14px 16px; text-align:center; color:#0b63b5; }
+        .framed .inner .main { font-size:22px; font-weight:800; line-height:1.18; }
+        .framed .inner .sub { margin-top:7px; font-size:14px; line-height:1.2; }
 
-        .big-subtitle { color:#0b63b5; font-weight:800; font-size:16px; margin-top:8px; letter-spacing:0.4px; }
+        .big-subtitle { color:#0b63b5; font-weight:800; font-size:17px; margin-top:9px; letter-spacing:0.4px; }
 
-        .meta-block { width:80%; margin:8px auto 4px; font-size:13px; color:#222; text-align:left; }
-        .meta-block .line { margin-bottom:4px; line-height:1.25; }
+        .meta-block { width:80%; margin:10px auto 5px; font-size:13.5px; color:#222; text-align:left; }
+        .meta-block .line { margin-bottom:4.5px; line-height:1.3; }
 
-        .center-date { text-align:center; margin-top:8px; font-weight:700; font-size:15px; }
+        .center-date { text-align:center; margin-top:9px; font-weight:700; font-size:15px; }
         .cover-info-line { margin-top: 4px; }
         .cover-info-lines .cover-info-line:first-child { margin-top: 0; }
     </style>
@@ -149,12 +149,12 @@
         @if(!empty($pageGardeDataUri) && str_starts_with($pageGardeDataUri,'data:image'))
             <img src="{{ $pageGardeDataUri }}" alt="Page de garde" style="max-width:100%; height:auto;" />
         @else
-            <div style="font-family: Calibri, Segoe UI, Arial, sans-serif; color:#1f78d1; width:100%; margin-bottom:8px;">
+            <div style="font-family: Calibri, Segoe UI, Arial, sans-serif; color:#1f78d1; width:100%; margin-bottom:10px;">
                 <table style="width:100%; border-collapse:collapse;">
                     <tr>
-                        <td style="width:100px; vertical-align:top; padding-right:14px;">{!! $imgTag !!}</td>
+                        <td style="width:105px; vertical-align:top; padding-right:14px;">{!! $imgTag !!}</td>
                         <td style="vertical-align:top; text-align:center;">
-                            <div style="font-size:17px; font-weight:700; line-height:1.1; margin-bottom:2px;">MAJESTY SERVICES ET EQUIPEMENTS</div>
+                            <div style="font-size:17.5px; font-weight:700; line-height:1.12; margin-bottom:2px;">MAJESTY SERVICES ET EQUIPEMENTS</div>
                             <div style="font-size:11px; line-height:1; margin-bottom:2px;">Médical et Laboratoires – Equipements Pétroliers – Environnement - Eaux - Agroalimentaire</div>
                             <div style="font-size:11px; line-height:1; margin-bottom:2px;">Maintenance – Service Apres Vente</div>
                             <div style="width:85%; margin:2px auto 4px auto; border-top:1px solid #1f78d1;"></div>
@@ -165,7 +165,7 @@
                 </table>
             </div>
 
-            <div class="cover-info-lines" style="margin-top:8px; font-size:13px; text-align:center;">
+            <div class="cover-info-lines" style="margin-top:10px; font-size:13.5px; text-align:center;">
                 <div class="cover-info-line" style="font-weight:700;">{{ mb_strtoupper($dossier->republique ?? 'REPUBLIQUE DU BENIN') }}</div>
                 @if($dossier->ministere)
                     <div class="cover-info-line">{{ mb_strtoupper($dossier->ministere) }}</div>
@@ -174,23 +174,23 @@
                     <div class="cover-info-line">{{ mb_strtoupper($dossier->services_projet) }}</div>
                 @endif
                 @if($dossier->titre_dossier)
-                    <div class="cover-info-line" style="font-weight:700; margin-top:5px;">{{ mb_strtoupper($dossier->titre_dossier) }}</div>
+                    <div class="cover-info-line" style="font-weight:700; margin-top:6px;">{{ mb_strtoupper($dossier->titre_dossier) }}</div>
                 @endif
                 @if($dossier->ref)
-                    <div class="cover-info-line" style="margin-top:5px;">REFERENCE DU DOSSIER: {{ $dossier->ref }}</div>
+                    <div class="cover-info-line" style="margin-top:6px;">REFERENCE DU DOSSIER: {{ $dossier->ref }}</div>
                 @endif
             </div>
 
                 @if($dossier->nom_dossier)
-                    <div style="text-align:center; margin-top:3mm; font-size:13px; font-weight:700;">LA PERSONNE RESPONSABLE DES MARCHÉS PUBLICS</div>
+                    <div style="text-align:center; margin-top:4mm; font-size:13.5px; font-weight:700;">LA PERSONNE RESPONSABLE DES MARCHÉS PUBLICS</div>
                 @endif
 
                 @if($dossier->destinataires)
-                    <div style="text-align:center; margin-top:2mm; font-size:13px;">{{ $dossier->destinataires }}</div>
+                    <div style="text-align:center; margin-top:2mm; font-size:13.5px;">{{ $dossier->destinataires }}</div>
                 @endif
 
                 @if($dossier->reference_dossier || $dossier->date_lancement)
-                    <div style="text-align:center; margin-top:2mm; font-size:13px;">
+                    <div style="text-align:center; margin-top:2mm; font-size:13.5px;">
                         {{ $dossier->reference_dossier ?? '' }}
                         @if($dossier->date_lancement)
                             @php

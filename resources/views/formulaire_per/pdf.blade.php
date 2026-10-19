@@ -28,7 +28,6 @@
         .signature-section { margin-top:24px; display:flex; justify-content:space-between; gap:16px; }
         .signature-block { flex:1; font-size:11px; line-height:1.4; }
         .signature-box { text-align:center; }
-        .signature-line { width:220px; border-bottom:1px solid #000; margin:40px auto 6px auto; height:1px; }
     </style>
 </head>
 <body>
@@ -129,8 +128,7 @@
             </tr>
         </table>
 
-        <div style="margin-top:16px; font-size:11px; font-weight:700;">Résumé de l'expérience professionnelle des dix (10) dernières années</div>
-        <div style="margin-bottom:8px; font-size:10px;">Indiquer l'expérience pertinente pour le projet en ordre chronologique inverse.</div>
+        <div style="margin-top:16px; margin-bottom:8px; font-size:11px; font-weight:700;">Résumé de l'expérience professionnelle des dix (10) dernières années</div>
         <table class="experience-table">
             <thead>
                 <tr>
@@ -156,17 +154,18 @@
             </tbody>
         </table>
 
-        <!-- Signature section removed as requested -->
-
-        @php $toutesLesPieces = $formulaire_per->fichiers->concat($formulaire_per->cvFichiers()); @endphp
-        @if($toutesLesPieces->isNotEmpty())
-            <div style="margin-top:16px; font-size:11px; font-weight:700;">Pièces jointes</div>
-            <div style="font-size:10px;">
-                @foreach($toutesLesPieces as $fichier)
-                    <div>— {{ $fichier->nom_original ?: basename($fichier->chemin_fichier) }}</div>
-                @endforeach
+        <div style="margin-top:22px; font-size:12px;">
+            <div style="margin-bottom:16px;">Nom <strong>{{ $signatureName }}</strong></div>
+            <div style="margin-bottom:16px;">
+                Signature
             </div>
-        @endif
+            <div>
+                En date du
+                @if($formulaire_per->lieu_signature)
+                    <span style="margin-left:40px;">à {{ $formulaire_per->lieu_signature }}</span>
+                @endif
+            </div>
+        </div>
     </div>
 </body>
 </html>
