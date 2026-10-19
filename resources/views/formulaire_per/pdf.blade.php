@@ -77,20 +77,18 @@
         <div class="title-section">Formulaire PER</div>
         <div class="subtitle">Curriculum Vitae du Personnel Proposé</div>
 
+        <table class="main-table" style="margin-bottom:10px;">
+            <tr>
+                <td><strong>Nom du candidat :</strong> {{ $formulaire_per->nom_candidat }}</td>
+            </tr>
+        </table>
+
         <table class="main-table">
             <tr>
-                <th class="section-title" colspan="4">Nom du candidat</th>
+                <td colspan="5"><strong>Poste :</strong> {{ $formulaire_per->poste }}</td>
             </tr>
             <tr>
-                <td colspan="4">{{ $formulaire_per->nom_candidat }}</td>
-            </tr>
-            <tr>
-                <th class="section-title" colspan="4">Poste</th>
-            </tr>
-            <tr>
-                <td colspan="4">{{ $formulaire_per->poste }}</td>
-            </tr>
-            <tr>
+                <td class="section-title" rowspan="4" style="width:18%; vertical-align:top;">Renseignements personnels</td>
                 <th class="section-title" colspan="2">Nom</th>
                 <th class="section-title" colspan="2">Date de naissance</th>
             </tr>
@@ -105,22 +103,19 @@
                 <td colspan="4">{{ $formulaire_per->qualifications ?? '' }}</td>
             </tr>
             <tr>
-                <th class="section-title" colspan="4">Employeur actuel</th>
-            </tr>
-            <tr>
-                <td colspan="2"><strong>Nom de l'employeur :</strong></td>
-                <td colspan="2">{{ $formulaire_per->nom_employeur }}</td>
+                <td class="section-title" rowspan="5" style="width:18%; vertical-align:top;">Employeur actuel</td>
+                <td colspan="4"><strong>Nom de l'employeur :</strong> {{ $formulaire_per->nom_employeur }}</td>
             </tr>
             <tr>
                 <td colspan="4"><strong>Adresse de l'employeur :</strong> {{ $formulaire_per->adresse_employeur }}</td>
             </tr>
             <tr>
                 <td colspan="2"><strong>Téléphone :</strong> {{ $formulaire_per->telephone }}</td>
-                <td colspan="2"><strong>Contact :</strong> {{ $formulaire_per->contact_personnel }}</td>
+                <td colspan="2"><strong>Contact (responsable / chargé du personnel) :</strong> {{ $formulaire_per->contact_personnel }}</td>
             </tr>
             <tr>
                 <td colspan="2"><strong>Télécopie :</strong> {{ $formulaire_per->telecopie ?? '' }}</td>
-                <td colspan="2"><strong>Email :</strong> {{ $formulaire_per->email }}</td>
+                <td colspan="2"><strong>E-mail :</strong> {{ $formulaire_per->email }}</td>
             </tr>
             <tr>
                 <td colspan="2"><strong>Emploi tenu :</strong> {{ $formulaire_per->emploi_tenu }}</td>
@@ -162,7 +157,7 @@
             <div>
                 En date du
                 @if($formulaire_per->lieu_signature)
-                    <span style="margin-left:40px;">à {{ $formulaire_per->lieu_signature }}</span>
+                    <span style="margin-left:6px;">{{ $formulaire_per->lieu_signature }}</span>
                 @endif
             </div>
         </div>

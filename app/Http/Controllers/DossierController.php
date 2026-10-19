@@ -1173,7 +1173,7 @@ class DossierController extends Controller
 
         $dossier->loadMissing('entreprise');
         $entreprise = $dossier->entreprise;
-        $nomCandidat = trim(optional($entreprise)->responsable ?? optional($entreprise)->nom ?? '') ?: 'Candidat non renseigné';
+        $nomCandidat = trim(optional($entreprise)->nom ?? '') ?: 'Candidat non renseigné';
 
         foreach ($personnel as $position => $p) {
             $record = FormulairePER::firstOrNew(['dossier_id' => $dossier->id, 'personnel_position' => $position]);
@@ -1183,6 +1183,18 @@ class DossierController extends Controller
                     'utilisateur_id' => auth()->id(),
                     'nom_candidat' => $nomCandidat,
                 ]);
+            } else {
+                // Corrige les enregistrements crees avant que ce champ ne
+                // remonte le nom de l'entreprise (une version precedente y
+                // mettait a tort le responsable de l'entreprise) : on ne
+                // touche que les valeurs vides ou encore egales a l'ancien
+                // responsable, jamais une valeur deja personnalisee par
+                // l'utilisateur dans le Formulaire PER.
+                $currentNomCandidat = trim((string) ($record->nom_candidat ?? ''));
+                $responsable = trim((string) (optional($entreprise)->responsable ?? ''));
+                if ($currentNomCandidat === '' || ($responsable !== '' && $currentNomCandidat === $responsable)) {
+                    $record->nom_candidat = $nomCandidat;
+                }
             }
 
             // Poste et nom sont purement derives de la liste du personnel : ils
@@ -2436,6 +2448,7 @@ class DossierController extends Controller
 
                 $validated = $request->validate([
                     'per' => ['nullable', 'array'],
+                    'per.*.nom_candidat' => ['nullable', 'string', 'max:255'],
                     'per.*.date_naissance' => ['nullable', 'date'],
                     'per.*.qualifications' => ['nullable', 'string', 'max:4000'],
                     'per.*.nom_employeur' => ['nullable', 'string', 'max:255'],

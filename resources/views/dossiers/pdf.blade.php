@@ -844,15 +844,11 @@
                     $antDateSoumission = $dossier->date_soumission ? \Illuminate\Support\Carbon::parse($dossier->date_soumission)->format('d/m/Y') : now()->format('d/m/Y');
                 @endphp
                 <div style="font-size:12px; line-height:1.5; margin-top:10px;">
-                    <table style="width:100%; border-collapse:collapse; font-size:11px; margin-bottom:12px;">
-                        <tr>
-                            <td style="border:none; padding:0; vertical-align:top; width:65%;">{!! $antRefLine !!}</td>
-                            <td style="border:none; padding:0; text-align:right; vertical-align:top; width:35%;">
-                                {{ $companyName ?: optional($entreprise)->nom }}<br>
-                                {{ $antDateSoumission }}
-                            </td>
-                        </tr>
-                    </table>
+                    <div style="text-align:right; font-size:11px;">
+                        {{ $companyName ?: optional($entreprise)->nom }}<br>
+                        {{ $antDateSoumission }}
+                    </div>
+                    <div style="font-size:11px; margin-top:14px; margin-bottom:12px;">{!! $antRefLine !!}</div>
                     <div style="text-align:center; font-weight:700; font-size:14px; margin:10px 0 16px;">FORMULAIRE ANT-2 : Formulaire renseignant sur les antécédents de marchés non exécutés, de litiges en instance et d'antécédents de litiges</div>
                         <style>
                             .pdf-ant-table th,

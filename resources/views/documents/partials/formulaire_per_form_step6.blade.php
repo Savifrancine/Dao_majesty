@@ -25,6 +25,11 @@
             <div class="per-block" data-record-id="{{ $f->id }}" style="margin-bottom:28px; padding:14px; border:1px solid #d1d5db; border-radius:6px;">
                 <div style="font-weight:700; margin-bottom:10px;">Personne {{ $f->personnel_position + 1 }} — {{ $f->poste }} : {{ $f->nom_personnel }}</div>
 
+                <div style="margin-bottom:10px;">
+                    <label class="wizard-label">Nom du candidat</label>
+                    <input type="text" name="per[{{ $f->id }}][nom_candidat]" value="{{ old("per.$f->id.nom_candidat", $f->nom_candidat ?: optional($dossier->entreprise)->nom) }}" class="form-control">
+                </div>
+
                 @if($matchingCvs->count() > 1)
                     <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; padding:10px; margin-bottom:12px;">
                         <div style="font-size:13px; color:#1e40af; margin-bottom:6px;">
