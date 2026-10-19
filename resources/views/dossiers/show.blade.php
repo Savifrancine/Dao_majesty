@@ -493,18 +493,23 @@
                     <a href="{{ route('dossiers.utilisateurs', $dossier) }}" class="btn btn-ghost">Gérer les contributeurs</a>
                 @endif
 
-                <form action="{{ route('dossiers.duplicate', $dossier) }}" method="POST" style="display:inline;" onsubmit="return confirm('Dupliquer ce dossier ? Les pièces jointes téléversées ne seront pas copiées.');">
+                <form action="{{ route('dossiers.duplicate', $dossier) }}" method="POST" style="display:inline;" onsubmit="return confirm('Dupliquer ce dossier ? Les pièces déjà téléversées seront reprises aussi : pensez à vérifier et remplacer celles qui ne conviennent pas.');">
                     @csrf
                     <button type="submit" class="btn btn-ghost">Dupliquer</button>
                 </form>
 
                 @foreach($missingOfferCategories ?? [] as $categorieCible => $label)
-                    <form action="{{ route('dossiers.createOtherOffer', $dossier) }}" method="POST" style="display:inline;" onsubmit="return confirm('Créer « {{ $label }} » pour ce marché, à partir de ce dossier ? Les pièces jointes téléversées ne seront pas copiées.');">
+                    <form action="{{ route('dossiers.createOtherOffer', $dossier) }}" method="POST" style="display:inline;" onsubmit="return confirm('Créer « {{ $label }} » pour ce marché, à partir de ce dossier ? Les pièces déjà téléversées seront reprises aussi : pensez à vérifier et remplacer celles qui ne conviennent pas à cette offre.');">
                         @csrf
                         <input type="hidden" name="categorie_cible" value="{{ $categorieCible }}">
                         <button type="submit" class="btn btn-ghost">+ Créer {{ $label }}</button>
                     </form>
                 @endforeach
+
+                <form action="{{ route('dossiers.destroy', $dossier) }}" method="POST" style="display:inline;" onsubmit="return confirm('Supprimer définitivement ce dossier et toutes ses pièces ? Cette action est irréversible.');">
+                    @csrf
+                    <button type="submit" class="btn btn-ghost" style="color:#991b1b; border-color:#fecaca;">🗑 Supprimer le dossier</button>
+                </form>
 
                 <a href="{{ route('dossiers.index') }}" class="btn btn-ghost">Retour</a>
             </div>
@@ -583,7 +588,11 @@
             <div class="section-card">
                 <div class="section-header">
                     <div class="section-title">Sommaire ({{ $dossier->documents->count() }} documents)</div>
-                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                        <span id="ordre-statut" style="font-size:12px; color:#64748b;"></span>
+                        <button type="button" id="valider-ordre-btn" class="btn-add-doc" style="display:none;" disabled>
+                            ✓ Valider l'ordre
+                        </button>
                         <a href="{{ route('dossiers.selectDocuments', $dossier->id) }}" class="btn-add-doc">
                             ✚ Ajouter des documents
                         </a>
@@ -681,13 +690,34 @@
 
                             var url = @json(route('dossiers.reorderDocuments', $dossier->id));
                             var token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+                            var validerBtn = document.getElementById('valider-ordre-btn');
+                            var statutEl = document.getElementById('ordre-statut');
+
+                            function renumber() {
+                                body.querySelectorAll('tr[data-id]').forEach(function (row, index) {
+                                    row.querySelector('.order-pill').textContent = '#' + (index + 1);
+                                });
+                            }
+
+                            function markDirty() {
+                                renumber();
+                                if (validerBtn) {
+                                    validerBtn.style.display = 'inline-block';
+                                    validerBtn.disabled = false;
+                                }
+                                if (statutEl) statutEl.textContent = 'Ordre modifié, non enregistré';
+                            }
 
                             function save() {
                                 var ids = [];
-                                body.querySelectorAll('tr[data-id]').forEach(function (row, index) {
+                                body.querySelectorAll('tr[data-id]').forEach(function (row) {
                                     ids.push(row.dataset.id);
-                                    row.querySelector('.order-pill').textContent = '#' + (index + 1);
                                 });
+
+                                if (validerBtn) {
+                                    validerBtn.disabled = true;
+                                    validerBtn.textContent = 'Enregistrement...';
+                                }
 
                                 fetch(url, {
                                     method: 'POST',
@@ -695,8 +725,18 @@
                                     body: JSON.stringify({ ids: ids })
                                 }).then(function (res) {
                                     if (!res.ok) throw new Error('save failed');
+                                    if (validerBtn) {
+                                        validerBtn.style.display = 'none';
+                                        validerBtn.textContent = "✓ Valider l'ordre";
+                                    }
+                                    if (statutEl) statutEl.textContent = 'Ordre enregistré ✓';
                                 }).catch(function () {
-                                    alert("L'ordre n'a pas pu être enregistré. Rechargez la page.");
+                                    if (validerBtn) {
+                                        validerBtn.disabled = false;
+                                        validerBtn.textContent = "✓ Valider l'ordre";
+                                    }
+                                    if (statutEl) statutEl.textContent = '';
+                                    alert("L'ordre n'a pas pu être enregistré. Réessayez.");
                                 });
                             }
 
@@ -712,7 +752,18 @@
                                 } else {
                                     return;
                                 }
-                                save();
+                                markDirty();
+                            });
+
+                            if (validerBtn) {
+                                validerBtn.addEventListener('click', save);
+                            }
+
+                            window.addEventListener('beforeunload', function (event) {
+                                if (validerBtn && validerBtn.style.display !== 'none' && !validerBtn.disabled) {
+                                    event.preventDefault();
+                                    event.returnValue = '';
+                                }
                             });
                         });
                     </script>

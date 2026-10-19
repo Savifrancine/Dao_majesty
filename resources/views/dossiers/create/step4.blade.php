@@ -468,7 +468,7 @@
 
                         <div class="wizard-field">
                             <label for="gestion" class="wizard-label">Gestion</label>
-                            <small class="wizard-hint">Mode de gestion du marché (ex: régie, délégation...). Apparaît sous le type d'offre, en « Gestion : ... », sur la page de garde.</small>
+                            <small class="wizard-hint">Année budgétaire/exercice auquel appartient le dossier (ex: 2026). Apparaît sous le type d'offre, en « Gestion : 2026 », sur la page de garde.</small>
                             <input type="text" name="gestion" id="gestion" class="form-control wizard-input" value="{{ old('gestion') }}">
                         </div>
                     </div>

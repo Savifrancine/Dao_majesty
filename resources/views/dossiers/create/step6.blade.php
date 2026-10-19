@@ -727,6 +727,13 @@
 
                                 @include('documents.partials.document_libre_form_step6', ['docId' => $currentDocument->id, 'dossierDocument' => $dossierDocument])
 
+                            @elseif(trim($currentDocument->nom) === 'Fiche technique de chaque article, délivrée par le fabricant')
+                                @php
+                                    $dossierDocument = $dossier->documents->firstWhere('type_document_id', $currentDocument->id);
+                                @endphp
+
+                                @include('documents.partials.fiche_technique_articles_form_step6', ['dossier' => $dossier, 'dossierDocument' => $dossierDocument])
+
                             @else
                                 @php
                                     $dossierDocument = $dossier->documents->firstWhere('type_document_id', $currentDocument->id);

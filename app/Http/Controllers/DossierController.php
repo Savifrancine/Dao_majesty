@@ -29,6 +29,7 @@ use App\Models\FormulaireExp42BSuite;
 use App\Models\FormulairePER;
 use App\Models\FormulairePerFichier;
 use App\Models\FormulaireMat;
+use App\Models\FicheTechniqueFichier;
 use App\Support\Exp42aPdf;
 use App\Support\Exp42bPdf;
 use App\Support\Exp42aSuitePdf;
@@ -107,6 +108,8 @@ class DossierController extends Controller
     private const LISTE_PERSONNEL_NOM = 'Liste du personnel affecté à l\'exécution du marché';
     private const FORMULAIRE_MAT_NOM = 'Formulaire MAT';
     private const LISTE_MATERIEL_NOM = 'Liste de Matériel';
+    private const FICHE_TECHNIQUE_ARTICLES_NOM = 'Fiche technique de chaque article, délivrée par le fabricant';
+    private const DESCRIPTION_TECHNIQUE_NOM = 'Description technique des fournitures/services';
 
     /**
      * Les 3 categories d'offre reconnues pour un meme marche (detectees dans
@@ -1447,6 +1450,110 @@ class DossierController extends Controller
         return trim(optional($doc->typeDocument)->nom ?? '') === self::FORMULAIRE_MAT_NOM;
     }
 
+    private function isFicheTechniqueArticlesDoc(DossierDocument $doc): bool
+    {
+        return trim(optional($doc->typeDocument)->nom ?? '') === self::FICHE_TECHNIQUE_ARTICLES_NOM;
+    }
+
+    /**
+     * Liste des articles du tableau "Description technique des fournitures/
+     * services" du dossier (toutes sections confondues, dans l'ordre), sous
+     * la forme [['designation' => ...], ...] - l'index dans ce tableau EST
+     * le "N°" de l'article (0-based), utilise pour rattacher sa fiche
+     * technique (voir FicheTechniqueFichier::article_index). Ce n'est
+     * jamais l'id d'une BordereauLigne, qui n'est pas stable (ces lignes
+     * sont supprimees et recreees a chaque enregistrement du tableau).
+     */
+    private function descriptionTechniqueArticles(Dossier $dossier): array
+    {
+        $descDoc = $dossier->documents()
+            ->whereHas('typeDocument', fn ($q) => $q->where('nom', self::DESCRIPTION_TECHNIQUE_NOM))
+            ->with('bordereau.lignes')
+            ->first();
+
+        if (!$descDoc) {
+            return [];
+        }
+
+        $articles = [];
+        foreach ($descDoc->bordereau as $bordereau) {
+            foreach ($bordereau->lignes as $ligne) {
+                $articles[] = ['designation' => trim((string) $ligne->designation)];
+            }
+        }
+
+        return $articles;
+    }
+
+    /**
+     * Pour chaque article du tableau "Description technique" qui a une
+     * fiche technique/prospectus attache, dans l'ordre des articles (pas
+     * l'ordre de televersement) : une page intercalaire generee ("Article
+     * N°X — designation") suivie du prospectus lui-meme (PDF fusionne tel
+     * quel, image convertie en PDF 1 page). L'intercalaire est numerote
+     * (numberedEntry), le prospectus brut ne l'est jamais (attachmentEntry) -
+     * meme convention que le reste du dossier. Les articles sans prospectus
+     * sont simplement ignores (aucune page produite pour eux).
+     */
+    private function ficheTechniqueArticlesEntries(DossierDocument $doc): array
+    {
+        $dossier = $doc->dossier ?? Dossier::find($doc->dossier_id);
+        if (!$dossier) {
+            return [];
+        }
+
+        $articles = $this->descriptionTechniqueArticles($dossier);
+        if (empty($articles)) {
+            return [];
+        }
+
+        $fichiers = FicheTechniqueFichier::where('dossier_document_id', $doc->id)
+            ->get()
+            ->keyBy('article_index');
+
+        $entries = [];
+        foreach ($articles as $index => $article) {
+            $fichier = $fichiers->get($index);
+            if (!$fichier) {
+                continue;
+            }
+
+            $fullPath = storage_path('app/public/' . ltrim($fichier->chemin_fichier, '/'));
+            if (!file_exists($fullPath)) {
+                continue;
+            }
+
+            $numero = $index + 1;
+            $designation = $article['designation'] !== '' ? $article['designation'] : ('Article n°' . $numero);
+
+            $htmlSeparateur = view('documents.partials.fiche_technique_intercalaire_pdf', [
+                'numero' => $numero,
+                'designation' => $designation,
+            ])->render();
+            $dompdfSeparateur = new Dompdf(['isRemoteEnabled' => true]);
+            $dompdfSeparateur->loadHtml($htmlSeparateur);
+            $dompdfSeparateur->setPaper('A4', 'portrait');
+            $dompdfSeparateur->render();
+            $separateurPath = tempnam(sys_get_temp_dir(), 'fiche_technique_sep_') . '.pdf';
+            file_put_contents($separateurPath, $dompdfSeparateur->output());
+            $entries[] = $this->numberedEntry($separateurPath);
+
+            $ext = strtolower(pathinfo($fullPath, PATHINFO_EXTENSION));
+            if ($ext === 'pdf') {
+                $tempCopy = tempnam(sys_get_temp_dir(), 'fiche_technique_') . '.pdf';
+                copy($fullPath, $tempCopy);
+                $entries[] = $this->attachmentEntry($tempCopy, $designation);
+            } elseif (in_array($ext, ['png', 'jpg', 'jpeg', 'gif'], true)) {
+                $imagePdf = $this->imageToSinglePagePdf($fullPath);
+                if ($imagePdf) {
+                    $entries[] = $this->attachmentEntry($imagePdf, $designation);
+                }
+            }
+        }
+
+        return $entries;
+    }
+
     /**
      * Numerote les pages d'un rendu Dompdf deja effectue ("Page X / Y"),
      * calcule a partir du nombre reel de pages de CE rendu, centre en bas
@@ -1500,6 +1607,54 @@ class DossierController extends Controller
             "Pièce d'identité du premier responsable" => 'piece_identite_responsable',
             default => null,
         };
+    }
+
+    /**
+     * Types de pieces dont la liste de documents entreprise correspondante
+     * se renouvelle periodiquement (une seule date de delivrance "en cours"
+     * a la fois) : seule la plus recente est reprise automatiquement. Les
+     * autres types repetables (RIB, bonne fin, bon de commande...) n'ont pas
+     * cette notion d'unicite - toutes les entrees existantes sont reprises.
+     */
+    private const ENTREPRISE_DOC_TYPES_RENOUVELABLES = [
+        'non_exclusion', 'categorisation', 'regularite_fiscale', 'cnss', 'non_faillite',
+    ];
+
+    /**
+     * Pour une piece de dossier tout juste creee (sommaire standard ou choix
+     * initial du wizard) qui correspond a un type de document deja enregistre
+     * sur la fiche entreprise (RCCM, IFU, attestations, RIB...), relie
+     * automatiquement ce qui existe deja - pour que l'utilisateur n'ait plus
+     * qu'a ajouter ce qui manque avant de generer. Les Etats financiers sont
+     * volontairement exclus (trop sensibles pour etre choisis au hasard,
+     * l'utilisateur doit les selectionner lui-meme). Ne touche jamais une
+     * piece deja liee manuellement.
+     */
+    private function autoLinkEntrepriseDocument(Dossier $dossier, DossierDocument $dossierDocument): void
+    {
+        if (!empty($dossierDocument->linked_entreprise_document_ids)) {
+            return;
+        }
+
+        $pickerType = $this->entrepriseDocumentPickerType($dossierDocument);
+        if (!$pickerType || $pickerType === 'etat_financier' || !$dossier->entreprise_id) {
+            return;
+        }
+
+        $query = EntrepriseDocument::where('entreprise_id', $dossier->entreprise_id)->where('type', $pickerType);
+
+        if (in_array($pickerType, self::ENTREPRISE_DOC_TYPES_RENOUVELABLES, true)) {
+            $ids = $query->orderByDesc('date_delivrance')->orderByDesc('id')->limit(1)->pluck('id')->all();
+        } else {
+            $ids = $query->pluck('id')->all();
+        }
+
+        if (empty($ids)) {
+            return;
+        }
+
+        $dossierDocument->linked_entreprise_document_ids = $ids;
+        $dossierDocument->save();
     }
 
     /**
@@ -1599,6 +1754,47 @@ class DossierController extends Controller
         // $finDoc est une instance distincte de celle (si deja chargee) dans
         // $dossier->documents : on invalide ce cache pour que le reste de
         // l'appelant (vue, generation PDF...) voie le contenu a jour.
+        if ($dossier->relationLoaded('documents')) {
+            $dossier->unsetRelation('documents');
+        }
+    }
+
+    /**
+     * Les beneficiaires effectifs (actionnariat/controle) d'une entreprise ne
+     * changent pas d'un dossier a l'autre : des qu'ils sont renseignes une
+     * fois sur la fiche entreprise, ce document est pre-rempli automatiquement
+     * pour chaque nouveau dossier - sans jamais ecraser un contenu deja
+     * saisi (meme logique "une seule fois" que syncFormulaireFin31FromEntreprise()).
+     * Le numero d'avis et le destinataire restent propres a chaque dossier
+     * (deja pre-remplis depuis le dossier lui-meme dans le formulaire).
+     */
+    private function syncFormulaireBeneficiairesFromEntreprise(Dossier $dossier): void
+    {
+        $doc = $dossier->documents()
+            ->whereHas('typeDocument', fn ($q) => $q->where('nom', 'Formulaire de divulgation des bénéficiaires effectifs'))
+            ->first();
+        if (!$doc || !empty($doc->content)) {
+            return;
+        }
+
+        $dossier->loadMissing('entreprise');
+        $data = optional($dossier->entreprise)->beneficiaires_effectifs_data;
+        if (empty($data) || empty($data['beneficiaires'])) {
+            return;
+        }
+
+        $content = [
+            'option' => $data['option'] ?? 'i',
+            'beneficiaires' => $data['beneficiaires'],
+        ];
+
+        $json = json_encode($content, JSON_UNESCAPED_UNICODE);
+        if ($json === false) {
+            $json = json_encode($content, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        }
+
+        $doc->update(['content' => $json]);
+
         if ($dossier->relationLoaded('documents')) {
             $dossier->unsetRelation('documents');
         }
@@ -1722,6 +1918,30 @@ class DossierController extends Controller
             'imputation_budgetaire' => ['nullable','string','max:255'],
             'accord_pret' => ['nullable','string','max:255'],
         ]);
+
+        // Un dossier ne peut pas avoir 2 fois la meme categorie d'offre
+        // (technique / financiere / administrative) pour le meme marche (=
+        // meme reference_dossier + meme entreprise). Contrairement au check
+        // "meme reference" ci-dessous (qui n'est qu'une suggestion et peut
+        // etre ignoree via force_duplicate), celui-ci est bloquant : il n'y a
+        // pas de cas legitime ou on voudrait 2 offres techniques pour le
+        // meme marche et la meme entreprise. Avant ce controle, seul
+        // createOtherOffer() le verifiait ; la creation "manuelle" depuis
+        // l'etape 4/5 ne passait pas par la, d'ou des doublons de badges
+        // "offre technique" accumules sur la page Liste des dossiers.
+        $newCategory = $this->offerCategoryFor($data['type_offre'] ?? null);
+        $referenceDossier = trim((string) ($data['reference_dossier'] ?? ''));
+        if ($newCategory && $referenceDossier !== '') {
+            $existingSameCategory = Dossier::where('reference_dossier', $referenceDossier)
+                ->where('entreprise_id', $data['entreprise_id'])
+                ->get()
+                ->first(fn ($d) => $this->offerCategoryFor($d->type_offre) === $newCategory);
+
+            if ($existingSameCategory) {
+                $label = self::OFFER_CATEGORIES[$newCategory]['label'];
+                return back()->withInput()->with('error', "Une « {$label} » existe déjà pour ce marché : « {$existingSameCategory->nom_dossier} ». Un dossier ne peut pas avoir deux fois la même catégorie d'offre (technique, financière, administrative). Modifiez ce dossier existant, dupliquez-le, ou utilisez le bouton « + {$label} » depuis sa fiche.");
+            }
+        }
 
         // Si une reference identique existe deja sur un autre dossier, on
         // propose de le dupliquer plutot que de repartir de zero, sauf si
@@ -1882,7 +2102,8 @@ class DossierController extends Controller
                 'type_document_id' => $doc->id,
             ]);
 
-            if (! $dossierDocument->exists) {
+            $isNew = ! $dossierDocument->exists;
+            if ($isNew) {
                 $dossierDocument->ordre = (int) $dossier->documents()->max('ordre') + 1;
                 $dossierDocument->statut = 'vide';
             }
@@ -1894,6 +2115,10 @@ class DossierController extends Controller
 
             if (trim($doc->nom) === "RCCM") {
                 $this->attachEntrepriseRegistreIfMissing($dossier, $dossierDocument);
+            }
+
+            if ($isNew) {
+                $this->autoLinkEntrepriseDocument($dossier, $dossierDocument);
             }
         }
 
@@ -2736,6 +2961,51 @@ class DossierController extends Controller
                 ]);
             }
 
+            if (trim($currentDocument->nom) === self::FICHE_TECHNIQUE_ARTICLES_NOM) {
+                $articleCount = count($this->descriptionTechniqueArticles($dossier));
+
+                if ($request->filled('delete_fiche_technique_indexes')) {
+                    foreach ($request->input('delete_fiche_technique_indexes', []) as $indexToDelete) {
+                        $existing = FicheTechniqueFichier::where('dossier_document_id', $dossierDocument->id)
+                            ->where('article_index', (int) $indexToDelete)
+                            ->first();
+                        if ($existing) {
+                            Storage::disk('public')->delete($existing->chemin_fichier);
+                            $existing->delete();
+                        }
+                    }
+                }
+
+                if ($request->hasFile('fiche_technique_fichiers')) {
+                    foreach ($request->file('fiche_technique_fichiers') as $articleIndex => $fichier) {
+                        $articleIndex = (int) $articleIndex;
+                        if (!$fichier || $articleIndex < 0 || $articleIndex >= $articleCount) {
+                            continue;
+                        }
+
+                        $existing = FicheTechniqueFichier::where('dossier_document_id', $dossierDocument->id)
+                            ->where('article_index', $articleIndex)
+                            ->first();
+                        if ($existing) {
+                            Storage::disk('public')->delete($existing->chemin_fichier);
+                            $existing->delete();
+                        }
+
+                        $chemin = $fichier->store('dossiers/documents', 'public');
+                        FicheTechniqueFichier::create([
+                            'dossier_document_id' => $dossierDocument->id,
+                            'article_index' => $articleIndex,
+                            'chemin_fichier' => $chemin,
+                            'nom_original' => $fichier->getClientOriginalName(),
+                            'utilisateur_id' => auth()->id(),
+                        ]);
+                    }
+                }
+
+                $hasAnyFicheTechnique = FicheTechniqueFichier::where('dossier_document_id', $dossierDocument->id)->exists();
+                $dossierDocument->update(['statut' => $hasAnyFicheTechnique ? 'complete' : 'vide']);
+            }
+
             // Handle FIN 3.4 (a) - Attestation de capacité financière
             if (trim($currentDocument->nom) === 'Formulaire FIN 3.4 (a) Modèle d\'attestation de capacité financière') {
                 // Files are handled separately below, mark as in progress until files processed
@@ -3446,6 +3716,7 @@ class DossierController extends Controller
         $this->syncFormulairePerRecords($dossier);
         $this->syncFormulaireMatRecords($dossier);
         $this->syncFormulaireFin31FromEntreprise($dossier);
+        $this->syncFormulaireBeneficiairesFromEntreprise($dossier);
         $globalChiffres = ChiffreAffaire::whereNull('dossier_id')->orderBy('annee')->get();
 
         return view('dossiers.create.step6', [
@@ -3543,6 +3814,7 @@ class DossierController extends Controller
         @ini_set('memory_limit', '1024M');
 
         $this->syncFormulaireFin31FromEntreprise($dossier);
+        $this->syncFormulaireBeneficiairesFromEntreprise($dossier);
 
         $dossier->load([
             'documents.typeDocument.champs',
@@ -3574,7 +3846,7 @@ class DossierController extends Controller
 
         $needsMerge = $documents->contains(function ($doc) {
             $plan = $this->attachmentPlan($doc);
-            return $plan['pdfs']->isNotEmpty() || $plan['others']->isNotEmpty() || $this->isExp42aDoc($doc) || $this->isExp42bDoc($doc) || $this->isExp42aSuiteDoc($doc) || $this->isExp42bSuiteDoc($doc) || $this->isFormulairePerDoc($doc) || $this->isFormulaireMatDoc($doc) || ($this->entrepriseDocumentPickerType($doc) !== null && !empty($doc->linked_entreprise_document_ids));
+            return $plan['pdfs']->isNotEmpty() || $plan['others']->isNotEmpty() || $this->isExp42aDoc($doc) || $this->isExp42bDoc($doc) || $this->isExp42aSuiteDoc($doc) || $this->isExp42bSuiteDoc($doc) || $this->isFormulairePerDoc($doc) || $this->isFormulaireMatDoc($doc) || $this->isFicheTechniqueArticlesDoc($doc) || ($this->entrepriseDocumentPickerType($doc) !== null && !empty($doc->linked_entreprise_document_ids));
         });
 
         if (!$needsMerge) {
@@ -3658,18 +3930,20 @@ class DossierController extends Controller
                 $isExp42bSuite = $this->isExp42bSuiteDoc($doc);
                 $isFormulairePer = $this->isFormulairePerDoc($doc);
                 $isFormulaireMat = $this->isFormulaireMatDoc($doc);
-                if ($isExp42a || $isExp42b || $isExp42aSuite || $isExp42bSuite || $isFormulairePer || $isFormulaireMat) {
+                $isFicheTechniqueArticles = $this->isFicheTechniqueArticlesDoc($doc);
+                if ($isExp42a || $isExp42b || $isExp42aSuite || $isExp42bSuite || $isFormulairePer || $isFormulaireMat || $isFicheTechniqueArticles) {
                     $skipHtmlDocPage = true;
                 }
 
                 // Une pièce "upload uniquement" sans aucun fichier joint ni contenu
                 // n'a rien à afficher : on évite de générer une page vide pour elle.
-                $hasNothingToShow = $doc->typeDocument
+                $hasNothingToShow = ($doc->typeDocument
                     && \App\Models\TypeDocument::isUploadOnlyName($doc->typeDocument->nom, $doc->typeDocument->type_formulaire)
                     && $doc->fichiers->isEmpty()
                     && $doc->valeurs->isEmpty()
                     && $doc->bordereau->isEmpty()
-                    && empty($doc->content);
+                    && empty($doc->content))
+                    || ($isFicheTechniqueArticles && !FicheTechniqueFichier::where('dossier_document_id', $doc->id)->exists());
 
                 $htmlTitle = view('dossiers.pdf', compact('dossier', 'pageGardeDataUri'))->with([
                     'documents' => collect([$doc]),
@@ -3707,6 +3981,12 @@ class DossierController extends Controller
                 }
                 if ($plan['others']->isNotEmpty()) {
                     $filesToMerge[] = $this->placeholderEntry($doc->typeDocument->nom);
+                }
+                if ($isFicheTechniqueArticles) {
+                    foreach ($this->ficheTechniqueArticlesEntries($doc) as $entry) {
+                        $filesToMerge[] = $entry;
+                        $tempFiles[] = $entry['file'];
+                    }
                 }
                 if ($isExp42a) {
                     foreach ($this->exp42aPdfPaths($dossier) as $path) {
@@ -3793,6 +4073,7 @@ class DossierController extends Controller
     {
         $dossier = Dossier::with(['entreprise', 'signataires', 'typeDossier'])->find($document->dossier_id);
         $this->syncFormulaireFin31FromEntreprise($dossier);
+        $this->syncFormulaireBeneficiairesFromEntreprise($dossier);
         $document->refresh();
 
         $pageGardeDataUri = null;
@@ -3833,16 +4114,18 @@ class DossierController extends Controller
                 && $plan['others']->isEmpty()
                 && $document->valeurs->isEmpty()
                 && $document->bordereau->isEmpty();
-            if ($this->isExp42aDoc($document) || $this->isExp42bDoc($document) || $this->isExp42aSuiteDoc($document) || $this->isExp42bSuiteDoc($document) || $this->isFormulairePerDoc($document) || $this->isFormulaireMatDoc($document)) {
+            $isFicheTechniqueArticlesPreview = $this->isFicheTechniqueArticlesDoc($document);
+            if ($this->isExp42aDoc($document) || $this->isExp42bDoc($document) || $this->isExp42aSuiteDoc($document) || $this->isExp42bSuiteDoc($document) || $this->isFormulairePerDoc($document) || $this->isFormulaireMatDoc($document) || $isFicheTechniqueArticlesPreview) {
                 $skipHtmlDocPage = true;
             }
 
-            $hasNothingToShow = $document->typeDocument
+            $hasNothingToShow = ($document->typeDocument
                 && TypeDocument::isUploadOnlyName($document->typeDocument->nom, $document->typeDocument->type_formulaire)
                 && $document->fichiers->isEmpty()
                 && $document->valeurs->isEmpty()
                 && $document->bordereau->isEmpty()
-                && empty($document->content);
+                && empty($document->content))
+                || ($isFicheTechniqueArticlesPreview && !FicheTechniqueFichier::where('dossier_document_id', $document->id)->exists());
 
             if (!$skipHtmlDocPage && !$hasNothingToShow) {
                 $htmlDoc = view('dossiers.pdf', compact('dossier', 'pageGardeDataUri'))->with([
@@ -3867,6 +4150,12 @@ class DossierController extends Controller
             }
             if ($plan['others']->isNotEmpty()) {
                 $filesToMerge[] = $this->placeholderEntry($docName);
+            }
+            if ($isFicheTechniqueArticlesPreview) {
+                foreach ($this->ficheTechniqueArticlesEntries($document) as $entry) {
+                    $filesToMerge[] = $entry;
+                    $tempFiles[] = $entry['file'];
+                }
             }
             if ($this->isExp42aDoc($document)) {
                 foreach ($this->exp42aPdfPaths($dossier) as $path) {
@@ -4060,10 +4349,6 @@ class DossierController extends Controller
         }
 
         $pdf = new \setasign\Fpdi\Fpdi();
-        // Le stamp de numerotation est pose pres du bas de page (12mm), a
-        // l'interieur de la marge de saut de page automatique par defaut de
-        // FPDF (20mm) : sans ceci, Cell() declenche une page vierge en plus
-        // pour chaque page numerotee.
         $pdf->SetAutoPageBreak(false);
         $pageCount = $pdf->setSourceFile($rawMerged);
         $seq = 0;
@@ -4081,7 +4366,18 @@ class DossierController extends Controller
                     $text = "Page {$seq} / {$totalNumbered}";
                     $pdf->SetFont('Arial', '', 9);
                     $textWidth = $pdf->GetStringWidth($text);
-                    $pdf->SetXY(($specs['width'] - $textWidth) / 2, $specs['height'] - 12);
+                    $x = ($specs['width'] - $textWidth) / 2;
+                    $y = $specs['height'] - 12;
+                    // Certains tableaux longs (ex: Description technique des
+                    // fournitures/services) peuvent deborder tres pres du bas
+                    // de page malgre la marge reservee. Un fond blanc sous le
+                    // numero garantit qu'il reste lisible meme si une ligne de
+                    // tableau s'etend jusque-la, plutot que de se superposer
+                    // illisiblement au texte.
+                    $padding = 1.5;
+                    $pdf->SetFillColor(255, 255, 255);
+                    $pdf->Rect($x - $padding, $y - $padding, $textWidth + 2 * $padding, 5 + 2 * $padding, 'F');
+                    $pdf->SetXY($x, $y);
                     $pdf->Cell($textWidth, 5, $text);
                 } catch (\Throwable $e) {
                     // En cas d'erreur, on continue sans numérotation pour cette page.
@@ -4445,12 +4741,13 @@ class DossierController extends Controller
                 continue;
             }
             $ordre++;
-            DossierDocument::create([
+            $dossierDocument = DossierDocument::create([
                 'dossier_id' => $dossier->id,
                 'type_document_id' => $typeId,
                 'ordre' => $ordre,
                 'statut' => 'vide',
             ]);
+            $this->autoLinkEntrepriseDocument($dossier, $dossierDocument);
         }
 
         $dossier->unsetRelation('documents');
@@ -4466,7 +4763,7 @@ class DossierController extends Controller
      */
     private function replicateDossierData(Dossier $dossier): Dossier
     {
-        $dossier->load(['documents.bordereau.lignes', 'signataires', 'utilisateurs', 'chiffresAffaires']);
+        $dossier->load(['documents.bordereau.lignes', 'documents.fichiers', 'signataires', 'utilisateurs', 'chiffresAffaires']);
 
         $copy = $dossier->replicate();
         $copy->statut = 'en_cours';
@@ -4490,6 +4787,35 @@ class DossierController extends Controller
             $newDoc = $doc->replicate();
             $newDoc->dossier_id = $copy->id;
             $newDoc->save();
+
+            // Les pieces liees aux documents de l'entreprise (RCCM, IFU,
+            // attestations...) sont copiees telles quelles depuis l'original
+            // (replicate() copie linked_entreprise_document_ids) - mais si
+            // l'original ne les avait pas lui-meme (ex: cree avant que ces
+            // pieces existent sur la fiche entreprise, ou jamais rapprochees),
+            // la copie ne doit pas rester vide pour autant : on retente un
+            // rapprochement frais avec les documents actuels de l'entreprise,
+            // comme a la creation d'un nouveau dossier. Ne touche jamais une
+            // piece deja liee (cf. le garde-fou dans autoLinkEntrepriseDocument()).
+            $this->autoLinkEntrepriseDocument($copy, $newDoc);
+
+            // Les fichiers televerses directement sur cette piece (scans,
+            // formulaires remplis...) sont copies physiquement - jamais
+            // partages avec l'original, pour qu'une suppression ou un
+            // remplacement sur l'un n'affecte jamais l'autre.
+            foreach ($doc->fichiers as $fichier) {
+                $newFichier = $fichier->replicate();
+                $newFichier->dossier_document_id = $newDoc->id;
+
+                if ($fichier->chemin_fichier && Storage::disk('public')->exists($fichier->chemin_fichier)) {
+                    $extension = pathinfo($fichier->chemin_fichier, PATHINFO_EXTENSION);
+                    $copiePath = 'dossiers/documents/dossier_' . $copy->id . '_copie_' . $newDoc->id . '_' . uniqid() . ($extension ? '.' . $extension : '');
+                    Storage::disk('public')->copy($fichier->chemin_fichier, $copiePath);
+                    $newFichier->chemin_fichier = $copiePath;
+                }
+
+                $newFichier->save();
+            }
 
             foreach ($doc->bordereau as $bordereau) {
                 $newBordereau = $bordereau->replicate();
@@ -4542,7 +4868,7 @@ class DossierController extends Controller
         $this->logChange($copy, 'dossier_duplique', "« {$newLabel} » créée depuis « {$dossier->nom_dossier} » (#{$dossier->id}).");
 
         return redirect()->route('dossiers.show', $copy->id)
-            ->with('success', "« {$copy->nom_dossier} » créé avec le sommaire {$newLabel}. Les pièces jointes ne sont pas copiées : vérifiez et retéléversez-les si besoin avant de générer le PDF.");
+            ->with('success', "« {$copy->nom_dossier} » créé avec le sommaire {$newLabel}, en reprenant les pièces déjà téléversées. Vérifiez-les et remplacez celles qui ne conviennent pas à cette offre avant de générer le PDF.");
     }
 
     private function applySommaireStandardOrder(Dossier $dossier): void
@@ -4634,7 +4960,7 @@ class DossierController extends Controller
         $this->logChange($copy, 'dossier_duplique', "Dossier dupliqué depuis « {$dossier->nom_dossier} » (#{$dossier->id}).");
 
         return redirect()->route('dossiers.show', $copy->id)
-            ->with('success', "Dossier dupliqué en « {$copy->nom_dossier} ». Les pièces jointes (fichiers téléversés) ne sont pas copiées : vérifiez et retéléversez-les si besoin avant de générer le PDF.");
+            ->with('success', "Dossier dupliqué en « {$copy->nom_dossier} », avec les pièces déjà téléversées. Vérifiez-les et remplacez celles qui ne conviennent pas avant de générer le PDF.");
     }
 
     /**
@@ -4990,6 +5316,7 @@ class DossierController extends Controller
         $this->syncFormulairePerRecords($dossier);
         $this->syncFormulaireMatRecords($dossier);
         $this->syncFormulaireFin31FromEntreprise($dossier);
+        $this->syncFormulaireBeneficiairesFromEntreprise($dossier);
         $globalChiffres = ChiffreAffaire::whereNull('dossier_id')->orderBy('annee')->get();
 
         return view('dossiers.create.step6', [
@@ -5120,8 +5447,8 @@ class DossierController extends Controller
         $search = trim($request->query('search', ''));
 
         $query = auth()->user()->isAdminOrDirecteur()
-            ? Dossier::with(['entreprise', 'typeDossier', 'documents'])
-            : auth()->user()->dossiers()->with(['entreprise', 'typeDossier', 'documents']);
+            ? Dossier::with(['entreprise', 'typeDossier', 'documents', 'versionsFinales'])
+            : auth()->user()->dossiers()->with(['entreprise', 'typeDossier', 'documents', 'versionsFinales']);
 
         if ($search !== '') {
             $query->where(function ($q) use ($search) {
@@ -5149,40 +5476,59 @@ class DossierController extends Controller
 
         $dossiers = $query->orderBy('created_at', 'desc')->get();
 
-        // For each dossier, compute resume info (index and document type ids) so list can offer direct "Continuer"
-        $resumeInfo = [];
-        foreach ($dossiers as $dossier) {
-            $excludedName = 'Lettre de soumission';
-            $uploadable = $dossier->documents
-                ->filter(fn ($doc) => $doc->typeDocument && $doc->typeDocument->nom !== $excludedName)
-                ->sortBy('ordre')
-                ->values();
-
-            if ($uploadable->isEmpty()) {
-                $resumeInfo[$dossier->id] = null;
-                continue;
-            }
-
-            $inProgress = $uploadable->search(fn ($doc) => $doc->statut === 'en_cours');
-            if ($inProgress !== false) {
-                $resumeIndex = $inProgress;
-            } else {
-                $firstEmpty = $uploadable->search(fn ($doc) => $doc->fichiers->isEmpty());
-                $resumeIndex = $firstEmpty === false ? null : $firstEmpty;
-            }
-
-            $resumeInfo[$dossier->id] = $resumeIndex === null ? null : [
-                'current_index' => $resumeIndex,
-                'document_type_ids' => $uploadable->pluck('type_document_id')->all(),
-            ];
-        }
-
         $missingOffersByDossier = [];
         foreach ($dossiers as $dossier) {
             $missingOffersByDossier[$dossier->id] = $this->missingOfferCategories($dossier);
         }
 
-        return view('dossiers.index', compact('dossiers', 'resumeInfo', 'missingOffersByDossier'));
+        $dossierGroups = $this->groupDossiersByMarche($dossiers, $missingOffersByDossier);
+
+        return view('dossiers.index', compact('dossierGroups', 'missingOffersByDossier'));
+    }
+
+    /**
+     * Regroupe les dossiers d'un même marché (même reference_dossier + même
+     * entreprise - meme heuristique que missingOfferCategories()) en une
+     * seule "ligne" pour la liste : un marché peut avoir plusieurs offres
+     * (technique/financière/administrative), chacune etant un Dossier a
+     * part, mais ne doit apparaitre qu'une fois dans la liste. Un dossier
+     * sans reference_dossier ne peut etre rattache a aucun autre : il forme
+     * son propre groupe a lui seul.
+     */
+    private function groupDossiersByMarche(\Illuminate\Support\Collection $dossiers, array $missingOffersByDossier): \Illuminate\Support\Collection
+    {
+        $groups = collect();
+
+        foreach ($dossiers as $dossier) {
+            $reference = trim((string) $dossier->reference_dossier);
+            $key = $reference !== ''
+                ? 'ref:' . $reference . '|' . $dossier->entreprise_id
+                : 'single:' . $dossier->id;
+
+            if (!$groups->has($key)) {
+                $groups->put($key, collect());
+            }
+            $groups->get($key)->push($dossier);
+        }
+
+        return $groups->map(function ($groupDossiers) use ($missingOffersByDossier) {
+            $sorted = $groupDossiers->sortByDesc('created_at')->values();
+            $first = $sorted->first();
+            $title = trim((string) $first->titre_dossier) !== ''
+                ? $first->titre_dossier
+                : (trim((string) $first->objet_marche) !== '' ? $first->objet_marche : $first->nom_dossier);
+
+            return [
+                'title' => $title,
+                'lot' => $first->lot,
+                'public_prive' => $first->public_prive,
+                'entreprise' => $first->entreprise,
+                'dossiers' => $sorted,
+                'missingOffers' => $missingOffersByDossier[$first->id] ?? [],
+                'representative' => $first,
+                'latest_created_at' => $groupDossiers->max('created_at'),
+            ];
+        })->sortByDesc('latest_created_at')->values();
     }
 
     /**

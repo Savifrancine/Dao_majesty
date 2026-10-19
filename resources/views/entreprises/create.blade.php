@@ -78,6 +78,8 @@
 
         @include('entreprises.partials.finance_section', ['financeData' => []])
 
+        @include('entreprises.partials.beneficiaires_section', ['beneficiairesData' => []])
+
         @include('entreprises.partials.personnel_section', ['personnelData' => collect()])
 
         @include('entreprises.partials.documents_administratifs_section', ['entrepriseDocuments' => collect()])

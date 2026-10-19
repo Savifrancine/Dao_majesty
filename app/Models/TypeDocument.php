@@ -42,7 +42,6 @@ class TypeDocument extends Model
             'relevé d\'identité bancaire (rib)',
             'pièce d\'identité du premier responsable',
             'déclaration de l\'autorité contractante',
-            'fiche technique de chaque article, délivrée par le fabricant',
             'copie de l\'arrêté du ministre de la santé portant autorisation d\'importation, de détention et de vente des équipements médicaux',
             'attestation d\'identification de statut',
             'attestation de visite de site',

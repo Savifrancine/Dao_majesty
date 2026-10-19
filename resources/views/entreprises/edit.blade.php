@@ -82,6 +82,8 @@
 
         @include('entreprises.partials.finance_section', ['financeData' => $entreprise->finance_data ?? []])
 
+        @include('entreprises.partials.beneficiaires_section', ['beneficiairesData' => $entreprise->beneficiaires_effectifs_data ?? []])
+
         @include('entreprises.partials.personnel_section', ['personnelData' => $entreprise->personnels()->with('fichiers')->get()])
 
         @include('entreprises.partials.documents_administratifs_section', ['entrepriseDocuments' => $entreprise->documentsAdministratifs()->with('fichiers')->get()])

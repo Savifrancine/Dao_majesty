@@ -107,7 +107,7 @@
                 </div>
                 <div class="mb-3">
                     <label for="gestion" class="form-label">Gestion</label>
-                    <small class="form-text text-muted d-block mb-1">Mode de gestion du marché (ex: régie, délégation...). Apparaît sous le type d'offre, en « Gestion : ... », sur la page de garde.</small>
+                    <small class="form-text text-muted d-block mb-1">Année budgétaire/exercice auquel appartient le dossier (ex: 2026). Apparaît sous le type d'offre, en « Gestion : 2026 », sur la page de garde.</small>
                     <input type="text" class="form-control" id="gestion" name="gestion" value="{{ old('gestion', $dossier->gestion) }}">
                 </div>
             </div>

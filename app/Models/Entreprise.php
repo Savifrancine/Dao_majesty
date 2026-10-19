@@ -25,10 +25,12 @@ class Entreprise extends Model
         'responsable',
         'fonction_responsable',
         'finance_data',
+        'beneficiaires_effectifs_data',
     ];
 
     protected $casts = [
         'finance_data' => 'array',
+        'beneficiaires_effectifs_data' => 'array',
     ];
 
     /**

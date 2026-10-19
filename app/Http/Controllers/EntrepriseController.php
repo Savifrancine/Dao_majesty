@@ -48,6 +48,7 @@ class EntrepriseController extends Controller
 
         $data['finance_data'] = $this->extractFinanceData($request);
         $this->syncChiffresAffairesFromFinance($data['finance_data']);
+        $data['beneficiaires_effectifs_data'] = $this->extractBeneficiairesEffectifsData($request);
 
         $entreprise = Entreprise::create($data);
         $this->syncPersonnels($request, $entreprise);
@@ -89,6 +90,7 @@ class EntrepriseController extends Controller
 
         $data['finance_data'] = $this->extractFinanceData($request);
         $this->syncChiffresAffairesFromFinance($data['finance_data']);
+        $data['beneficiaires_effectifs_data'] = $this->extractBeneficiairesEffectifsData($request);
 
         $entreprise->update($data);
         $this->syncPersonnels($request, $entreprise);
@@ -151,6 +153,34 @@ class EntrepriseController extends Controller
             'benefices_avant_impots' => ['nullable', 'array'],
             'benefices_avant_impots.*' => ['nullable', 'string', 'max:255'],
         ]);
+    }
+
+    /**
+     * Les beneficiaires effectifs (actionnariat/controle) d'une entreprise
+     * ne changent pas d'un dossier a l'autre : saisis une fois ici, ils sont
+     * ensuite repris automatiquement dans le "Formulaire de divulgation des
+     * beneficiaires effectifs" de chaque nouveau dossier (voir
+     * DossierController::syncFormulaireBeneficiairesFromEntreprise()).
+     */
+    private function extractBeneficiairesEffectifsData(Request $request): array
+    {
+        $validated = $request->validate([
+            'beneficiaires_option' => ['nullable', 'in:i,ii'],
+            'beneficiaires_effectifs' => ['nullable', 'array'],
+            'beneficiaires_effectifs.*.identite' => ['nullable', 'string', 'max:1000'],
+            'beneficiaires_effectifs.*.action_25' => ['nullable', 'in:Oui,Non,'],
+            'beneficiaires_effectifs.*.vote_25' => ['nullable', 'in:Oui,Non,'],
+            'beneficiaires_effectifs.*.pouvoir_nomination' => ['nullable', 'in:Oui,Non,'],
+        ]);
+
+        $beneficiaires = array_values(array_filter($validated['beneficiaires_effectifs'] ?? [], function ($b) {
+            return trim($b['identite'] ?? '') !== '';
+        }));
+
+        return [
+            'option' => $validated['beneficiaires_option'] ?? 'i',
+            'beneficiaires' => $beneficiaires,
+        ];
     }
 
     /**

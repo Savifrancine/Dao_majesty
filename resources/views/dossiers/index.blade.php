@@ -37,12 +37,54 @@
         color: #64748b;
         font-size: 0.8rem;
         margin-top: 2px;
+        font-weight: 400;
     }
 
-    .btn-action-group .btn {
-        font-size: 0.82rem;
-        padding: 0.4rem 0.7rem;
+    .offre-pill-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+    .offre-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 4px 10px;
         border-radius: 999px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        text-decoration: none;
+        border: 1px solid transparent;
+        transition: filter 0.15s ease;
+    }
+
+    .offre-pill:hover {
+        filter: brightness(0.95);
+        text-decoration: none;
+    }
+
+    .offre-pill .statut-dot {
+        font-size: 0.7rem;
+    }
+
+    .offre-pill-missing {
+        background: transparent;
+        border: 1px dashed #94a3b8;
+        color: #475569;
+    }
+
+    .offre-pill-missing:hover {
+        background: #f1f5f9;
+        color: #334155;
+    }
+
+    .offre-pill-missing button {
+        all: unset;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
     }
 </style>
 
@@ -50,7 +92,7 @@
     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-3">
         <div>
             <h2 class="page-title mb-1">📁 Mes dossiers</h2>
-            <p class="page-subtitle mb-0">Gérez vos dossiers et reprenez rapidement la saisie des documents à compléter.</p>
+            <p class="page-subtitle mb-0">Une ligne par marché. Cliquez sur une offre (technique, financière, administrative...) pour l'ouvrir et accéder à Modifier / Dupliquer / Supprimer.</p>
         </div>
         <a href="{{ route('dossiers.create') }}" class="btn btn-success">➕ Créer un nouveau dossier</a>
     </div>
@@ -70,90 +112,109 @@
     </form>
 
     @if(request('search'))
-        <div class="mb-3 text-secondary">Résultats pour « {{ request('search') }} » : {{ $dossiers->count() }} dossier(s)</div>
+        <div class="mb-3 text-secondary">Résultats pour « {{ request('search') }} » : {{ $dossierGroups->count() }} marché(s)</div>
     @endif
 
-    @if($dossiers->count() > 0)
+    @if($dossierGroups->count() > 0)
         <div class="table-card table-responsive">
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-dark">
                     <tr>
-                        <th>Nom</th>
-                        <th>Offre</th>
+                        <th>Marché / Dossier</th>
+                        <th>Offres</th>
+                        <th>Document archivé</th>
                         <th>Entreprise</th>
-                        <th>Statut</th>
                         <th>Créé le</th>
-                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach($dossiers as $dossier)
+                    @foreach($dossierGroups as $group)
                     <tr>
                         <td>
                             <div class="dossier-name">
-                                {{ $dossier->nom_dossier }}
-                                <small>{{ $dossier->lot ?? 'Sans lot' }}</small>
+                                {{ $group['title'] }}
+                                <small>{{ $group['lot'] ?? 'Sans lot' }}</small>
                             </div>
-                            @if($dossier->public_prive === 'prive')
+                            @if($group['public_prive'] === 'prive')
                                 <span class="badge bg-warning-subtle text-warning-emphasis">🔒 Privé</span>
                             @else
                                 <span class="badge bg-info-subtle text-info-emphasis">🌐 Public</span>
                             @endif
                         </td>
-                        <td>@include('dossiers.partials.offre_badge', ['dossier' => $dossier])</td>
-                        <td>{{ $dossier->entreprise->nom }}</td>
                         <td>
-                            @if($dossier->statut === 'en_cours')
-                                <span class="badge bg-warning-subtle text-warning-emphasis">⏳ En cours</span>
-                            @elseif($dossier->statut === 'termine')
-                                <span class="badge bg-success-subtle text-success-emphasis">✅ Terminé</span>
-                            @else
-                                <span class="badge bg-secondary-subtle text-secondary-emphasis">📄 Généré</span>
-                            @endif
-                        </td>
-                        <td>{{ $dossier->created_at->format('d/m/Y') }}</td>
-                        <td>
-                            @php $info = $resumeInfo[$dossier->id] ?? null; @endphp
-
-                            <div class="btn-action-group d-flex flex-wrap gap-2">
-                                @if($dossier->documents->isEmpty())
-                                    <a href="{{ route('dossiers.selectDocuments', $dossier) }}" class="btn btn-sm btn-info">▶ Continuer</a>
-                                @elseif($dossier->statut === 'en_cours')
-                                    <a href="{{ route('dossiers.continuer', ['dossier' => $dossier->id]) }}" class="btn btn-sm btn-info">▶ Continuer</a>
-                                @elseif($info)
-                                    <form action="{{ route('dossiers.step6', $dossier->id) }}" method="POST" style="display:inline">
-                                        @csrf
-                                        @foreach($info['document_type_ids'] as $docId)
-                                            <input type="hidden" name="documents[]" value="{{ $docId }}">
-                                        @endforeach
-                                        <input type="hidden" name="current_index" value="{{ $info['current_index'] }}">
-                                        <button class="btn btn-sm btn-info" type="submit">▶ Continuer</button>
-                                    </form>
-                                @else
-                                    <a href="{{ route('dossiers.show', $dossier) }}" class="btn btn-sm btn-outline-secondary">▶ Voir</a>
-                                @endif
-
-                                <a href="{{ route('dossiers.show', $dossier) }}" class="btn btn-sm btn-outline-primary">✎ Modifier</a>
-                                <form action="{{ route('dossiers.duplicate', $dossier) }}" method="POST" style="display:inline" onsubmit="return confirm('Dupliquer ce dossier ? Les pièces jointes téléversées ne seront pas copiées.');">
-                                    @csrf
-                                    <button class="btn btn-sm btn-outline-secondary" type="submit">⧉ Dupliquer</button>
-                                </form>
-                                @foreach(($missingOffersByDossier[$dossier->id] ?? []) as $categorieCible => $label)
-                                    <form action="{{ route('dossiers.createOtherOffer', $dossier) }}" method="POST" style="display:inline" onsubmit="return confirm('Créer « {{ $label }} » pour ce marché, à partir de ce dossier ? Les pièces jointes téléversées ne seront pas copiées.');">
-                                        @csrf
-                                        <input type="hidden" name="categorie_cible" value="{{ $categorieCible }}">
-                                        <button class="btn btn-sm btn-outline-secondary" type="submit">+ {{ $label }}</button>
-                                    </form>
+                            <div class="offre-pill-group">
+                                @foreach($group['dossiers'] as $d)
+                                    @php
+                                        $typeOffreLabel = trim($d->type_offre ?? '');
+                                        $typeOffreLower = mb_strtolower($typeOffreLabel);
+                                        if ($typeOffreLabel === '') {
+                                            $icon = '📁'; $color = '#1e40af'; $bg = '#dbeafe';
+                                        } elseif (str_contains($typeOffreLower, 'financ')) {
+                                            $icon = '💰'; $color = '#166534'; $bg = '#dcfce7';
+                                        } elseif (str_contains($typeOffreLower, 'techniq')) {
+                                            $icon = '🔧'; $color = '#9a3412'; $bg = '#ffedd5';
+                                        } elseif (str_contains($typeOffreLower, 'administrat')) {
+                                            $icon = '📋'; $color = '#5b21b6'; $bg = '#ede9fe';
+                                        } else {
+                                            $icon = '📁'; $color = '#1e40af'; $bg = '#dbeafe';
+                                        }
+                                        $statutDot = match($d->statut) {
+                                            'en_cours' => '⏳',
+                                            'termine' => '✅',
+                                            default => '📄',
+                                        };
+                                        $statutTitle = match($d->statut) {
+                                            'en_cours' => 'En cours',
+                                            'termine' => 'Terminé',
+                                            default => 'Généré',
+                                        };
+                                    @endphp
+                                    <a href="{{ route('dossiers.show', $d) }}"
+                                       class="offre-pill"
+                                       style="color:{{ $color }}; background:{{ $bg }}; text-decoration:none;"
+                                       title="{{ $typeOffreLabel ?: 'Offre' }} — {{ $statutTitle }}">
+                                        {{ $icon }} {{ $typeOffreLabel ?: 'Dossier' }}
+                                        <span class="statut-dot">{{ $statutDot }}</span>
+                                    </a>
                                 @endforeach
-                                <form action="{{ route('dossiers.destroy', $dossier) }}" method="POST" style="display:inline">
-                                    @csrf
-                                    <button class="btn btn-sm btn-outline-danger" type="submit">🗑 Supprimer</button>
-                                </form>
-                                @if($dossier->statut === 'genere' || $dossier->statut === 'termine')
-                                    <a href="{{ route('dossiers.pdf', $dossier) }}" class="btn btn-sm btn-primary">📥 PDF</a>
-                                @endif
+
+                                @foreach(($group['missingOffers'] ?? []) as $categorieCible => $label)
+                                    <span class="offre-pill offre-pill-missing">
+                                        <form action="{{ route('dossiers.createOtherOffer', $group['representative']) }}" method="POST" onsubmit="return confirm('Créer « {{ $label }} » pour ce marché, à partir de « {{ $group['representative']->type_offre ?: $group['representative']->nom_dossier }} » ? Les pièces déjà téléversées seront reprises aussi : pensez à vérifier et remplacer celles qui ne conviennent pas à cette offre.');">
+                                            @csrf
+                                            <input type="hidden" name="categorie_cible" value="{{ $categorieCible }}">
+                                            <button type="submit">+ {{ $label }}</button>
+                                        </form>
+                                    </span>
+                                @endforeach
                             </div>
                         </td>
+                        <td>
+                            @php
+                                $dossiersAvecArchive = $group['dossiers']->filter(fn ($d) => $d->versionsFinales->isNotEmpty());
+                            @endphp
+                            @if($dossiersAvecArchive->isEmpty())
+                                <span style="color:#94a3b8;">—</span>
+                            @else
+                                <div class="offre-pill-group">
+                                    @foreach($dossiersAvecArchive as $d)
+                                        @php
+                                            $derniereVersionFinale = $d->versionsFinales->first();
+                                            $typeOffreLabelArchive = trim($d->type_offre ?? '') ?: 'Dossier';
+                                        @endphp
+                                        <a href="{{ asset('storage/' . $derniereVersionFinale->chemin_fichier) }}"
+                                           target="_blank" rel="noopener noreferrer"
+                                           class="offre-pill"
+                                           style="color:#334155; background:#f1f5f9; text-decoration:none;"
+                                           title="{{ $typeOffreLabelArchive }} — {{ $derniereVersionFinale->nom_original ?: basename($derniereVersionFinale->chemin_fichier) }}{{ $d->versionsFinales->count() > 1 ? ' (+' . ($d->versionsFinales->count() - 1) . ' autre(s) version(s))' : '' }}">
+                                            📎 {{ $typeOffreLabelArchive }}
+                                        </a>
+                                    @endforeach
+                                </div>
+                            @endif
+                        </td>
+                        <td>{{ $group['entreprise']->nom ?? '—' }}</td>
+                        <td>{{ $group['latest_created_at'] ? \Illuminate\Support\Carbon::parse($group['latest_created_at'])->format('d/m/Y') : '—' }}</td>
                     </tr>
                     @endforeach
                 </tbody>

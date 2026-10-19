@@ -166,15 +166,15 @@
             </div>
 
             <div class="cover-info-lines" style="margin-top:15px; font-size:15px; text-align:center;">
-                <div class="cover-info-line" style="font-weight:700;">{{ strtoupper($dossier->republique ?? 'REPUBLIQUE DU BENIN') }}</div>
+                <div class="cover-info-line" style="font-weight:700;">{{ mb_strtoupper($dossier->republique ?? 'REPUBLIQUE DU BENIN') }}</div>
                 @if($dossier->ministere)
-                    <div class="cover-info-line">{{ strtoupper($dossier->ministere) }}</div>
+                    <div class="cover-info-line">{{ mb_strtoupper($dossier->ministere) }}</div>
                 @endif
                 @if($dossier->services_projet)
-                    <div class="cover-info-line">{{ strtoupper($dossier->services_projet) }}</div>
+                    <div class="cover-info-line">{{ mb_strtoupper($dossier->services_projet) }}</div>
                 @endif
                 @if($dossier->titre_dossier)
-                    <div class="cover-info-line" style="font-weight:700; margin-top:9px;">{{ strtoupper($dossier->titre_dossier) }}</div>
+                    <div class="cover-info-line" style="font-weight:700; margin-top:9px;">{{ mb_strtoupper($dossier->titre_dossier) }}</div>
                 @endif
                 @if($dossier->ref)
                     <div class="cover-info-line" style="margin-top:9px;">REFERENCE DU DOSSIER: {{ $dossier->ref }}</div>
@@ -196,7 +196,7 @@
                             @php
                                 try {
                                     $dt = \Illuminate\Support\Carbon::parse($dossier->date_lancement)->locale('fr');
-                                    $dateStr = strtoupper($dt->translatedFormat('d F Y'));
+                                    $dateStr = mb_strtoupper($dt->translatedFormat('d F Y'));
                                 } catch (\Throwable $e) {
                                     $dateStr = $dossier->date_lancement;
                                 }
@@ -207,11 +207,22 @@
                     </div>
                 @endif
 
+                @php
+                    // Le nom du dossier reprend parfois en suffixe le type d'offre
+                    // (ex: "... — Offre administrative"), ajoute automatiquement pour
+                    // distinguer les offres d'un meme marche dans la liste des dossiers.
+                    // Sur la page de garde, ce meme type d'offre est deja affiche juste
+                    // en dessous du cadre (voir plus bas) : on evite de l'afficher deux fois.
+                    $coverTitle = $dossier->nom_dossier ?? '';
+                    if (!empty($dossier->type_offre)) {
+                        $coverTitle = preg_replace('/\s*[—-]\s*' . preg_quote(trim($dossier->type_offre), '/') . '\s*$/iu', '', $coverTitle);
+                    }
+                @endphp
                 <div class="framed">
                     <div class="inner">
-                        <div class="main">{{ strtoupper($dossier->nom_dossier ?? '') }}</div>
+                        <div class="main">{{ mb_strtoupper($coverTitle) }}</div>
                         @if($dossier->titre_lot)
-                            <div class="sub">{{ strtoupper($dossier->titre_lot) }}</div>
+                            <div class="sub">{{ mb_strtoupper($dossier->titre_lot) }}</div>
                         @endif
                         @if($dossier->lots)
                             <div style="margin-top:12px; font-size:14px; color:#000;">➤ {{ $dossier->lots }}</div>
@@ -219,7 +230,7 @@
                     </div>
                 </div>
 
-                <div class="big-subtitle">{{ strtoupper($dossier->type_offre ?? '') }}</div>
+                <div class="big-subtitle">{{ mb_strtoupper($dossier->type_offre ?? '') }}</div>
 
                 <div class="meta-block">
                     @if($dossier->reference_step)
@@ -239,7 +250,7 @@
                     @endif
                 </div>
 
-                <div class="center-date">{{ strtoupper($dossier->mois_depot ?? '') }} {{ $dossier->annee_depot ?? '' }}</div>
+                <div class="center-date">{{ mb_strtoupper($dossier->mois_depot ?? '') }} {{ $dossier->annee_depot ?? '' }}</div>
             </div>
         @endif
     </div>
@@ -620,7 +631,7 @@
                     <div style="text-align:right; font-weight:700; margin-bottom:10px;">{{ $drpFormatted }}</div>
 
                     <div style="font-size:12.5px; line-height:1.45;">
-                    <p><strong>A l'attention de {{ strtoupper($attention) }}</strong></p>
+                    <p><strong>A l'attention de {{ mb_strtoupper($attention) }}</strong></p>
 
                     <p><strong>Nous, soussignés, déclarons que :</strong></p>
 
@@ -1884,7 +1895,7 @@
                             {{-- Le Bordereau prix unitaire (entretien/maintenance) n'a pas de sous-titre de lot :
                                  le titre "BORDEREAU DES PRIX UNITAIRES" ci-dessus suffit. --}}
                             @if($isMethodes || $isProgramme || $isCalendrier)
-                                <div style="font-weight:700; font-size:12px; text-align:center; margin-bottom:10px;">{{ strtoupper($bordereau->titre ?: ($isMethodes ? 'MÉTHODOLOGIE D\'EXÉCUTION' : ($isProgramme ? 'PROGRAMME D\'ACTIVITÉS' : 'CALENDRIER D\'EXÉCUTION'))) }}</div>
+                                <div style="font-weight:700; font-size:12px; text-align:center; margin-bottom:10px;">{{ mb_strtoupper($bordereau->titre ?: ($isMethodes ? 'MÉTHODOLOGIE D\'EXÉCUTION' : ($isProgramme ? 'PROGRAMME D\'ACTIVITÉS' : 'CALENDRIER D\'EXÉCUTION'))) }}</div>
                             @endif
                             {{--
                                 "overflow-x:auto" ne veut rien dire dans un PDF statique (pas de
@@ -1926,41 +1937,115 @@
                                 @elseif($isMethodes || $isCalendrier || $isDescriptionTechnique)
                                     @if($isDescriptionTechnique)
                                         {{--
-                                            Tableau HTML classique, à la demande explicite de l'utilisateur.
-                                            Limite connue et acceptée : dompdf peut perdre silencieusement le
-                                            texte d'une cellule qui dépasse environ une page (aucun réglage
-                                            CSS ne corrige ce comportement — voir historique des échanges).
+                                            A la demande explicite de l'utilisateur, avec une VRAIE garantie
+                                            contre le debordement (pas juste une attenuation) : les lignes sont
+                                            pre-decoupees cote serveur par DescriptionTechniquePaginator en
+                                            morceaux ("chunks"), chacun rendu comme un tableau A PART avec un
+                                            saut de page force avant lui (y compris le tout premier).
+
+                                            Le budget de hauteur passe ci-dessous (150mm) est VOLONTAIREMENT
+                                            tres inferieur au calcul "theorique" (~265mm, qui tenait compte des
+                                            marges reelles et donnait ~66 lignes/page). Teste et confirme le
+                                            2026-10-16 : avec ce budget plus large, un chunk isole (1 seule
+                                            ligne de bordereau) s'affichait parfaitement, MAIS des que plusieurs
+                                            lignes se suivaient (document reel a 12 lignes), dompdf se mettait a
+                                            repousser le contenu d'un chunk sur la page suivante de façon
+                                            incoherente avec son propre calcul de saut de page, recreant le
+                                            debordement qu'on cherche justement a eliminer - cause exacte non
+                                            identifiee malgre une investigation poussee (teste : sans <thead>,
+                                            sans entete partagee, avec budgets 220/180/150/120/100mm). 150mm
+                                            (~37 lignes/page) est la valeur la plus large qui s'est averee fiable
+                                            sur le document complet (12 lignes, verifie visuellement du debut a
+                                            la fin). Ne pas remonter ce chiffre sans retester sur un document a
+                                            PLUSIEURS lignes (pas seulement une ligne isolee, qui ne revele pas
+                                            le probleme).
                                         --}}
+                                        @php
+                                            $dtChunks = \App\Support\DescriptionTechniquePaginator::chunk(
+                                                $bordereau->lignes,
+                                                [
+                                                    'designation' => 18,
+                                                    'specifications_techniques' => 25,
+                                                    'specifications_obligatoires' => 25,
+                                                    'specifications_proposees' => 27,
+                                                ],
+                                                170.0,  // largeur utile de la page (A4 210mm - marges 20+20mm)
+                                                1.1,    // padding de cellule (mm, ~4px)
+                                                9.0,    // taille de police (px)
+                                                1.3,    // interligne
+                                                150.0,  // hauteur utile par "page" - volontairement tres reduite, voir note ci-dessus
+                                                // 0 : chaque chunk (y compris le 1er, voir page-break-before
+                                                // ci-dessous) demarre desormais une page neuve et a donc droit
+                                                // au budget plein.
+                                                0.0
+                                            );
+                                        @endphp
                                         <style>
                                             .pdf-description-technique-table th,
                                             .pdf-description-technique-table td {
+                                                border:1px solid #000;
+                                                padding:4px;
+                                                vertical-align:top;
                                                 word-break: break-word;
                                                 overflow-wrap: break-word;
                                                 white-space: normal;
+                                                font-size:9px !important;
+                                                line-height:1.3 !important;
                                             }
+                                            .pdf-description-technique-row {
+                                                width:100%;
+                                                border-collapse:collapse;
+                                                font-size:9px !important;
+                                                line-height:1.3;
+                                            }
+                                            /*
+                                                IMPORTANT : une regle globale plus haut dans ce document
+                                                ("table, table th, table td { font-size: 12px !important; }")
+                                                ecrasait silencieusement cette taille de police - c'etait la
+                                                VRAIE cause du debordement malgre tous les calculs de
+                                                DescriptionTechniquePaginator (qui, eux, supposent 9px). Cette
+                                                regle globale cible directement th/td (pas juste <table>), donc
+                                                la neutraliser sur <table> seul ne suffit pas : il faut aussi un
+                                                !important directement sur ".pdf-description-technique-table
+                                                th/td" (plus specifique que "table th/td" grace a la classe) -
+                                                sinon la police REELLEMENT rendue (12px) ne correspond plus a
+                                                celle supposee par le calcul (9px), et le contenu deborde a
+                                                nouveau. Si la taille change encore un jour, verifier QUE CETTE
+                                                REGLE S'APPLIQUE VRAIMENT en inspectant le HTML rendu (ne pas
+                                                supposer), et mettre a jour le parametre $fontSizePx passe a
+                                                DescriptionTechniquePaginator::chunk() dans la MEME proportion.
+                                            */
                                         </style>
-                                        <table class="pdf-description-technique-table" style="width:100%; border-collapse:collapse; font-size:10px;">
-                                            <thead>
-                                                <tr style="background:#f3f4f6; font-weight:700;">
-                                                    <th style="border:1px solid #000; padding:6px; text-align:center; width:5%;">N°</th>
-                                                    <th style="border:1px solid #000; padding:6px; text-align:left; width:18%;">Désignation</th>
-                                                    <th style="border:1px solid #000; padding:6px; text-align:left; width:25%;">Spécifications techniques</th>
-                                                    <th style="border:1px solid #000; padding:6px; text-align:left; width:25%;">Spécifications obligatoires</th>
-                                                    <th style="border:1px solid #000; padding:6px; text-align:left; width:27%;">Spécifications proposées</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                @foreach($bordereau->lignes as $index => $ligne)
-                                                    <tr>
-                                                        <td style="border:1px solid #000; padding:6px; text-align:center; vertical-align:top;">{{ $index + 1 }}</td>
-                                                        <td style="border:1px solid #000; padding:6px; vertical-align:top;">{!! nl2br(e($ligne->designation)) !!}</td>
-                                                        <td style="border:1px solid #000; padding:6px; vertical-align:top;">{!! nl2br(e($ligne->specifications_techniques ?? '')) !!}</td>
-                                                        <td style="border:1px solid #000; padding:6px; vertical-align:top;">{!! nl2br(e($ligne->specifications_obligatoires ?? '')) !!}</td>
-                                                        <td style="border:1px solid #000; padding:6px; vertical-align:top;">{!! nl2br(e($ligne->specifications_proposees ?? '')) !!}</td>
+                                        @foreach($dtChunks as $ci => $chunk)
+                                            {{--
+                                                Saut de page AVANT CHAQUE chunk, y compris le tout premier :
+                                                le 1er partage sinon sa page avec l'entete/logo + le titre du
+                                                tableau au-dessus, dont la hauteur reelle s'est averee trop
+                                                difficile a predire de façon fiable (teste et rate plusieurs
+                                                fois le 2026-10-16 avec une reduction de budget calculee - le
+                                                debordement revenait systematiquement). Une page de "titre" en
+                                                plus (table vide avec juste l'entete) est un cout minime et
+                                                garanti correct, contre un calcul fragile qui ne l'etait pas.
+                                            --}}
+                                            <table class="pdf-description-technique-table pdf-description-technique-row" style="page-break-before:always;">
+                                                <thead>
+                                                    <tr style="background:#f3f4f6; font-weight:700;">
+                                                        <th style="text-align:center; width:5%;">N°</th>
+                                                        <th style="text-align:left; width:18%;">Désignation</th>
+                                                        <th style="text-align:left; width:25%;">Spécifications techniques</th>
+                                                        <th style="text-align:left; width:25%;">Spécifications obligatoires</th>
+                                                        <th style="text-align:left; width:27%;">Spécifications proposées</th>
                                                     </tr>
-                                                @endforeach
-                                            </tbody>
-                                        </table>
+                                                </thead>
+                                                <tr>
+                                                    <td style="text-align:center; width:5%;">{{ $chunk['numero'] }}{{ $chunk['suite'] ? ' (suite)' : '' }}</td>
+                                                    <td style="width:18%;">{!! $chunk['cells']['designation'] !!}</td>
+                                                    <td style="width:25%;">{!! $chunk['cells']['specifications_techniques'] !!}</td>
+                                                    <td style="width:25%;">{!! $chunk['cells']['specifications_obligatoires'] !!}</td>
+                                                    <td style="width:27%;">{!! $chunk['cells']['specifications_proposees'] !!}</td>
+                                                </tr>
+                                            </table>
+                                        @endforeach
                                     @else
                                         @php
                                             $designationLabel = $isMethodes ? 'Désignation des services (Liste des équipements à maintenir)' : 'Désignation des produits';
@@ -2243,7 +2328,7 @@
                 <table class="signature-table">
                 <tr>
                     <td style="width:25%;"><strong>Nom :</strong></td>
-                    <td style="width:75%;">{{ strtoupper($signataire_nom ?? '') }}</td>
+                    <td style="width:75%;">{{ mb_strtoupper($signataire_nom ?? '') }}</td>
                 </tr>
                 <tr>
                     <td><strong>En tant que :</strong></td>
