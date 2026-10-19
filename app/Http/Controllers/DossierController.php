@@ -4725,6 +4725,28 @@ class DossierController extends Controller
     }
 
     /**
+     * Retire un suffixe " — <libelle de categorie>" ajoute par
+     * renameForOfferCategory() (ex: "POUELLE CALAVI — Offre financière"
+     * devient "POUELLE CALAVI") : utilise pour l'affichage du nom du marche
+     * dans la liste des dossiers, ou la categorie est deja visible via les
+     * badges de la colonne "Offres" et n'a pas besoin d'etre repetee dans le
+     * nom.
+     */
+    private function stripOfferCategorySuffix(?string $nom): string
+    {
+        $nom = trim((string) $nom);
+
+        foreach (self::OFFER_CATEGORIES as $info) {
+            $suffix = ' — ' . $info['label'];
+            if (str_ends_with(mb_strtolower($nom, 'UTF-8'), mb_strtolower($suffix, 'UTF-8'))) {
+                return trim(mb_substr($nom, 0, mb_strlen($nom) - mb_strlen($suffix), 'UTF-8'));
+            }
+        }
+
+        return $nom;
+    }
+
+    /**
      * Cree les pieces du modele de sommaire standard (technique ou
      * financiere, selon le type_offre actuel du dossier - voir
      * isOffreFinanciere()) qui manquent encore au dossier, sans jamais
@@ -5521,7 +5543,16 @@ class DossierController extends Controller
         return $groups->map(function ($groupDossiers) use ($missingOffersByDossier) {
             $sorted = $groupDossiers->sortByDesc('created_at')->values();
             $first = $sorted->first();
-            $title = $first->nom_dossier;
+            // Le nom affiche vient du dossier le plus ANCIEN du groupe (celui
+            // tape par l'utilisateur a la creation), pas du plus recent : les
+            // offres creees ensuite via "+ Creer une offre" ont leur nom
+            // renomme avec un suffixe de categorie (ex: "... — Offre
+            // financiere", voir renameForOfferCategory()), ce qui ferait
+            // apparaitre ce suffixe comme "nom du dossier" du marche entier
+            // si on prenait le plus recent. La categorie est deja visible
+            // via les badges de la colonne "Offres" : inutile de la repeter
+            // ici, donc on la retire aussi si elle trainait malgre tout.
+            $title = $this->stripOfferCategorySuffix($sorted->last()->nom_dossier);
 
             return [
                 'title' => $title,
