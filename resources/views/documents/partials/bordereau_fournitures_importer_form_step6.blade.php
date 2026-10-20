@@ -324,7 +324,15 @@
                 const section = event.target.closest('.bordereau-section');
                 const sectionIndex = Array.from(sectionsContainer.querySelectorAll('.bordereau-section')).indexOf(section);
                 const tbody = section.querySelector('.bordereau-lines');
-                const row = createLineRow(sectionIndex, '', '', '', '', '');
+                // La date de livraison est presque toujours la meme pour
+                // tout le tableau : on la reprend de la derniere ligne
+                // existante, pour ne pas avoir a la retaper a chaque
+                // nouvelle ligne.
+                const previousRows = tbody.querySelectorAll('tr');
+                const lastDate = previousRows.length
+                    ? (previousRows[previousRows.length - 1].querySelector('[name*="[date_prestation]"]')?.value || '')
+                    : '';
+                const row = createLineRow(sectionIndex, '', lastDate, '', '', '');
                 tbody.appendChild(row);
                 updateLineIndexes(section, sectionIndex);
             }

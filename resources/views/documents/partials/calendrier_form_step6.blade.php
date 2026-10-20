@@ -257,7 +257,15 @@
                 const section = event.target.closest('.bordereau-section');
                 const sectionIndex = Array.from(sectionsContainer.querySelectorAll('.bordereau-section')).indexOf(section);
                 const tbody = section.querySelector('.bordereau-lines');
-                const row = createLineRow(sectionIndex, '', '', '1', '');
+                // La date de realisation est presque toujours la meme pour
+                // tout le tableau (un seul lot/periode) : on la reprend de la
+                // derniere ligne existante, pour ne pas avoir a la retaper a
+                // chaque nouvelle ligne.
+                const previousRows = tbody.querySelectorAll('tr');
+                const lastDate = previousRows.length
+                    ? (previousRows[previousRows.length - 1].querySelector('[name*="[date_prestation]"]')?.value || '')
+                    : '';
+                const row = createLineRow(sectionIndex, '', lastDate, '1', '');
                 tbody.appendChild(row);
                 updateLineIndexes(section, sectionIndex);
             }

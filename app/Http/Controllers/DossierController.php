@@ -5279,12 +5279,34 @@ class DossierController extends Controller
      * designations existent deja ailleurs dans ce meme dossier. "quantite" ne
      * peut pas etre NULL en base (contrainte NOT NULL) : 1 par defaut quand
      * elle n'est pas connue.
+     *
+     * COMPLETE AUSSI les lignes DEJA EXISTANTES d'un bordereau non-vide :
+     * si une ligne a une designation qui correspond (texte normalise) a un
+     * article connu, mais qu'un de ses champs (prix unitaire, quantite,
+     * date...) est encore vide/a 0, on le complete avec la valeur connue -
+     * necessaire pour corriger un bordereau deja cree par une execution
+     * passee de cette fonction (ex: avant que la fusion inter-bordereaux ne
+     * soit corrigee, une ligne a pu etre creee avec prix_unitaire=0 alors
+     * qu'un vrai prix existait deja ailleurs : sans cette repris a posteriori,
+     * elle resterait bloquee a 0 pour toujours, puisque le bordereau n'est
+     * plus "vide"). Ne modifie jamais un champ qui a deja une vraie valeur.
      */
     private function populateEmptyBordereauxWithKnownArticles(Dossier $dossier, array $articleRows): void
     {
         if (empty($articleRows)) {
             return;
         }
+
+        $knownByDesignation = [];
+        foreach ($articleRows as $row) {
+            $key = $this->normalizeSommaireName((string) ($row['designation'] ?? ''));
+            if ($key === '' || isset($knownByDesignation[$key])) {
+                continue;
+            }
+            $knownByDesignation[$key] = $row;
+        }
+
+        $updatableFields = ['unite_physique', 'quantite', 'nombre_propose', 'prix_unitaire', 'montant', 'site', 'date_prestation', 'frequence'];
 
         $documents = $dossier->documents()
             ->with(['typeDocument', 'bordereau.lignes'])
@@ -5298,36 +5320,90 @@ class DossierController extends Controller
                 && trim($d->typeDocument->nom) !== 'Tableau de résumé des bordereaux de prix');
 
         foreach ($documents as $document) {
-            $hasAnyLine = $document->bordereau->contains(fn ($b) => $b->lignes->isNotEmpty());
-            if ($hasAnyLine) {
+            $existingLignes = $document->bordereau->flatMap->lignes;
+
+            if ($existingLignes->isEmpty()) {
+                $bordereau = $document->bordereau->first();
+                if (!$bordereau) {
+                    $bordereau = Bordereau::create([
+                        'dossier_document_id' => $document->id,
+                        'titre' => $document->typeDocument->nom,
+                    ]);
+                }
+
+                foreach ($articleRows as $row) {
+                    $ligneData = $row;
+                    // quantite/prix_unitaire/montant ne peuvent pas etre NULL en
+                    // base (contrainte NOT NULL) : valeurs par defaut neutres
+                    // quand la ligne source ne les avait pas renseignees (ex: une
+                    // ligne de "Description technique", qui n'a pas de prix).
+                    if (empty($ligneData['quantite'])) {
+                        $ligneData['quantite'] = 1;
+                    }
+                    if (!isset($ligneData['prix_unitaire'])) {
+                        $ligneData['prix_unitaire'] = 0;
+                    }
+                    if (!isset($ligneData['montant'])) {
+                        $ligneData['montant'] = 0;
+                    }
+                    $ligneData['bordereau_id'] = $bordereau->id;
+                    BordereauLigne::create($ligneData);
+                }
+
                 continue;
             }
 
-            $bordereau = $document->bordereau->first();
-            if (!$bordereau) {
-                $bordereau = Bordereau::create([
-                    'dossier_document_id' => $document->id,
-                    'titre' => $document->typeDocument->nom,
-                ]);
-            }
+            foreach ($existingLignes as $ligne) {
+                $key = $this->normalizeSommaireName((string) $ligne->designation);
+                if ($key === '' || !isset($knownByDesignation[$key])) {
+                    continue;
+                }
 
-            foreach ($articleRows as $row) {
-                $ligneData = $row;
-                // quantite/prix_unitaire/montant ne peuvent pas etre NULL en
-                // base (contrainte NOT NULL) : valeurs par defaut neutres
-                // quand la ligne source ne les avait pas renseignees (ex: une
-                // ligne de "Description technique", qui n'a pas de prix).
-                if (empty($ligneData['quantite'])) {
-                    $ligneData['quantite'] = 1;
+                $known = $knownByDesignation[$key];
+
+                // "quantite" vaut systematiquement 1 par defaut des qu'une
+                // ligne est creee sans etre vraiment remplie (meme logique
+                // que BordereauLigne, voir plus haut) : un 1 isole n'est donc
+                // PAS une preuve suffisante d'une vraie saisie utilisateur.
+                // Combine a prix_unitaire ET montant encore vides, c'est en
+                // revanche la signature exacte d'une ligne jamais vraiment
+                // remplie (ex: coincee par une execution passee, moins
+                // complete, de cette meme fonction) : dans ce cas seulement,
+                // on autorise aussi la quantite a etre completee.
+                $isPlaceholderRow = !self::bordereauFieldHasValue($ligne->prix_unitaire)
+                    && !self::bordereauFieldHasValue($ligne->montant);
+
+                $updates = [];
+                foreach ($updatableFields as $field) {
+                    if ($field === 'montant') {
+                        continue; // recalcule ci-dessous a partir du prix/quantite finaux de CETTE ligne.
+                    }
+                    // "quantite" d'une ligne-placeholder (prix_unitaire ET
+                    // montant encore vides) est repris SANS tenir compte de
+                    // sa valeur actuelle (quasi toujours le "1" par defaut) ;
+                    // pour tous les autres champs, et pour quantite sur une
+                    // ligne qui a deja un vrai prix/montant, on ne touche
+                    // jamais une valeur deja presente.
+                    $forceOverride = $field === 'quantite' && $isPlaceholderRow;
+                    if (($forceOverride || !self::bordereauFieldHasValue($ligne->{$field})) && self::bordereauFieldHasValue($known[$field] ?? null)) {
+                        $updates[$field] = $known[$field];
+                    }
                 }
-                if (!isset($ligneData['prix_unitaire'])) {
-                    $ligneData['prix_unitaire'] = 0;
+
+                // Le montant doit rester coherent avec LA QUANTITE DE CETTE
+                // LIGNE (qui peut differer de celle de l'article source) :
+                // jamais recopie tel quel depuis $known, toujours recalcule.
+                if ((isset($updates['prix_unitaire']) || isset($updates['quantite'])) && !self::bordereauFieldHasValue($ligne->montant)) {
+                    $prix = $updates['prix_unitaire'] ?? $ligne->prix_unitaire;
+                    $quantite = $updates['quantite'] ?? $ligne->quantite;
+                    if (self::bordereauFieldHasValue($prix) && self::bordereauFieldHasValue($quantite)) {
+                        $updates['montant'] = (float) $prix * (float) $quantite;
+                    }
                 }
-                if (!isset($ligneData['montant'])) {
-                    $ligneData['montant'] = 0;
+
+                if (!empty($updates)) {
+                    $ligne->update($updates);
                 }
-                $ligneData['bordereau_id'] = $bordereau->id;
-                BordereauLigne::create($ligneData);
             }
         }
 
@@ -5335,15 +5411,19 @@ class DossierController extends Controller
     }
 
     /**
-     * Repeuple automatiquement, pour N'IMPORTE QUEL dossier (pas seulement
-     * juste apres createOtherOffer()), tout bordereau encore totalement vide
-     * avec les designations deja connues ailleurs dans CE MEME dossier -
-     * idempotent et purement additif (ne touche jamais un bordereau qui a
-     * deja au moins une ligne), donc sans risque a appeler a chaque
-     * affichage. Corrige notamment les dossiers deja crees avant ce
-     * comportement (ex: une offre financiere creee avant que
-     * createOtherOffer() ne reporte les designations), qui restaient vides
-     * indefiniment sans cela.
+     * Repeuple/complete automatiquement, pour N'IMPORTE QUEL dossier (pas
+     * seulement juste apres createOtherOffer()), tout bordereau de CE MEME
+     * dossier avec les articles deja connus ailleurs : un bordereau encore
+     * totalement vide recoit toutes les lignes connues ; un bordereau qui a
+     * deja des lignes voit ses champs encore vides (prix, quantite, date...)
+     * completes quand la designation correspond a un article connu - jamais
+     * un champ deja renseigne n'est modifie. Idempotent, purement additif
+     * (n'efface ni ne remplace jamais une vraie valeur), donc sans risque a
+     * appeler a chaque affichage. Corrige aussi bien les dossiers crees avant
+     * ce comportement que ceux dont un bordereau avait ete rempli (par une
+     * execution passee, moins complete, de cette meme fonction) avec des
+     * valeurs par defaut a 0/1 au lieu du vrai prix/quantite trouvable
+     * ailleurs.
      */
     private function syncEmptyBordereauxWithKnownArticles(Dossier $dossier): void
     {
