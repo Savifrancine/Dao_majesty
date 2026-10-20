@@ -1,16 +1,6 @@
 @php
-    $descDoc = $dossier->documents->first(function ($d) {
-        return $d->typeDocument && trim($d->typeDocument->nom) === 'Description technique des fournitures/services';
-    });
-
-    $articles = [];
-    if ($descDoc) {
-        foreach ($descDoc->bordereau as $bordereau) {
-            foreach ($bordereau->lignes as $ligne) {
-                $articles[] = trim((string) $ligne->designation);
-            }
-        }
-    }
+    $articlesRaw = \App\Support\FicheTechniqueArticles::forDossier($dossier);
+    $articles = array_map(fn ($a) => $a['designation'], $articlesRaw);
 
     $existingFiches = $dossierDocument
         ? \App\Models\FicheTechniqueFichier::where('dossier_document_id', $dossierDocument->id)->get()->keyBy('article_index')
@@ -19,12 +9,12 @@
 
 <div class="wizard-field" style="margin-bottom: 12px;">
     <p class="wizard-label">Fiche technique de chaque article, délivrée par le fabricant</p>
-    <p style="font-size:0.95rem;color:#475569;">Le prospectus/catalogue du fabricant pour chaque article du tableau « Description technique des fournitures/services ». Un article peut rester sans prospectus si ce n'est pas exigé. Vous pouvez les ajouter dans n'importe quel ordre : dans le PDF final, ils apparaîtront dans l'ordre des articles, chacun précédé d'une page de séparation.</p>
+    <p style="font-size:0.95rem;color:#475569;">Le prospectus/catalogue du fabricant pour chaque article du bordereau déjà rempli du dossier (« Description technique des fournitures/services », ou à défaut tout autre bordereau renseigné, ex: « Bordereau prix unitaire »). Un article peut rester sans prospectus si ce n'est pas exigé. Vous pouvez les ajouter dans n'importe quel ordre : dans le PDF final, ils apparaîtront dans l'ordre des articles, chacun précédé d'une page de séparation.</p>
 </div>
 
-@if(!$descDoc || empty($articles))
+@if(empty($articles))
     <div class="wizard-alert" style="margin-bottom:12px;">
-        Ce dossier n'a pas encore de tableau « Description technique des fournitures/services » rempli avec au moins un article. Ajoutez d'abord des articles à ce tableau, puis revenez ici pour joindre leurs fiches techniques.
+        Ce dossier n'a pas encore de tableau de bordereau (Description technique, Bordereau prix unitaire, Liste de Matériel...) rempli avec au moins un article. Ajoutez d'abord des articles à l'un de ces tableaux, puis revenez ici pour joindre leurs fiches techniques.
     </div>
 @else
     <div style="border:1px solid #d1d5db; padding:16px; background:#ffffff;">

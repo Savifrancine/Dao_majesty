@@ -251,6 +251,15 @@ Route::middleware('auth')->group(function () {
     Route::put('/entreprises/{entreprise}', [App\Http\Controllers\EntrepriseController::class, 'update'])->name('entreprises.update');
     Route::delete('/entreprises/{entreprise}', [App\Http\Controllers\EntrepriseController::class, 'destroy'])->name('entreprises.destroy');
 
+    // CRUD routes pour le Catalogue (designations + prospectus reutilisables,
+    // rapprochees automatiquement dans "Fiche technique de chaque article")
+    Route::get('/catalogue', [App\Http\Controllers\CatalogueController::class, 'index'])->name('catalogue.index');
+    Route::get('/catalogue/create', [App\Http\Controllers\CatalogueController::class, 'create'])->name('catalogue.create');
+    Route::post('/catalogue', [App\Http\Controllers\CatalogueController::class, 'store'])->name('catalogue.store');
+    Route::get('/catalogue/{catalogueArticle}/edit', [App\Http\Controllers\CatalogueController::class, 'edit'])->name('catalogue.edit');
+    Route::put('/catalogue/{catalogueArticle}', [App\Http\Controllers\CatalogueController::class, 'update'])->name('catalogue.update');
+    Route::delete('/catalogue/{catalogueArticle}', [App\Http\Controllers\CatalogueController::class, 'destroy'])->name('catalogue.destroy');
+
     // CRUD routes pour les types de documents personnalisés
     Route::get('/documents-personnalises', [App\Http\Controllers\CustomDocumentTypeController::class, 'index'])->name('custom-document-types.index');
     Route::get('/documents-personnalises/create', [App\Http\Controllers\CustomDocumentTypeController::class, 'create'])->name('custom-document-types.create');

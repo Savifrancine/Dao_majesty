@@ -436,6 +436,11 @@
                                     <i class="fas fa-building me-1"></i>{{ __('Entreprises') }}
                                 </a>
                             </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ route('catalogue.index') }}">
+                                    <i class="fas fa-book me-1"></i>{{ __('Catalogue') }}
+                                </a>
+                            </li>
                         @endauth
                     </ul>
 

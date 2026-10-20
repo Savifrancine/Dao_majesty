@@ -30,6 +30,7 @@ use App\Models\FormulairePER;
 use App\Models\FormulairePerFichier;
 use App\Models\FormulaireMat;
 use App\Models\FicheTechniqueFichier;
+use App\Models\CatalogueArticle;
 use App\Support\Exp42aPdf;
 use App\Support\Exp42bPdf;
 use App\Support\Exp42aSuitePdf;
@@ -109,7 +110,6 @@ class DossierController extends Controller
     private const FORMULAIRE_MAT_NOM = 'Formulaire MAT';
     private const LISTE_MATERIEL_NOM = 'Liste de Matériel';
     private const FICHE_TECHNIQUE_ARTICLES_NOM = 'Fiche technique de chaque article, délivrée par le fabricant';
-    private const DESCRIPTION_TECHNIQUE_NOM = 'Description technique des fournitures/services';
 
     /**
      * Les 3 categories d'offre reconnues pour un meme marche (detectees dans
@@ -1468,33 +1468,111 @@ class DossierController extends Controller
     }
 
     /**
-     * Liste des articles du tableau "Description technique des fournitures/
-     * services" du dossier (toutes sections confondues, dans l'ordre), sous
-     * la forme [['designation' => ...], ...] - l'index dans ce tableau EST
-     * le "N°" de l'article (0-based), utilise pour rattacher sa fiche
-     * technique (voir FicheTechniqueFichier::article_index). Ce n'est
-     * jamais l'id d'une BordereauLigne, qui n'est pas stable (ces lignes
-     * sont supprimees et recreees a chaque enregistrement du tableau).
+     * Liste des articles source pour "Fiche technique de chaque article" -
+     * voir App\Support\FicheTechniqueArticles pour la logique complete (la
+     * "Description technique" si remplie, sinon n'importe quel autre
+     * bordereau du dossier deja rempli avec des designations). L'index dans
+     * ce tableau EST le "N°" de l'article (0-based), utilise pour rattacher
+     * sa fiche technique (voir FicheTechniqueFichier::article_index). Ce
+     * n'est jamais l'id d'une BordereauLigne, qui n'est pas stable (ces
+     * lignes sont supprimees et recreees a chaque enregistrement du
+     * tableau).
      */
     private function descriptionTechniqueArticles(Dossier $dossier): array
     {
-        $descDoc = $dossier->documents()
-            ->whereHas('typeDocument', fn ($q) => $q->where('nom', self::DESCRIPTION_TECHNIQUE_NOM))
-            ->with('bordereau.lignes')
+        return \App\Support\FicheTechniqueArticles::forDossier($dossier);
+    }
+
+    /**
+     * Entrees du Catalogue (menu "Catalogue") dont la designation correspond
+     * EXACTEMENT (une fois normalisee - insensible a la casse, aux accents et
+     * a la ponctuation, voir normalizeSommaireName()) a celle fournie. Jamais
+     * de rapprochement flou : en cas de doublon dans le catalogue, l'appelant
+     * doit s'abstenir (voir syncFicheTechniqueFromCatalogue()).
+     */
+    private function findCatalogueArticlesByDesignation(string $designation): \Illuminate\Support\Collection
+    {
+        $target = $this->normalizeSommaireName($designation);
+        if ($target === '') {
+            return collect();
+        }
+
+        return CatalogueArticle::whereNotNull('designation')
+            ->get()
+            ->filter(fn (CatalogueArticle $c) => $this->normalizeSommaireName(trim((string) $c->designation)) === $target)
+            ->values();
+    }
+
+    /**
+     * Pour chaque article du tableau "Description technique" qui n'a PAS
+     * encore de fiche technique/prospectus propre a ce dossier, cherche une
+     * entree du Catalogue dont la designation correspond EXACTEMENT (voir
+     * findCatalogueArticlesByDesignation()) et, si une seule est trouvee,
+     * copie son prospectus dans une nouvelle FicheTechniqueFichier pour cet
+     * article - une copie physique independante (comme pour la duplication
+     * de dossier), jamais une reference live : modifier ou supprimer
+     * l'entree du catalogue plus tard n'affecte pas les dossiers deja
+     * remplis. Si aucune entree ou plusieurs entrees correspondent, rien
+     * n'est fait : l'utilisateur televerse ou choisit lui-meme (meme logique
+     * que pour les CV multiples du personnel d'entreprise).
+     */
+    private function syncFicheTechniqueFromCatalogue(Dossier $dossier): void
+    {
+        $doc = $dossier->documents()
+            ->whereHas('typeDocument', fn ($q) => $q->where('nom', self::FICHE_TECHNIQUE_ARTICLES_NOM))
             ->first();
-
-        if (!$descDoc) {
-            return [];
+        if (!$doc) {
+            return;
         }
 
-        $articles = [];
-        foreach ($descDoc->bordereau as $bordereau) {
-            foreach ($bordereau->lignes as $ligne) {
-                $articles[] = ['designation' => trim((string) $ligne->designation)];
+        $articles = $this->descriptionTechniqueArticles($dossier);
+        if (empty($articles)) {
+            return;
+        }
+
+        $existingIndexes = FicheTechniqueFichier::where('dossier_document_id', $doc->id)
+            ->pluck('article_index')
+            ->all();
+
+        $added = false;
+
+        foreach ($articles as $index => $article) {
+            if (in_array($index, $existingIndexes, true)) {
+                continue;
             }
+
+            $designation = trim((string) ($article['designation'] ?? ''));
+            if ($designation === '') {
+                continue;
+            }
+
+            $matches = $this->findCatalogueArticlesByDesignation($designation);
+            if ($matches->count() !== 1) {
+                continue;
+            }
+
+            $catalogueArticle = $matches->first();
+            if (empty($catalogueArticle->chemin_prospectus) || !Storage::disk('public')->exists($catalogueArticle->chemin_prospectus)) {
+                continue;
+            }
+
+            $extension = pathinfo($catalogueArticle->chemin_prospectus, PATHINFO_EXTENSION);
+            $copiePath = 'dossiers/documents/catalogue_' . $catalogueArticle->id . '_' . uniqid() . ($extension ? '.' . $extension : '');
+            Storage::disk('public')->copy($catalogueArticle->chemin_prospectus, $copiePath);
+
+            FicheTechniqueFichier::create([
+                'dossier_document_id' => $doc->id,
+                'article_index' => $index,
+                'chemin_fichier' => $copiePath,
+                'nom_original' => $catalogueArticle->nom_original_prospectus,
+                'utilisateur_id' => auth()->id(),
+            ]);
+            $added = true;
         }
 
-        return $articles;
+        if ($added && $doc->statut !== 'complete') {
+            $doc->update(['statut' => 'complete']);
+        }
     }
 
     /**
@@ -1513,6 +1591,8 @@ class DossierController extends Controller
         if (!$dossier) {
             return [];
         }
+
+        $this->syncFicheTechniqueFromCatalogue($dossier);
 
         $articles = $this->descriptionTechniqueArticles($dossier);
         if (empty($articles)) {
@@ -3737,6 +3817,7 @@ class DossierController extends Controller
         $this->syncFormulaireMatRecords($dossier);
         $this->syncFormulaireFin31FromEntreprise($dossier);
         $this->syncFormulaireBeneficiairesFromEntreprise($dossier);
+        $this->syncFicheTechniqueFromCatalogue($dossier);
         $globalChiffres = ChiffreAffaire::whereNull('dossier_id')->orderBy('annee')->get();
 
         return view('dossiers.create.step6', [
@@ -5026,13 +5107,19 @@ class DossierController extends Controller
             ->sortBy('ordre')
             ->values();
 
-        // Prefer a document with status 'en_cours', otherwise take the first empty document
+        // Prefer a document with status 'en_cours', otherwise take the first
+        // not-yet-complete document. Le statut est le seul signal fiable
+        // commun a tous les types de documents : $doc->fichiers (utilise
+        // avant) reste TOUJOURS vide pour les documents structures qui
+        // stockent leur contenu ailleurs (bordereaux, Formulaire MAT/PER,
+        // EXP 4.x, Fiche technique de chaque article...), ce qui faisait
+        // boucler le bouton "Continuer" sur un document deja rempli.
         $inProgressIndex = $uploadableDocs->search(fn ($doc) => $doc->statut === 'en_cours');
         if ($inProgressIndex !== false) {
             $resumeIndex = $inProgressIndex;
         } else {
-            $firstEmpty = $uploadableDocs->search(fn ($doc) => $doc->fichiers->isEmpty());
-            $resumeIndex = $firstEmpty === false ? null : $firstEmpty;
+            $firstIncomplete = $uploadableDocs->search(fn ($doc) => $doc->statut !== 'complete');
+            $resumeIndex = $firstIncomplete === false ? null : $firstIncomplete;
         }
 
         $resumeDocumentIds = $uploadableDocs->map(fn ($doc) => $doc->type_document_id)->values()->all();
@@ -5333,7 +5420,13 @@ class DossierController extends Controller
                 ->with('error', 'Impossible de reprendre: aucune piece a televerser.');
         }
 
-        $resumeIndex = $uploadableDocs->search(fn ($doc) => $doc->fichiers->isEmpty() || $doc->statut !== 'complete');
+        // Le statut est le seul signal fiable commun a tous les types de
+        // documents : $doc->fichiers reste TOUJOURS vide pour les documents
+        // structures qui stockent leur contenu ailleurs (bordereaux,
+        // Formulaire MAT/PER, EXP 4.x, Fiche technique de chaque article...),
+        // ce qui faisait boucler le bouton "Continuer" sur un document deja
+        // rempli (voir aussi show(), meme correction).
+        $resumeIndex = $uploadableDocs->search(fn ($doc) => $doc->statut !== 'complete');
 
         // Allow overriding the resume index when coming from the 'Modifier' action
         if ($request->has('current_index')) {
@@ -5359,6 +5452,7 @@ class DossierController extends Controller
         $this->syncFormulaireMatRecords($dossier);
         $this->syncFormulaireFin31FromEntreprise($dossier);
         $this->syncFormulaireBeneficiairesFromEntreprise($dossier);
+        $this->syncFicheTechniqueFromCatalogue($dossier);
         $globalChiffres = ChiffreAffaire::whereNull('dossier_id')->orderBy('annee')->get();
 
         return view('dossiers.create.step6', [
