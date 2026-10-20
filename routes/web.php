@@ -109,6 +109,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/dossiers/show/{dossier}', [App\Http\Controllers\DossierController::class, 'show'])->name('dossiers.show');
     Route::post('/dossiers/{dossier}/dupliquer', [App\Http\Controllers\DossierController::class, 'duplicate'])->name('dossiers.duplicate');
     Route::post('/dossiers/{dossier}/creer-autre-offre', [App\Http\Controllers\DossierController::class, 'createOtherOffer'])->name('dossiers.createOtherOffer');
+    Route::post('/dossiers/{dossier}/nettoyer-sommaire', [App\Http\Controllers\DossierController::class, 'cleanSommaireForOfferCategory'])->name('dossiers.cleanSommaire');
     Route::get('/dossiers/{dossier}/continuer', [App\Http\Controllers\DossierController::class, 'continueCreation'])->name('dossiers.continuer');
     Route::get('/dossiers/{dossier}/select-documents', [App\Http\Controllers\DossierController::class, 'selectDocuments'])->name('dossiers.selectDocuments');
     Route::delete('/dossiers/{dossier}/document/{document}', [App\Http\Controllers\DossierController::class, 'destroyDocument'])->name('dossiers.destroyDocument');

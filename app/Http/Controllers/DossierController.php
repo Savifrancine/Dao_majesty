@@ -3864,6 +3864,7 @@ class DossierController extends Controller
         $this->syncFormulaireFin31FromEntreprise($dossier);
         $this->syncFormulaireBeneficiairesFromEntreprise($dossier);
         $this->syncFicheTechniqueFromCatalogue($dossier);
+        $this->syncEmptyBordereauxWithKnownArticles($dossier);
         $entrepriseChiffres = $this->entrepriseChiffresAffaires($dossier);
 
         return view('dossiers.create.step6', [
@@ -3962,6 +3963,7 @@ class DossierController extends Controller
 
         $this->syncFormulaireFin31FromEntreprise($dossier);
         $this->syncFormulaireBeneficiairesFromEntreprise($dossier);
+        $this->syncEmptyBordereauxWithKnownArticles($dossier);
 
         $dossier->load([
             'documents.typeDocument.champs',
@@ -4223,6 +4225,7 @@ class DossierController extends Controller
         $dossier = Dossier::with(['entreprise', 'signataires', 'typeDossier'])->find($document->dossier_id);
         $this->syncFormulaireFin31FromEntreprise($dossier);
         $this->syncFormulaireBeneficiairesFromEntreprise($dossier);
+        $this->syncEmptyBordereauxWithKnownArticles($dossier);
         $document->refresh();
 
         $pageGardeDataUri = null;
@@ -5101,6 +5104,46 @@ class DossierController extends Controller
     }
 
     /**
+     * Action explicite (bouton "Nettoyer le sommaire" sur la fiche dossier) :
+     * retire de CE dossier deja existant les pieces qui appartiennent
+     * EXCLUSIVEMENT a une autre categorie d'offre que la sienne - meme regle
+     * que pruneSommaireForOfferCategory(), utilisee jusqu'ici uniquement au
+     * moment de createOtherOffer(). Necessaire pour corriger un dossier cree
+     * AVANT ce nettoyage automatique (sommaire technique + financiere
+     * melanges), puisque createOtherOffer() ne s'applique qu'au moment de la
+     * creation. Action DESTRUCTIVE (peut supprimer des pieces deja remplies)
+     * : contrairement a syncEmptyBordereauxWithKnownArticles() (purement
+     * additif, donc appele automatiquement a chaque affichage), celle-ci
+     * reste volontairement derriere un bouton explicite avec confirmation.
+     */
+    public function cleanSommaireForOfferCategory(Dossier $dossier)
+    {
+        if (auth()->user()->isEmploye()) {
+            abort(403, 'Action non autorisée pour ce rôle.');
+        }
+
+        if (!$this->offerCategoryFor($dossier->type_offre)) {
+            return redirect()->route('dossiers.show', $dossier->id)
+                ->with('error', "Impossible de déterminer la catégorie d'offre de ce dossier (champ « Type d'offre » vide ou non reconnu : il doit contenir « technique », « financière » ou « administrative »).");
+        }
+
+        // Capture AVANT le nettoyage, meme principe que createOtherOffer() :
+        // une designation connue uniquement via un document sur le point
+        // d'etre retire (ex: Description technique) doit quand meme pouvoir
+        // alimenter les bordereaux encore vides de CE dossier.
+        $articleRows = $this->bordereauArticleRowsForDossier($dossier);
+
+        $this->pruneSommaireForOfferCategory($dossier);
+        $this->ensureStandardSommairePieces($dossier);
+        $this->populateEmptyBordereauxWithKnownArticles($dossier, $articleRows);
+
+        $this->logChange($dossier, 'sommaire_nettoye', "Sommaire nettoyé : pièces exclusives à une autre catégorie d'offre retirées.");
+
+        return redirect()->route('dossiers.show', $dossier->id)
+            ->with('success', "Sommaire nettoyé : les pièces qui appartiennent exclusivement à une autre catégorie d'offre ont été retirées, et les pièces standard manquantes ajoutées (désignations déjà connues reprises automatiquement).");
+    }
+
+    /**
      * Lignes d'articles "source" du dossier, AVANT tout nettoyage de sommaire
      * (voir pruneSommaireForOfferCategory()) : reprend, dans l'ordre de
      * preference habituel (Description technique si remplie, sinon le
@@ -5122,7 +5165,9 @@ class DossierController extends Controller
         $dossier->loadMissing(['documents.typeDocument', 'documents.bordereau.lignes']);
 
         $bordereauDocs = $dossier->documents
-            ->filter(fn ($d) => $d->typeDocument && trim((string) $d->typeDocument->type_formulaire) === 'bordereau')
+            ->filter(fn ($d) => $d->typeDocument
+                && trim((string) $d->typeDocument->type_formulaire) === 'bordereau'
+                && trim($d->typeDocument->nom) !== 'Tableau de résumé des bordereaux de prix')
             ->sortBy('ordre')
             ->values();
 
@@ -5180,7 +5225,13 @@ class DossierController extends Controller
         $documents = $dossier->documents()
             ->with(['typeDocument', 'bordereau.lignes'])
             ->get()
-            ->filter(fn ($d) => $d->typeDocument && trim((string) $d->typeDocument->type_formulaire) === 'bordereau');
+            ->filter(fn ($d) => $d->typeDocument
+                && trim((string) $d->typeDocument->type_formulaire) === 'bordereau'
+                // "Tableau de resume des bordereaux de prix" est classe 'bordereau'
+                // mais stocke ses totaux dans un JSON "content" (voir step6()),
+                // jamais de lignes d'articles - lui en creer n'aurait aucun effet
+                // visible et pourrait fausser la selection de FicheTechniqueArticles.
+                && trim($d->typeDocument->nom) !== 'Tableau de résumé des bordereaux de prix');
 
         foreach ($documents as $document) {
             $hasAnyLine = $document->bordereau->contains(fn ($b) => $b->lignes->isNotEmpty());
@@ -5217,6 +5268,23 @@ class DossierController extends Controller
         }
 
         $dossier->unsetRelation('documents');
+    }
+
+    /**
+     * Repeuple automatiquement, pour N'IMPORTE QUEL dossier (pas seulement
+     * juste apres createOtherOffer()), tout bordereau encore totalement vide
+     * avec les designations deja connues ailleurs dans CE MEME dossier -
+     * idempotent et purement additif (ne touche jamais un bordereau qui a
+     * deja au moins une ligne), donc sans risque a appeler a chaque
+     * affichage. Corrige notamment les dossiers deja crees avant ce
+     * comportement (ex: une offre financiere creee avant que
+     * createOtherOffer() ne reporte les designations), qui restaient vides
+     * indefiniment sans cela.
+     */
+    private function syncEmptyBordereauxWithKnownArticles(Dossier $dossier): void
+    {
+        $articleRows = $this->bordereauArticleRowsForDossier($dossier);
+        $this->populateEmptyBordereauxWithKnownArticles($dossier, $articleRows);
     }
 
     private function applySommaireStandardOrder(Dossier $dossier): void
@@ -5325,6 +5393,7 @@ class DossierController extends Controller
 
         $this->applySommaireStandardOrder($dossier);
         $this->normalizeDocumentOrders($dossier);
+        $this->syncEmptyBordereauxWithKnownArticles($dossier);
         $dossier->load(['documents.typeDocument', 'documents.fichiers', 'entreprise', 'typeDossier']);
 
         $uploadableDocs = $dossier->documents
@@ -5354,7 +5423,14 @@ class DossierController extends Controller
         $missingOfferCategories = $this->missingOfferCategories($dossier);
         $versionsFinales = $dossier->versionsFinales()->with('utilisateur')->get();
 
-        return view('dossiers.show', compact('dossier', 'resumeIndex', 'resumeDocumentIds', 'coherenceWarnings', 'changeLogs', 'missingOfferCategories', 'versionsFinales'));
+        $hasSiblingOffers = trim((string) $dossier->reference_dossier) !== ''
+            && Dossier::where('reference_dossier', $dossier->reference_dossier)
+                ->where('entreprise_id', $dossier->entreprise_id)
+                ->where('id', '!=', $dossier->id)
+                ->exists();
+        $offerCategory = $this->offerCategoryFor($dossier->type_offre);
+
+        return view('dossiers.show', compact('dossier', 'resumeIndex', 'resumeDocumentIds', 'coherenceWarnings', 'changeLogs', 'missingOfferCategories', 'versionsFinales', 'hasSiblingOffers', 'offerCategory'));
     }
 
     /**
@@ -5678,6 +5754,7 @@ class DossierController extends Controller
         $this->syncFormulaireFin31FromEntreprise($dossier);
         $this->syncFormulaireBeneficiairesFromEntreprise($dossier);
         $this->syncFicheTechniqueFromCatalogue($dossier);
+        $this->syncEmptyBordereauxWithKnownArticles($dossier);
         $entrepriseChiffres = $this->entrepriseChiffresAffaires($dossier);
 
         return view('dossiers.create.step6', [
