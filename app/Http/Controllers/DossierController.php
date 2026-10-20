@@ -5145,18 +5145,27 @@ class DossierController extends Controller
 
     /**
      * Lignes d'articles "source" du dossier, AVANT tout nettoyage de sommaire
-     * (voir pruneSommaireForOfferCategory()) : reprend, dans l'ordre de
-     * preference habituel (Description technique si remplie, sinon le
-     * premier autre bordereau avec des designations - meme selection que
-     * FicheTechniqueArticles::forDossier()), la ligne ENTIERE de chaque
-     * article (designation, quantite, prix unitaire... quand ils sont
-     * connus), pas seulement la designation. Utilise par createOtherOffer()
-     * pour repeupler automatiquement les bordereaux standards nouvellement
-     * ajoutes a une offre d'une AUTRE categorie (ex: "Bordereau prix
-     * unitaire" ajoute en creant une offre financiere a partir d'une offre
-     * technique qui ne l'avait jamais rempli) : l'utilisateur n'a plus qu'a
-     * completer les colonnes propres a cette offre (prix...) plutot que de
-     * ressaisir chaque article depuis zero.
+     * (voir pruneSommaireForOfferCategory()) : reprend la ligne ENTIERE de
+     * chaque article (designation, quantite, prix unitaire, date...), pas
+     * seulement la designation. Utilise par createOtherOffer() et
+     * cleanSommaireForOfferCategory() pour repeupler automatiquement les
+     * bordereaux standards nouvellement ajoutes a une offre d'une AUTRE
+     * categorie (ex: "Bordereau prix unitaire" ajoute en creant une offre
+     * financiere a partir d'une offre technique qui ne l'avait jamais
+     * rempli) : l'utilisateur n'a plus qu'a verifier plutot que de ressaisir
+     * chaque article depuis zero.
+     *
+     * FUSIONNE, position par position (le N° d'ordre de l'article, 1er/2e/3e
+     * ligne...), TOUS les bordereaux deja remplis du dossier - pas seulement
+     * le premier trouve : une "Description technique" donne generalement les
+     * designations (toujours remplie en 1er pour les articles techniques),
+     * mais JAMAIS de prix (ses lignes ont systematiquement prix_unitaire=0,
+     * voir le code qui les enregistre) ; si un AUTRE bordereau du meme
+     * dossier (ex: "Bordereau prix unitaire") a deja un prix/une quantite/
+     * une date reels pour ce meme N°, cette valeur doit "remonter" au lieu de
+     * rester a 0 - d'ou une fusion champ par champ (le premier bordereau,
+     * dans l'ordre du sommaire, qui a une valeur non vide pour CE champ
+     * l'emporte), plutot que "tout ou rien" par document entier.
      *
      * @return array<int, array<string, mixed>>
      */
@@ -5171,12 +5180,6 @@ class DossierController extends Controller
             ->sortBy('ordre')
             ->values();
 
-        $preferredNom = 'Description technique des fournitures/services';
-        $preferred = $bordereauDocs->first(fn ($d) => trim($d->typeDocument->nom) === $preferredNom);
-        $ordered = $preferred
-            ? collect([$preferred])->concat($bordereauDocs->reject(fn ($d) => $d->id === $preferred->id))
-            : $bordereauDocs;
-
         // Volontairement limite aux colonnes "commerciales" generiques,
         // communes a la plupart des types de bordereau : les colonnes propres
         // a un seul type (specifications_* de la Description technique,
@@ -5184,26 +5187,87 @@ class DossierController extends Controller
         // details...) n'auraient pas de sens recopiees ailleurs.
         $copyableFields = ['designation', 'unite_physique', 'quantite', 'nombre_propose', 'prix_unitaire', 'montant', 'site', 'date_prestation', 'frequence'];
 
-        foreach ($ordered as $doc) {
+        // "Description technique des fournitures/services" n'a jamais de
+        // prix/quantite/date reels : son formulaire ne les demande meme pas,
+        // ses lignes sont enregistrees avec quantite=1 et prix_unitaire=0
+        // CODES EN DUR (voir plus haut, bloc Cadres de sous details / le
+        // bloc commun Methodes-Calendrier-Description technique). Si on les
+        // laissait concourir dans la fusion, ce "1"/"0" systematique
+        // gagnerait a tort contre un vrai prix/une vraie quantite d'un autre
+        // bordereau - seule sa designation est une donnee reellement utile a
+        // reprendre ailleurs.
+        $placeholderOnlyFields = ['quantite', 'prix_unitaire', 'montant', 'unite_physique', 'nombre_propose', 'site', 'date_prestation', 'frequence'];
+        $descriptionTechniqueNom = 'Description technique des fournitures/services';
+
+        // Toutes les lignes de chaque document, dans l'ordre du sommaire,
+        // chacune ramenee au tableau des seuls champs "copiables".
+        $rowsByDoc = [];
+        $maxLines = 0;
+        foreach ($bordereauDocs as $doc) {
+            $isDescriptionTechnique = trim($doc->typeDocument->nom) === $descriptionTechniqueNom;
             $rows = [];
             foreach ($doc->bordereau as $bordereau) {
                 foreach ($bordereau->lignes as $ligne) {
-                    if (trim((string) $ligne->designation) === '') {
-                        continue;
-                    }
                     $row = [];
                     foreach ($copyableFields as $field) {
-                        $row[$field] = $ligne->{$field};
+                        $row[$field] = ($isDescriptionTechnique && in_array($field, $placeholderOnlyFields, true))
+                            ? null
+                            : $ligne->{$field};
                     }
                     $rows[] = $row;
                 }
             }
             if (!empty($rows)) {
-                return $rows;
+                $rowsByDoc[] = $rows;
+                $maxLines = max($maxLines, count($rows));
             }
         }
 
-        return [];
+        if (empty($rowsByDoc)) {
+            return [];
+        }
+
+        $merged = [];
+        for ($i = 0; $i < $maxLines; $i++) {
+            $row = array_fill_keys($copyableFields, null);
+            foreach ($rowsByDoc as $docRows) {
+                if (!isset($docRows[$i])) {
+                    continue;
+                }
+                foreach ($copyableFields as $field) {
+                    if (!self::bordereauFieldHasValue($row[$field]) && self::bordereauFieldHasValue($docRows[$i][$field])) {
+                        $row[$field] = $docRows[$i][$field];
+                    }
+                }
+            }
+            if (trim((string) $row['designation']) !== '') {
+                $merged[] = $row;
+            }
+        }
+
+        return $merged;
+    }
+
+    /**
+     * "Ce champ a-t-il une valeur qui merite d'etre reprise ?" - PHP empty()
+     * ne suffit pas ici : quantite/prix_unitaire/montant sont castes en
+     * 'decimal:2' par BordereauLigne, donc une valeur a 0 arrive comme la
+     * CHAINE "0.00", qu'empty() considere (a tort, pour notre usage) comme
+     * non-vide - ce qui faisait gagner un 0 de Description technique (prix
+     * toujours a 0 par construction) contre un vrai prix d'un autre
+     * bordereau. Un nombre (ou une chaine numerique) vaut 0 => pas de valeur
+     * utile ; une chaine non numerique (designation, date...) vide => idem.
+     */
+    private static function bordereauFieldHasValue($value): bool
+    {
+        if ($value === null) {
+            return false;
+        }
+        if (is_numeric($value)) {
+            return (float) $value !== 0.0;
+        }
+
+        return trim((string) $value) !== '';
     }
 
     /**
