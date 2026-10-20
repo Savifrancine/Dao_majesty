@@ -53,7 +53,7 @@
         table,
         table th,
         table td {
-            font-size: 12px !important;
+            font-size: 11px !important;
         }
 
     </style>
@@ -259,7 +259,7 @@
     @if(in_array($renderMode, ['full', 'summary'], true) && $documents->count() > 0)
     <div style="{{ $renderMode === 'full' ? 'page-break-after:always; ' : '' }}margin-top:18px;">
         <h2 style="color:#0b63b5; margin-bottom:8px; font-size:18px; border-bottom:1px solid #0b63b5; padding-bottom:6px;">📋 SOMMAIRE</h2>
-        <ol style="margin-left:16px; font-size:12px;">
+        <ol style="margin-left:16px; font-size:11px;">
             @foreach($documents as $doc)
                 <li>{{ $doc->typeDocument->nom }}</li>
             @endforeach
@@ -431,7 +431,7 @@
                 @endphp
                 <div style="margin-top:10px; font-size:11px; line-height:1.4; page-break-inside:avoid; text-align:center;">
                     <div style="font-weight:700; font-size:15px; margin-bottom:8px;">Formulaire EXP – 4.1 : Expérience générale de fournitures/services</div>
-                    <div style="font-weight:700; font-size:12px; margin-bottom:8px;">{!! $exp41RefLine !!}</div>
+                    <div style="font-weight:700; font-size:11px; margin-bottom:8px;">{!! $exp41RefLine !!}</div>
                     <div style="width:100%; max-width:100%; margin:10px 0; text-align:left;">
                         <style>
                             .pdf-exp41-table th,
@@ -677,7 +677,7 @@
                         $doc->reference_model ?? \App\Models\TypeDocument::defaultReferenceModelFor($doc->typeDocument->nom)
                     );
                 @endphp
-                <div style="font-size:12px; line-height:1.5; margin-top:10px;">
+                <div style="font-size:11px; line-height:1.5; margin-top:10px;">
                     <div style="text-align:right; font-weight:700;">Date : {{ $qDate }}</div>
                     <div style="text-align:right; font-weight:700; margin-bottom:10px;">{!! $qReferenceLine !!}</div>
                     <div style="text-align:center; font-weight:700; font-size:14px; margin:10px 0 16px;">FORMULAIRE DE QUALIFICATION</div>
@@ -702,7 +702,7 @@
                         }
                     }
                 @endphp
-                <div style="font-size:12px; line-height:1.5; margin-top:10px; text-align:left;">
+                <div style="font-size:11px; line-height:1.5; margin-top:10px; text-align:left;">
                     {!! view('documents.partials.lettre_soumission_pdf_content', array_merge($content, ['dossier' => $dossier]))->render() !!}
                 </div>
             @elseif($isPlanCharge)
@@ -715,7 +715,7 @@
                         }
                     }
                 @endphp
-                <div style="font-size:12px; line-height:1.5; margin-top:10px; text-align:left; page-break-inside:avoid;">
+                <div style="font-size:11px; line-height:1.5; margin-top:10px; text-align:left; page-break-inside:avoid;">
                     {!! view('documents.plan_charge_pdf', array_merge($content, ['dossier' => $dossier]))->render() !!}
                 </div>
             @elseif($isCandidateForm)
@@ -733,7 +733,7 @@
                         $doc->reference_model ?? \App\Models\TypeDocument::defaultReferenceModelFor($doc->typeDocument->nom)
                     );
                 @endphp
-                <div style="font-size:12px; line-height:1.5; margin-top:10px;">
+                <div style="font-size:11px; line-height:1.5; margin-top:10px;">
                     <div style="text-align:center; font-weight:700; font-size:14px; margin-bottom:10px;">FORMULAIRE DE RENSEIGNEMENTS SUR LE CANDIDAT</div>
                     <div style="text-align:right; font-weight:700; margin-bottom:12px;">Date : {{ $formattedDateSoumission }}</div>
                     <div style="text-align:right; font-weight:700; margin-bottom:18px;">{!! $eliRefLine !!}</div>
@@ -792,7 +792,7 @@
                         }
                     }
                 @endphp
-                <div style="font-size:12px; line-height:1.5; margin-top:10px;">
+                <div style="font-size:11px; line-height:1.5; margin-top:10px;">
                     {!! view('documents.formulaire_fin_3_1_pdf', ['content' => $content, 'dossier' => $dossier, 'formSignataire' => $formSignataire, 'formSignatureData' => $formSignatureData])->render() !!}
                 </div>
             @elseif(strcasecmp(trim($doc->typeDocument->nom), 'Formulaire FIN 3.3') === 0)
@@ -805,21 +805,21 @@
                         }
                     }
                 @endphp
-                <div style="font-size:12px; line-height:1.5; margin-top:10px;">
+                <div style="font-size:11px; line-height:1.5; margin-top:10px;">
                     {!! view('documents.formulaire_fin_3_3_pdf', ['content' => $content, 'formSignataire' => $formSignataire, 'formSignatureData' => $formSignatureData])->render() !!}
                 </div>
             @elseif(strcasecmp(trim($doc->typeDocument->nom), 'Formulaire FIN 3.4 (a) Modèle d\'attestation de capacité financière') === 0)
                 @php
                     $attachments = $doc->fichiers ?? collect();
                 @endphp
-                <div style="margin-top:10px; font-size:12px; line-height:1.5;">
+                <div style="margin-top:10px; font-size:11px; line-height:1.5;">
                     @include('documents.partials.formulaire_fin_3_4_a_pdf', compact('attachments'))
                 </div>
             @elseif(strcasecmp(trim($doc->typeDocument->nom), 'Formulaire FIN 3.4 (b) Modèle de lettre de confirmation de la capacité financière') === 0)
                 @php
                     $attachments = $doc->fichiers ?? collect();
                 @endphp
-                <div style="margin-top:10px; font-size:12px; line-height:1.5;">
+                <div style="margin-top:10px; font-size:11px; line-height:1.5;">
                     @include('documents.partials.formulaire_fin_3_4_b_pdf', compact('attachments'))
                 </div>
             @elseif(strcasecmp(trim($doc->typeDocument->nom), 'Formulaire ANT-2 : Formulaire renseignant sur les antécédents de marchés non exécutés, de litiges en instance et d\'antécédents de litiges') === 0)
@@ -843,7 +843,7 @@
                     );
                     $antDateSoumission = $dossier->date_soumission ? \Illuminate\Support\Carbon::parse($dossier->date_soumission)->format('d/m/Y') : now()->format('d/m/Y');
                 @endphp
-                <div style="font-size:12px; line-height:1.5; margin-top:10px;">
+                <div style="font-size:11px; line-height:1.5; margin-top:10px;">
                     <div style="text-align:right; font-size:11px;">
                         {{ $companyName ?: optional($entreprise)->nom }}<br>
                         {{ $antDateSoumission }}
@@ -962,7 +962,7 @@
                     $count = $chiffres->count();
                     $average = $count ? ($total / $count) : 0;
                 @endphp
-                <div style="margin-top:10px; font-size:12px; line-height:1.5;">
+                <div style="margin-top:10px; font-size:11px; line-height:1.5;">
                     <div style="font-weight:700; font-size:14px; text-align:center; margin-bottom:10px;">CHIFFRE D'AFFAIRES ANNUEL MOYEN DES ACTIVITÉS DE SERVICES</div>
                     @if($chiffres->isNotEmpty())
                         <table style="width:100%; border-collapse:collapse; font-size:11px; margin-top:10px;">
@@ -1003,7 +1003,7 @@
                     .pdf-engagement li { margin-bottom: 2px; text-align: justify; }
                     .pdf-engagement p { margin: 3px 0; }
                 </style>
-                <div class="pdf-engagement" style="margin-top:4px; font-size:12px; line-height:1.28;">
+                <div class="pdf-engagement" style="margin-top:4px; font-size:11px; line-height:1.28;">
                     <div style="text-align:center; font-weight:700; font-size:15px; margin-bottom:3px;">ENGAGEMENT DU SOUMISSIONNAIRE A RESPECTER LE CODE D'ETHIQUE ET DE DEONTOLOGIE DANS LA COMMANDE PUBLIQUE</div>
                     <div style="text-align:center; margin-bottom:4px;">**********</div>
 
@@ -1047,7 +1047,7 @@
                         $doc->reference_model ?? \App\Models\TypeDocument::defaultReferenceModelFor($doc->typeDocument->nom)
                     );
                 @endphp
-                <div style="margin-top:10px; font-size:12px; line-height:1.5;">
+                <div style="margin-top:10px; font-size:11px; line-height:1.5;">
                     <div style="text-align:center; font-weight:700; font-size:14px; text-transform:uppercase; margin-bottom:6px;">{{ $doc->typeDocument->nom }}</div>
                     <div style="text-align:right; font-size:11px; margin-bottom:12px;">{!! $libreRefLine !!}</div>
 
@@ -1076,7 +1076,7 @@
                                     @foreach($libreLignes as $ligne)
                                         <tr>
                                             @foreach($libreColonnes as $ci => $col)
-                                                <td style="border:1px solid #000; padding:6px;">{{ $ligne[$ci] ?? '' }}</td>
+                                                <td style="border:1px solid #000; padding:6px;">{!! nl2br(e($ligne[$ci] ?? '')) !!}</td>
                                             @endforeach
                                         </tr>
                                     @endforeach
@@ -1109,8 +1109,8 @@
                     }
                     $objetMarche = trim($dossier->objectif ?? '') ?: trim($dossier->lot ?? '') ?: 'N/A';
                 @endphp
-                <div style="margin-top:10px; font-size:12px; line-height:1.4;">
-                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px; font-size:12px;">
+                <div style="margin-top:10px; font-size:11px; line-height:1.4;">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px; font-size:11px;">
                         <div style="font-weight:700;">MAJESTY SERVICES &amp; ÉQUIPEMENTS SARL</div>
                         <div style="text-align:right;">Date&nbsp;: {{ now()->format('d/m/Y') }}</div>
                     </div>
@@ -1248,7 +1248,7 @@
                             </tbody>
                         </table>
                     </div>
-                    <div style="margin-top:10px; font-size:12px;">
+                    <div style="margin-top:10px; font-size:11px;">
                         <p style="margin:0 0 6px 0;"><strong>Arrêté le présent résumé des bordereaux de prix à la somme toutes taxes comprises de</strong></p>
                         <p style="margin:0; font-weight:700;">{{ $amountText ? ucfirst($amountText) : '...' }} Francs CFA.</p>
                     </div>
@@ -1268,7 +1268,7 @@
                 @if($bordereaux && $bordereaux->count() > 0)
                     <div style="margin-top:10px; font-size:11px; line-height:1.4;">
                         <div style="font-weight:700; font-size:13px; text-align:center; margin-bottom:12px;">BORDEREAU DES PRIX POUR LES FOURNITURES À IMPORTER</div>
-                        <div style="text-align:right; font-size:10px; margin-bottom:8px;">
+                        <div style="text-align:right; font-size:11px; margin-bottom:8px;">
                             <strong>Date :</strong> {{ now()->format('d/m/Y') }} <br>
                             <strong>{!! $bordAaoLine !!}</strong> <br>
                             <strong>Variante N° :</strong>
@@ -1363,12 +1363,12 @@
                         <div style="font-weight:700; font-size:14px; text-align:center; margin-bottom:14px;">Bordereau des prix des fournitures, déjà importées</div>
 
                         <div style="margin-bottom:14px;">
-                            <div style="text-align:right; font-size:10px;">
+                            <div style="text-align:right; font-size:11px;">
                                 <div>Date : {{ $djiDate }}</div>
                                 <div>DRP numéro : {{ $djiRefNumero }}</div>
                                 <div>Variante No. : {{ $djiVariante }}</div>
                             </div>
-                            <div style="font-size:10px; margin-top:6px;">Monnaie de l'offre en conformité avec la clause 15.1 des IC</div>
+                            <div style="font-size:11px; margin-top:6px;">Monnaie de l'offre en conformité avec la clause 15.1 des IC</div>
                         </div>
 
                         @foreach($bordereaux as $bordereau)
@@ -1476,12 +1476,12 @@
                         <div style="font-weight:700; font-size:14px; text-align:center; margin-bottom:14px;">Bordereau des prix pour les fournitures fabriquées au Bénin</div>
 
                         <div style="margin-bottom:14px;">
-                            <div style="text-align:right; font-size:10px;">
+                            <div style="text-align:right; font-size:11px;">
                                 <div>Date : {{ $beninDateRemise }}</div>
                                 <div>Avis de la demande de renseignements et de prix No. : {{ $beninRefNumero }}</div>
                                 <div>Variante No. : {{ $beninVariante }}</div>
                             </div>
-                            <div style="font-size:10px; margin-top:6px;">Monnaie de l'offre en conformité avec la clause 15.1 des IC</div>
+                            <div style="font-size:11px; margin-top:6px;">Monnaie de l'offre en conformité avec la clause 15.1 des IC</div>
                         </div>
 
                         @foreach($bordereaux as $bordereau)
@@ -1567,7 +1567,7 @@
                 @if($bordereaux && $bordereaux->count() > 0)
                     <div style="margin-top:10px; font-size:11px; line-height:1.4;">
                         <div style="font-weight:700; font-size:13px; text-align:center; margin-bottom:12px;">LISTE DES FOURNITURES ET CALENDRIER DE LIVRAISON</div>
-                        <div style="text-align:right; font-size:10px; margin-bottom:8px;">
+                        <div style="text-align:right; font-size:11px; margin-bottom:8px;">
                             <strong>Date :</strong> {{ now()->format('d/m/Y') }} <br>
                             <strong>{!! $bordAaoLine !!}</strong>
                         </div>
@@ -1675,7 +1675,7 @@
                 @if($bordereaux && $bordereaux->count() > 0)
                     <div style="margin-top:10px; font-size:11px; line-height:1.4;">
                         <div style="font-weight:700; font-size:13px; text-align:center; margin-bottom:12px;">CADRE DE SOUS DETAILS DES PRIX UNITAIRES</div>
-                        <div style="text-align:right; font-size:10px; margin-bottom:8px;">
+                        <div style="text-align:right; font-size:11px; margin-bottom:8px;">
                             <strong>Date :</strong> {{ now()->format('d/m/Y') }} <br>
                             <strong>{!! $bordAaoLine !!}</strong>
                         </div>
@@ -1733,7 +1733,7 @@
                                 </tbody>
                             </table>
                         </div>
-                        <div style="margin-bottom:20px; font-size:10px;">
+                        <div style="margin-bottom:20px; font-size:11px;">
                             <strong>Remarque :</strong> Cadre de sous détails des prix unitaires.
                         </div>
                     </div>
@@ -1759,7 +1759,7 @@
                 @if($bordereaux && $bordereaux->count() > 0)
                     <div style="margin-top:10px; font-size:11px; line-height:1.4;">
                         <div style="font-weight:700; font-size:13px; text-align:center; margin-bottom:12px;">{{ $documentTitle }}</div>
-                        <div style="text-align:right; font-size:10px; margin-bottom:8px;">
+                        <div style="text-align:right; font-size:11px; margin-bottom:8px;">
                             <strong>Date :</strong> {{ now()->format('d/m/Y') }} <br>
                             <strong>{!! $bordAaoLine !!}</strong>
                             @if(!$isListesServicesConnexes)
@@ -1809,7 +1809,7 @@
                                     </tbody>
                                 </table>
                             </div>
-                            <div style="margin-bottom:20px; font-size:10px;">
+                            <div style="margin-bottom:20px; font-size:11px;">
                                 <strong>Remarque :</strong> Les dates de réalisation sont indiquées sous la forme "Plus tôt / Plus tard".
                             </div>
                         @else
@@ -1884,8 +1884,8 @@
                     $isDescriptionTechnique = strcasecmp(trim($doc->typeDocument->nom), "Description technique des fournitures/services") === 0;
                 @endphp
                 @if($bordereaux && $bordereaux->count() > 0)
-                    <div style="margin-top:10px; font-size:12px; line-height:1.4;">
-                        <div style="font-weight:700; font-size:14px; text-align:center; margin-bottom:6px;">{{ $isMethodes ? 'MÉTHODOLOGIE D\'EXÉCUTION' : ($isProgramme ? 'PROGRAMME D\'ACTIVITÉS' : ($isCalendrier ? 'CALENDRIER D\'EXÉCUTION' : ($isDescriptionTechnique ? 'DESCRIPTION TECHNIQUE DES FOURNITURES/SERVICES' : 'BORDEREAU DES PRIX UNITAIRES')) ) }}</div>
+                    <div style="margin-top:10px; font-size:11px; line-height:1.4;">
+                        <div style="font-weight:700; font-size:14px; text-align:center; margin-bottom:16px;">{{ $isMethodes ? 'MÉTHODOLOGIE D\'EXÉCUTION' : ($isProgramme ? 'PROGRAMME D\'ACTIVITÉS' : ($isCalendrier ? 'CALENDRIER D\'EXÉCUTION' : ($isDescriptionTechnique ? 'DESCRIPTION TECHNIQUE DES FOURNITURES/SERVICES' : 'BORDEREAU DES PRIX UNITAIRES')) ) }}</div>
 
                         @foreach($bordereaux as $bordereau)
                             {{-- Le Bordereau prix unitaire (entretien/maintenance) n'a pas de sous-titre de lot :
@@ -1936,28 +1936,24 @@
                                             A la demande explicite de l'utilisateur, avec une VRAIE garantie
                                             contre le debordement (pas juste une attenuation) : les lignes sont
                                             pre-decoupees cote serveur par DescriptionTechniquePaginator en
-                                            morceaux ("chunks"), chacun rendu comme un tableau A PART avec un
-                                            saut de page force avant lui (y compris le tout premier).
+                                            PAGES (plusieurs lignes courtes partagent la meme page ; une ligne
+                                            trop longue pour une page entiere est coupee sur plusieurs pages, au
+                                            bon endroit), chaque page rendue comme un tableau A PART avec un saut
+                                            de page force avant lui (y compris le tout premier).
 
                                             Le budget de hauteur passe ci-dessous (150mm) est VOLONTAIREMENT
                                             tres inferieur au calcul "theorique" (~265mm, qui tenait compte des
-                                            marges reelles et donnait ~66 lignes/page). Teste et confirme le
-                                            2026-10-16 : avec ce budget plus large, un chunk isole (1 seule
-                                            ligne de bordereau) s'affichait parfaitement, MAIS des que plusieurs
-                                            lignes se suivaient (document reel a 12 lignes), dompdf se mettait a
-                                            repousser le contenu d'un chunk sur la page suivante de façon
-                                            incoherente avec son propre calcul de saut de page, recreant le
-                                            debordement qu'on cherche justement a eliminer - cause exacte non
-                                            identifiee malgre une investigation poussee (teste : sans <thead>,
-                                            sans entete partagee, avec budgets 220/180/150/120/100mm). 150mm
-                                            (~37 lignes/page) est la valeur la plus large qui s'est averee fiable
-                                            sur le document complet (12 lignes, verifie visuellement du debut a
-                                            la fin). Ne pas remonter ce chiffre sans retester sur un document a
-                                            PLUSIEURS lignes (pas seulement une ligne isolee, qui ne revele pas
-                                            le probleme).
+                                            marges reelles et donnait ~66 lignes/page) - deja teste et confirme
+                                            fiable le 2026-10-16 sur un document complet de 12 lignes (a
+                                            l'epoque, une page par ligne ; depuis le 2026-10-20, plusieurs
+                                            lignes courtes sont regroupees sur la meme page, cf. ci-dessus, mais
+                                            le MEME budget 150mm continue d'etre utilise et reteste visuellement
+                                            page par page). Ne pas remonter ce chiffre sans retester sur un
+                                            document a PLUSIEURS lignes (pas seulement une ligne isolee, qui ne
+                                            revele pas le probleme).
                                         --}}
                                         @php
-                                            $dtChunks = \App\Support\DescriptionTechniquePaginator::chunk(
+                                            $dtPages = \App\Support\DescriptionTechniquePaginator::chunk(
                                                 $bordereau->lignes,
                                                 [
                                                     'designation' => 18,
@@ -1967,13 +1963,52 @@
                                                 ],
                                                 170.0,  // largeur utile de la page (A4 210mm - marges 20+20mm)
                                                 1.1,    // padding de cellule (mm, ~4px)
-                                                9.0,    // taille de police (px)
+                                                11.0,   // taille de police (px) - DOIT matcher exactement le font-size CSS ci-dessous
                                                 1.3,    // interligne
-                                                150.0,  // hauteur utile par "page" - volontairement tres reduite, voir note ci-dessus
-                                                // 0 : chaque chunk (y compris le 1er, voir page-break-before
-                                                // ci-dessous) demarre desormais une page neuve et a donc droit
-                                                // au budget plein.
-                                                0.0
+                                                // Hauteur utile par "page" : la hauteur reellement disponible sur
+                                                // une page A4 (hors @page :first) est 297 - 12 (marge haute) - 20
+                                                // (marge basse) = 265mm. L'ancienne valeur, 150mm, etait
+                                                // excessivement prudente et coupait les pages bien avant d'avoir
+                                                // vraiment atteint le bas de page, d'ou un nombre de pages
+                                                // inutilement eleve. 190mm (re-calibre le 2026-10-20) reduit
+                                                // sensiblement ce gaspillage tout en gardant une MARGE DE SECURITE
+                                                // DELIBEREMENT confortable sous le plafond theorique de 265mm -
+                                                // voir la note IMPORTANTE ci-dessous : des valeurs plus proches du
+                                                // plafond (jusqu'a 230mm teste) ont fini par produire un VRAI
+                                                // chevauchement de texte avec le numero de page sur un document
+                                                // réaliste (voir note), ce qui a motive ce choix plus prudent.
+                                                190.0,
+                                                // Hauteur a deduire UNIQUEMENT pour la toute premiere page
+                                                // (partagee avec l'entete Majesty + le titre "DESCRIPTION
+                                                // TECHNIQUE..." ET, en mode "generatePDF() sans fusion" - un seul
+                                                // rendu Dompdf continu pour tout le dossier, utilise quand il n'y
+                                                // a aucune piece jointe a fusionner physiquement -, avec le bloc
+                                                // ".title-page .title-text" de CE document (margin-top:125mm !),
+                                                // qui partage LUI AUSSI cette meme page quand rien ne force de
+                                                // saut avant). Cette reduction n'est donc PAS une simple mesure
+                                                // physique du bloc entete+titre : c'est une valeur CALIBREE pour
+                                                // garder un budget de 1ere page modeste et surtout FIABLE.
+                                                //
+                                                // IMPORTANT - a lire avant de re-augmenter $pageContentHeightMm ou
+                                                // $heightSafetyFactor (ci-dessus / dans DescriptionTechniquePaginator) :
+                                                // le 2026-10-20, des valeurs plus agressives (230mm / 0.80, puis
+                                                // 0.70) ont ete testees sur 3 scenarios : 40 articles d'1 seule
+                                                // ligne et 40 articles tres longs (mode "generatePDF() sans
+                                                // fusion", OK dans les 2 cas), MAIS aussi un document realiste
+                                                // passant par le mode "fusion" (plusieurs documents merges via
+                                                // FPDI, cf. previewSingleDocumentPdf()/generatePDF() avec pieces
+                                                // jointes) - celui-ci a revele un authentique chevauchement texte/
+                                                // numero de page (confirme visuellement ET via extraction de texte
+                                                // : le numero de page se retrouvait au milieu d'une ligne de
+                                                // contenu), alors meme que les 2 autres scenarios semblaient
+                                                // parfaitement surs. Le mode "fusion" rend chaque document dans
+                                                // SA PROPRE instance Dompdf isolee, visiblement plus sensible que
+                                                // prevu a ces reglages. 190mm / 0.65 / 120mm (valeurs actuelles)
+                                                // ont ete reverifies SANS aucun chevauchement sur les 3 scenarios
+                                                // (y compris le mode fusion). Toute nouvelle augmentation DOIT
+                                                // impérativement être revalidee sur CES 3 SCENARIOS - les 2
+                                                // premiers seuls ne suffisent pas a detecter ce risque.
+                                                120.0
                                             );
                                         @endphp
                                         <style>
@@ -1985,45 +2020,44 @@
                                                 word-break: break-word;
                                                 overflow-wrap: break-word;
                                                 white-space: normal;
-                                                font-size:9px !important;
+                                                font-size:11px !important;
                                                 line-height:1.3 !important;
                                             }
                                             .pdf-description-technique-row {
                                                 width:100%;
                                                 border-collapse:collapse;
-                                                font-size:9px !important;
+                                                font-size:11px !important;
                                                 line-height:1.3;
                                             }
                                             /*
                                                 IMPORTANT : une regle globale plus haut dans ce document
-                                                ("table, table th, table td { font-size: 12px !important; }")
-                                                ecrasait silencieusement cette taille de police - c'etait la
-                                                VRAIE cause du debordement malgre tous les calculs de
-                                                DescriptionTechniquePaginator (qui, eux, supposent 9px). Cette
-                                                regle globale cible directement th/td (pas juste <table>), donc
-                                                la neutraliser sur <table> seul ne suffit pas : il faut aussi un
-                                                !important directement sur ".pdf-description-technique-table
-                                                th/td" (plus specifique que "table th/td" grace a la classe) -
-                                                sinon la police REELLEMENT rendue (12px) ne correspond plus a
-                                                celle supposee par le calcul (9px), et le contenu deborde a
-                                                nouveau. Si la taille change encore un jour, verifier QUE CETTE
-                                                REGLE S'APPLIQUE VRAIMENT en inspectant le HTML rendu (ne pas
-                                                supposer), et mettre a jour le parametre $fontSizePx passe a
+                                                ("table, table th, table td { font-size: ... !important; }",
+                                                qui fixe la taille de TOUS les tableaux de TOUS les autres
+                                                documents du PDF) cible directement th/td (pas juste <table>)
+                                                et peut donc silencieusement ecraser cette taille de police ici
+                                                si elle n'est pas, elle aussi, !important et plus specifique
+                                                (via la classe ".pdf-description-technique-table") - c'etait la
+                                                VRAIE cause d'un debordement par le passe, malgre des calculs
+                                                DescriptionTechniquePaginator par ailleurs corrects (qui, eux,
+                                                supposent la taille passee en parametre ci-dessus). Si la taille
+                                                change encore un jour, verifier QUE CETTE REGLE S'APPLIQUE
+                                                VRAIMENT en inspectant le HTML rendu (ne pas supposer), et
+                                                mettre a jour le parametre $fontSizePx passe a
                                                 DescriptionTechniquePaginator::chunk() dans la MEME proportion.
                                             */
                                         </style>
-                                        @foreach($dtChunks as $ci => $chunk)
+                                        @foreach($dtPages as $pi => $page)
                                             {{--
-                                                Saut de page AVANT CHAQUE chunk, y compris le tout premier :
-                                                le 1er partage sinon sa page avec l'entete/logo + le titre du
-                                                tableau au-dessus, dont la hauteur reelle s'est averee trop
-                                                difficile a predire de façon fiable (teste et rate plusieurs
-                                                fois le 2026-10-16 avec une reduction de budget calculee - le
-                                                debordement revenait systematiquement). Une page de "titre" en
-                                                plus (table vide avec juste l'entete) est un cout minime et
-                                                garanti correct, contre un calcul fragile qui ne l'etait pas.
+                                                Saut de page avant chaque page SAUF la toute premiere : celle-ci
+                                                partage volontairement sa page avec l'entete/logo + le titre du
+                                                tableau juste au-dessus (contenu fixe, toujours la meme hauteur),
+                                                dont le budget de lignes a deja ete reduit en consequence (voir
+                                                $firstChunkHeightReductionMm passe a
+                                                DescriptionTechniquePaginator::chunk() ci-dessus). Toutes les
+                                                pages suivantes demarrent une page neuve et ont droit au budget
+                                                plein.
                                             --}}
-                                            <table class="pdf-description-technique-table pdf-description-technique-row" style="page-break-before:always;">
+                                            <table class="pdf-description-technique-table pdf-description-technique-row" style="{{ $pi === 0 ? '' : 'page-break-before:always;' }}">
                                                 <thead>
                                                     <tr style="background:#f3f4f6; font-weight:700;">
                                                         <th style="text-align:center; width:5%;">N°</th>
@@ -2033,13 +2067,15 @@
                                                         <th style="text-align:left; width:27%;">Spécifications proposées</th>
                                                     </tr>
                                                 </thead>
-                                                <tr>
-                                                    <td style="text-align:center; width:5%;">{{ $chunk['numero'] }}{{ $chunk['suite'] ? ' (suite)' : '' }}</td>
-                                                    <td style="width:18%;">{!! $chunk['cells']['designation'] !!}</td>
-                                                    <td style="width:25%;">{!! $chunk['cells']['specifications_techniques'] !!}</td>
-                                                    <td style="width:25%;">{!! $chunk['cells']['specifications_obligatoires'] !!}</td>
-                                                    <td style="width:27%;">{!! $chunk['cells']['specifications_proposees'] !!}</td>
-                                                </tr>
+                                                @foreach($page['rows'] as $row)
+                                                    <tr>
+                                                        <td style="text-align:center; width:5%;">{{ $row['numero'] }}{{ $row['suite'] ? ' (suite)' : '' }}</td>
+                                                        <td style="width:18%;">{!! $row['cells']['designation'] !!}</td>
+                                                        <td style="width:25%;">{!! $row['cells']['specifications_techniques'] !!}</td>
+                                                        <td style="width:25%;">{!! $row['cells']['specifications_obligatoires'] !!}</td>
+                                                        <td style="width:27%;">{!! $row['cells']['specifications_proposees'] !!}</td>
+                                                    </tr>
+                                                @endforeach
                                             </table>
                                         @endforeach
                                     @else
@@ -2264,7 +2300,7 @@
                         return in_array($ext, ['png', 'jpg', 'jpeg', 'gif'], true);
                     });
                 @endphp
-                <div style="margin-top:10px; font-size:12px; line-height:1.5;">
+                <div style="margin-top:10px; font-size:11px; line-height:1.5;">
                     <div style="font-weight:700; margin-bottom:8px;">{{ $doc->typeDocument->nom }}</div>
 
                     @if($imageAttachments->isNotEmpty())
@@ -2296,7 +2332,7 @@
                         return in_array($ext, ['png', 'jpg', 'jpeg', 'gif'], true);
                     });
                 @endphp
-                <div style="margin-top:10px; font-size:12px; line-height:1.5;">
+                <div style="margin-top:10px; font-size:11px; line-height:1.5;">
                     <div style="font-weight:700; margin-bottom:8px;">{{ $doc->typeDocument->nom }}</div>
 
                     @if($imageAttachments->isNotEmpty())

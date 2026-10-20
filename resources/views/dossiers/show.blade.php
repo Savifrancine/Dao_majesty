@@ -395,6 +395,80 @@
         margin-bottom: 12px;
     }
 
+    .search-wrap {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+    }
+
+    .search-wrap .search-icon {
+        position: absolute;
+        left: 14px;
+        font-size: 0.85rem;
+        opacity: 0.45;
+        pointer-events: none;
+    }
+
+    .search-input {
+        width: 240px;
+        max-width: 60vw;
+        padding: 9px 34px 9px 34px;
+        border: 1px solid rgba(16, 185, 129, 0.25);
+        border-radius: 999px;
+        background: #f8fafc;
+        font-size: 0.85rem;
+        color: #0f172a;
+        outline: none;
+        transition: all 0.2s ease;
+    }
+
+    .search-input::placeholder {
+        color: #94a3b8;
+    }
+
+    .search-input:hover {
+        border-color: rgba(16, 185, 129, 0.4);
+    }
+
+    .search-input:focus {
+        background: white;
+        border-color: #10b981;
+        box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.15);
+    }
+
+    .search-clear {
+        position: absolute;
+        right: 8px;
+        width: 20px;
+        height: 20px;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        border: none;
+        border-radius: 999px;
+        background: rgba(15, 23, 42, 0.08);
+        color: #475569;
+        font-size: 0.7rem;
+        line-height: 1;
+        cursor: pointer;
+        transition: background 0.15s ease;
+    }
+
+    .search-clear:hover {
+        background: rgba(15, 23, 42, 0.16);
+    }
+
+    .search-wrap.has-value .search-clear {
+        display: inline-flex;
+    }
+
+    #sommaire-no-results td {
+        text-align: center;
+        padding: 24px 12px;
+        color: #64748b;
+        font-style: italic;
+    }
+
     .btn-add-doc {
         display: inline-flex;
         align-items: center;
@@ -589,6 +663,11 @@
                 <div class="section-header">
                     <div class="section-title">Sommaire ({{ $dossier->documents->count() }} documents)</div>
                     <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                        <div class="search-wrap" id="sommaire-search-wrap">
+                            <span class="search-icon">🔍</span>
+                            <input type="search" id="sommaire-search" class="search-input" placeholder="Rechercher un document..." autocomplete="off">
+                            <button type="button" class="search-clear" id="sommaire-search-clear" title="Effacer la recherche">✕</button>
+                        </div>
                         <span id="ordre-statut" style="font-size:12px; color:#64748b;"></span>
                         <button type="button" id="valider-ordre-btn" class="btn-add-doc" style="display:none;" disabled>
                             ✓ Valider l'ordre
@@ -681,12 +760,53 @@
                                     </td>
                                 </tr>
                                 @endforeach
+                                <tr id="sommaire-no-results" style="display:none;">
+                                    <td colspan="6">Aucun document ne correspond à cette recherche.</td>
+                                </tr>
                             </tbody>
                         </table>
                     <script>
                         document.addEventListener('DOMContentLoaded', function () {
                             var body = document.getElementById('sommaire-body');
                             if (!body) return;
+
+                            var searchInput = document.getElementById('sommaire-search');
+                            var searchWrap = document.getElementById('sommaire-search-wrap');
+                            var searchClear = document.getElementById('sommaire-search-clear');
+                            var noResultsRow = document.getElementById('sommaire-no-results');
+
+                            function runSearch() {
+                                var query = searchInput.value.trim().toLowerCase();
+                                if (searchWrap) searchWrap.classList.toggle('has-value', query.length > 0);
+
+                                var visibleCount = 0;
+                                body.querySelectorAll('tr[data-id]').forEach(function (row) {
+                                    var label = row.querySelector('td:nth-child(2)');
+                                    var matches = !query || (label && label.textContent.toLowerCase().includes(query));
+                                    row.style.display = matches ? '' : 'none';
+                                    if (matches) visibleCount++;
+                                });
+
+                                if (noResultsRow) {
+                                    noResultsRow.style.display = (query && visibleCount === 0) ? '' : 'none';
+                                }
+                            }
+
+                            if (searchInput) {
+                                // "input" se declenche a chaque caractere tape (y compris une
+                                // seule lettre) ou supprime - la recherche est donc deja
+                                // instantanee, sans attendre une validation (Entree) ou un
+                                // delai (debounce).
+                                searchInput.addEventListener('input', runSearch);
+                            }
+
+                            if (searchClear) {
+                                searchClear.addEventListener('click', function () {
+                                    searchInput.value = '';
+                                    runSearch();
+                                    searchInput.focus();
+                                });
+                            }
 
                             var url = @json(route('dossiers.reorderDocuments', $dossier->id));
                             var token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');

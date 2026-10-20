@@ -39,6 +39,14 @@
         <small style="color:#64748b;">Donnez un nom à chaque colonne directement dans son en-tête, ou importez un fichier Excel/CSV pour créer un tableau automatiquement à partir de ses colonnes et lignes.</small>
     </div>
 
+    <div class="mb-3" id="librePaysageWrapper" style="display:none;">
+        <label style="display:flex; align-items:center; gap:8px; font-weight:600;">
+            <input type="checkbox" name="paysage" value="1" id="libre_paysage" {{ old('paysage', $dossierDocument?->paysage) ? 'checked' : '' }}>
+            Afficher ce document en orientation paysage dans le PDF
+        </label>
+        <small style="color:#64748b;">Un de vos tableaux comporte plus de 3 colonnes : cochez cette case si vous préférez l'afficher en largeur (paysage) plutôt qu'en hauteur (portrait).</small>
+    </div>
+
     <script>
         (function(){
             const container = document.getElementById('libreTablesContainer');
@@ -54,22 +62,40 @@
                     });
 
                     Array.from(block.querySelectorAll('.libre-body tr')).forEach((row, r) => {
-                        row.querySelectorAll('td.libre-cell input').forEach((input, c) => {
+                        row.querySelectorAll('td.libre-cell textarea').forEach((input, c) => {
                             input.name = `tableaux[${t}][lignes][${r}][${c}]`;
                         });
                     });
                 });
+                updatePaysageVisibility();
             }
 
             function columnCount(block) {
                 return block.querySelectorAll('.libre-header-row th.libre-col').length;
             }
 
+            function updatePaysageVisibility() {
+                const wrapper = document.getElementById('librePaysageWrapper');
+                const maxColumns = Array.from(container.querySelectorAll('.libre-tableau-block'))
+                    .reduce((max, block) => Math.max(max, columnCount(block)), 0);
+                const shouldShow = maxColumns > 3;
+                wrapper.style.display = shouldShow ? '' : 'none';
+                if (!shouldShow) {
+                    document.getElementById('libre_paysage').checked = false;
+                }
+            }
+
+            function escapeHtml(value) {
+                const div = document.createElement('div');
+                div.textContent = value ? String(value) : '';
+                return div.innerHTML;
+            }
+
             function addCellToRow(row, value) {
                 const td = document.createElement('td');
                 td.className = 'libre-cell';
                 td.style.cssText = 'border:1px solid #ccc; padding:6px;';
-                td.innerHTML = `<input type="text" class="form-control wizard-input" value="${value ? String(value).replace(/"/g, '&quot;') : ''}">`;
+                td.innerHTML = `<textarea class="form-control wizard-input" rows="1" style="resize:vertical;">${escapeHtml(value)}</textarea>`;
                 row.insertBefore(td, row.lastElementChild);
             }
 
@@ -103,8 +129,8 @@
                     const td = document.createElement('td');
                     td.className = 'libre-cell';
                     td.style.cssText = 'border:1px solid #ccc; padding:6px;';
-                    const v = values && values[i] ? String(values[i]).replace(/"/g, '&quot;') : '';
-                    td.innerHTML = `<input type="text" class="form-control wizard-input" value="${v}">`;
+                    const v = values && values[i] ? values[i] : '';
+                    td.innerHTML = `<textarea class="form-control wizard-input" rows="1" style="resize:vertical;">${escapeHtml(v)}</textarea>`;
                     row.appendChild(td);
                 }
                 const actionTd = document.createElement('td');

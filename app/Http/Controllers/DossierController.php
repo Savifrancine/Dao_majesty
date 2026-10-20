@@ -2463,6 +2463,7 @@ class DossierController extends Controller
                     'tableaux.*.lignes' => ['nullable', 'array'],
                     'tableaux.*.lignes.*' => ['nullable', 'array'],
                     'tableaux.*.lignes.*.*' => ['nullable', 'string', 'max:1000'],
+                    'paysage' => ['nullable', 'boolean'],
                 ]);
 
                 $tableaux = [];
@@ -2495,6 +2496,7 @@ class DossierController extends Controller
                         'texte' => $values['texte'] ?? '',
                         'tableaux' => $tableaux,
                     ], JSON_UNESCAPED_UNICODE),
+                    'paysage' => $request->boolean('paysage'),
                     'statut' => 'complete',
                 ]);
             }
@@ -4064,7 +4066,9 @@ class DossierController extends Controller
                         'documents' => collect([$doc]),
                         'renderMode' => 'doc',
                     ])->render();
-                    $docOrientation = $doc->typeDocument && in_array(trim($doc->typeDocument->nom), $this->getLandscapeTableDocNames(), true)
+                    $docOrientation = $doc->typeDocument
+                        && (in_array(trim($doc->typeDocument->nom), $this->getLandscapeTableDocNames(), true)
+                            || ($doc->typeDocument->type_formulaire === 'libre' && $doc->paysage))
                         ? 'landscape'
                         : 'portrait';
                     $dompdfDoc = new Dompdf(['isRemoteEnabled' => true]);
@@ -4233,7 +4237,9 @@ class DossierController extends Controller
                     'documents' => collect([$document]),
                     'renderMode' => 'doc',
                 ])->render();
-                $docOrientation = $document->typeDocument && in_array(trim($document->typeDocument->nom), $this->getLandscapeTableDocNames(), true)
+                $docOrientation = $document->typeDocument
+                    && (in_array(trim($document->typeDocument->nom), $this->getLandscapeTableDocNames(), true)
+                        || ($document->typeDocument->type_formulaire === 'libre' && $document->paysage))
                     ? 'landscape'
                     : 'portrait';
                 $dompdfDoc = new Dompdf(['isRemoteEnabled' => true]);

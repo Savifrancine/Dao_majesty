@@ -17,6 +17,7 @@ class DossierDocument extends Model
         'statut',
         'content',
         'reference_model',
+        'paysage',
         'linked_entreprise_document_ids',
         'excluded_entreprise_fichier_ids',
     ];
@@ -24,6 +25,7 @@ class DossierDocument extends Model
     protected $casts = [
         'linked_entreprise_document_ids' => 'array',
         'excluded_entreprise_fichier_ids' => 'array',
+        'paysage' => 'boolean',
     ];
 
     /**

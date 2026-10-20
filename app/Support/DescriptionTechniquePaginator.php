@@ -6,20 +6,23 @@ use Dompdf\Dompdf;
 
 /**
  * Decoupe les lignes du tableau "Description technique des fournitures/
- * services" en groupes ("chunks") qui tiennent chacun, de maniere garantie,
- * dans le budget de hauteur d'une page - en mesurant le texte avec les
- * memes metriques de police que celles utilisees par dompdf pour le rendu
- * final (DejaVu Sans).
+ * services" en PAGES, chacune garantie, de maniere fiable, de tenir dans le
+ * budget de hauteur d'une page - en mesurant le texte avec les memes
+ * metriques de police que celles utilisees par dompdf pour le rendu final
+ * (DejaVu Sans). Plusieurs lignes courtes partagent la meme page (pas une
+ * page par ligne) ; une ligne dont le contenu depasse a elle seule une page
+ * entiere est coupee sur plusieurs pages, au bon endroit.
  *
- * Pourquoi : la pagination automatique de dompdf a l'INTERIEUR d'un grand
- * tableau n'est pas fiable des qu'une cellule approche ou depasse une page
- * de contenu (texte qui deborde par-dessus le pied de page, limite deja
- * observee et documentee dans dossiers/pdf.blade.php). dompdf place en
- * revanche toujours correctement le DEBUT d'une page / le debut d'un bloc.
- * En calculant nous-memes, par avance, combien de lignes tiennent dans une
- * page, et en coupant a cet endroit precis (un <table> distinct par
- * morceau, avec un saut de page force entre chaque), on s'appuie
- * uniquement sur ce que dompdf sait faire de maniere fiable.
+ * Pourquoi calculer nous-memes : la pagination automatique de dompdf a
+ * l'INTERIEUR d'un grand tableau n'est pas fiable des qu'une cellule
+ * approche ou depasse une page de contenu (texte qui deborde par-dessus le
+ * pied de page, limite deja observee et documentee dans dossiers/
+ * pdf.blade.php). dompdf place en revanche toujours correctement le DEBUT
+ * d'une page / le debut d'un bloc. En calculant nous-memes, par avance,
+ * combien de lignes de texte tiennent dans une page, et en coupant a cet
+ * endroit precis (un <table> distinct par page, avec un saut de page force
+ * avant chacune), on s'appuie uniquement sur ce que dompdf sait faire de
+ * maniere fiable.
  */
 class DescriptionTechniquePaginator
 {
@@ -33,11 +36,11 @@ class DescriptionTechniquePaginator
      * @param float $fontSizePx Taille de police CSS (en px) utilisee dans le tableau
      * @param float $lineHeightMultiplier Interligne CSS (ex: 1.25)
      * @param float $pageContentHeightMm Hauteur utile disponible par page pour ce tableau (marges deja deduites)
-     * @param float $firstChunkHeightReductionMm Hauteur a deduire UNIQUEMENT pour le tout premier chunk globalement
-     *        rendu (celui qui partage sa page avec l'entete/logo et le titre du tableau, affiches avant - tous les
-     *        chunks suivants demarrent une page neuve via page-break-before et ont droit au budget complet)
-     * @return array<int,array<string,mixed>> Une liste de "chunks" prets a afficher : chaque chunk a
-     *         ['numero' => int, 'suite' => bool, 'cells' => ['designation' => html, 'specifications_techniques' => html, ...]]
+     * @param float $firstChunkHeightReductionMm Hauteur a deduire UNIQUEMENT pour la toute premiere page globalement
+     *        rendue (celle qui partage sa page avec l'entete/logo et le titre du tableau, affiches avant - toutes
+     *        les pages suivantes demarrent une page neuve via page-break-before et ont droit au budget complet)
+     * @return array<int,array<string,mixed>> Une liste de "pages" pretes a afficher : chaque page a
+     *         ['rows' => [['numero'=>int, 'suite'=>bool, 'cells'=>['designation'=>html, ...]], ...]]
      */
     public static function chunk(
         iterable $lignes,
@@ -58,14 +61,41 @@ class DescriptionTechniquePaginator
         $fontSizePt = $fontSizePx * 0.75;
         $mmToPt = 2.83465;
 
-        // Marge de securite : on sous-estime volontairement l'espace
-        // disponible (largeur ET hauteur) pour ne jamais friser la limite
-        // reelle - mieux vaut un chunk de trop qu'un debordement.
+        // Marge de securite pour la LARGEUR (mesure du texte) : sous-estime
+        // volontairement l'espace disponible pour ne jamais friser la
+        // limite reelle du retour a la ligne.
         $safetyFactor = 0.88;
 
+        // Marge de securite DEDIEE A LA HAUTEUR, distincte de celle ci-dessus :
+        // chaque <tr> a un cout fixe (padding + bordure de cellule, + le
+        // <thead> repete sur chaque page) que le calcul "police x interligne"
+        // seul ne capture pas - negligeable sur un article tres long (1 seul
+        // <tr> pour des dizaines de lignes), mais significatif des que
+        // beaucoup d'articles courts (1-2 lignes) s'enchainent, chacun son
+        // propre <tr>. Valeur etalonnee empiriquement : 0.88 laissait deborder
+        // ~8 lignes par page de trop sur une page supplementaire a moitie
+        // vide ; 0.63 etait fiable mais, combine au budget de page de
+        // l'epoque (150mm, tres en-deca du plafond theorique), laissait
+        // beaucoup de place inutilisee en bas de chaque page (cf. parametre
+        // $pageContentHeightMm cote appelant). Reteste le 2026-10-20 en meme
+        // temps que ce budget de page : des valeurs plus genereuses (jusqu'a
+        // 0.80) ont semble sures sur des scenarios isoles (40 articles tres
+        // courts, 40 articles tres longs, tous deux en rendu continu "sans
+        // fusion"), mais ont fini par produire un VRAI chevauchement texte/
+        // numero de page sur un document realiste passant par le rendu
+        // "fusion" (plusieurs documents merges via FPDI, chacun dans sa
+        // propre instance Dompdf isolee - visiblement plus sensible que le
+        // rendu continu a ces reglages). 0.65 a ete revalide SANS aucun
+        // chevauchement sur ces 3 scenarios (voir aussi le commentaire sur
+        // $pageContentHeightMm cote appelant dans pdf.blade.php). Ne pas
+        // augmenter sans retester explicitement le scenario "fusion", qui
+        // est celui qui a revele le probleme - les scenarios en rendu
+        // continu seuls ne suffisent pas a le detecter.
+        $heightSafetyFactor = 0.65;
+
         $lineHeightMm = ($fontSizePx * $lineHeightMultiplier) * (25.4 / 96) * (1 / $safetyFactor);
-        $linesPerPage = max(1, (int) floor(($pageContentHeightMm * $safetyFactor) / $lineHeightMm));
-        $linesPerFirstPage = max(1, (int) floor((($pageContentHeightMm - $firstChunkHeightReductionMm) * $safetyFactor) / $lineHeightMm));
+        $linesPerPage = max(1, (int) floor(($pageContentHeightMm * $heightSafetyFactor) / $lineHeightMm));
+        $linesPerFirstPage = max(1, (int) floor((($pageContentHeightMm - $firstChunkHeightReductionMm) * $heightSafetyFactor) / $lineHeightMm));
 
         $columnWidthsPt = [];
         foreach ($columnWidthsPercent as $key => $percent) {
@@ -73,9 +103,18 @@ class DescriptionTechniquePaginator
             $columnWidthsPt[$key] = max(10, $widthMm * $mmToPt * $safetyFactor);
         }
 
-        $chunks = [];
+        $pages = [];
+        $currentPageRows = [];
+        $remainingOnPage = $linesPerFirstPage;
         $numero = 0;
-        $isVeryFirstChunk = true;
+
+        $flushPage = function () use (&$pages, &$currentPageRows) {
+            if (!empty($currentPageRows)) {
+                $pages[] = ['rows' => $currentPageRows];
+                $currentPageRows = [];
+            }
+        };
+
         foreach ($lignes as $ligne) {
             $numero++;
 
@@ -90,37 +129,36 @@ class DescriptionTechniquePaginator
                 $maxLines = max($maxLines, count($lines));
             }
 
-            // Seul le tout premier chunk de tout le tableau partage sa page
-            // avec l'entete/titre ; son budget de lignes est donc reduit
-            // d'autant. Les chunks suivants (y compris le 1er chunk des
-            // autres articles, qui demarrent chacun une page neuve) ont
-            // droit au budget plein.
-            $budgetFirst = $isVeryFirstChunk ? $linesPerFirstPage : $linesPerPage;
-            $firstSliceLen = max(1, $budgetFirst);
-            $remainingAfterFirst = max(0, $maxLines - $firstSliceLen);
-            $chunkCount = 1 + ($remainingAfterFirst > 0 ? (int) ceil($remainingAfterFirst / $linesPerPage) : 0);
-
             $offset = 0;
-            for ($c = 0; $c < $chunkCount; $c++) {
-                $len = ($c === 0) ? $firstSliceLen : $linesPerPage;
+            $isFirstSliceOfLigne = true;
+            while ($offset < $maxLines) {
+                if ($remainingOnPage <= 0) {
+                    $flushPage();
+                    $remainingOnPage = $linesPerPage;
+                }
+
+                $take = min($remainingOnPage, $maxLines - $offset);
                 $cells = [];
                 foreach ($wrapped as $key => $lines) {
-                    $slice = array_slice($lines, $offset, $len);
+                    $slice = array_slice($lines, $offset, $take);
                     $cells[$key] = implode('<br>', array_map(fn ($l) => e($l), $slice));
                 }
-                $offset += $len;
 
-                $chunks[] = [
+                $currentPageRows[] = [
                     'numero' => $numero,
-                    'suite' => $c > 0,
+                    'suite' => !$isFirstSliceOfLigne,
                     'cells' => $cells,
                 ];
 
-                $isVeryFirstChunk = false;
+                $offset += $take;
+                $remainingOnPage -= $take;
+                $isFirstSliceOfLigne = false;
             }
         }
 
-        return $chunks;
+        $flushPage();
+
+        return $pages;
     }
 
     /**
