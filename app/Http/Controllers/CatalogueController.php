@@ -17,6 +17,7 @@ class CatalogueController extends Controller
                 $query->where(function ($q) use ($search) {
                     $q->where('designation', 'like', "%{$search}%")
                         ->orWhere('categorie', 'like', "%{$search}%")
+                        ->orWhere('marque_fabricant', 'like', "%{$search}%")
                         ->orWhere('marque_type', 'like', "%{$search}%");
                 });
             })
@@ -37,6 +38,7 @@ class CatalogueController extends Controller
         $data = $request->validate([
             'categorie' => ['nullable', 'string', 'max:255'],
             'designation' => ['required', 'string', 'max:255'],
+            'marque_fabricant' => ['nullable', 'string', 'max:255'],
             'marque_type' => ['nullable', 'string', 'max:255'],
             'commentaire' => ['nullable', 'string'],
             'prospectus' => ['nullable', 'file', 'max:20480'],
@@ -65,6 +67,7 @@ class CatalogueController extends Controller
         $data = $request->validate([
             'categorie' => ['nullable', 'string', 'max:255'],
             'designation' => ['required', 'string', 'max:255'],
+            'marque_fabricant' => ['nullable', 'string', 'max:255'],
             'marque_type' => ['nullable', 'string', 'max:255'],
             'commentaire' => ['nullable', 'string'],
             'prospectus' => ['nullable', 'file', 'max:20480'],

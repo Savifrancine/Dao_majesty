@@ -14,10 +14,30 @@
         <div class="alert alert-danger">{{ session('error') }}</div>
     @endif
 
-    <form method="GET" action="{{ route('catalogue.index') }}" class="mb-3 d-flex" style="gap:8px; max-width:420px;">
-        <input type="search" name="search" class="form-control" placeholder="Rechercher par désignation, catégorie, marque..." value="{{ $search }}">
-        <button class="btn btn-outline-secondary" type="submit">Rechercher</button>
+    <form method="GET" action="{{ route('catalogue.index') }}" class="mb-3" style="max-width:420px;" id="catalogueSearchForm">
+        <input type="search" name="search" id="catalogueSearchInput" class="form-control" placeholder="Rechercher par désignation, catégorie, marque..." value="{{ $search }}" autocomplete="off">
     </form>
+    <script>
+        (function () {
+            var input = document.getElementById('catalogueSearchInput');
+            var form = document.getElementById('catalogueSearchForm');
+            var timer = null;
+
+            input.addEventListener('input', function () {
+                clearTimeout(timer);
+                timer = setTimeout(function () { form.submit(); }, 400);
+            });
+
+            // Remet le focus (et le curseur en fin de texte) apres le
+            // rechargement de page declenche par la recherche automatique,
+            // pour pouvoir continuer a taper sans recliquer dans le champ.
+            if (input.value) {
+                input.focus();
+                var end = input.value.length;
+                input.setSelectionRange(end, end);
+            }
+        })();
+    </script>
 
     @if($catalogueArticles->isEmpty())
         <p>Aucun article n'a encore été ajouté au catalogue.</p>
@@ -27,7 +47,8 @@
                 <tr>
                     <th>Catégorie</th>
                     <th>Désignation / nom</th>
-                    <th>Marque / type</th>
+                    <th>Marque / Fabricant</th>
+                    <th>Modèle / type</th>
                     <th>Commentaire</th>
                     <th>Prospectus</th>
                     <th>Actions</th>
@@ -38,6 +59,7 @@
                     <tr>
                         <td>{{ $article->categorie ?? '-' }}</td>
                         <td>{{ $article->designation }}</td>
+                        <td>{{ $article->marque_fabricant ?? '-' }}</td>
                         <td>{{ $article->marque_type ?? '-' }}</td>
                         <td>{{ \Illuminate\Support\Str::limit($article->commentaire ?? '', 60) ?: '-' }}</td>
                         <td>

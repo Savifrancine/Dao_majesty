@@ -79,10 +79,10 @@
                         '<input type="number" data-field="annee" class="form-control wizard-input" placeholder="Année" name="marches[' + index + '][annee]">' +
                     '</div>' +
                     '<div style="flex:1;">' +
-                        '<input type="text" data-field="nom" class="form-control wizard-input" placeholder="Nom du marché" name="marches[' + index + '][nom]">' +
+                        '<textarea data-field="nom" class="form-control wizard-input" rows="1" placeholder="Nom du marché" name="marches[' + index + '][nom]" style="resize:vertical;"></textarea>' +
                     '</div>' +
                     '<div style="flex:1;">' +
-                        '<input type="text" data-field="reference" class="form-control wizard-input" placeholder="Référence du marché" name="marches[' + index + '][reference]">' +
+                        '<textarea data-field="reference" class="form-control wizard-input" rows="1" placeholder="Référence du marché" name="marches[' + index + '][reference]" style="resize:vertical;"></textarea>' +
                     '</div>';
                 row.querySelector('[data-field="annee"]').value = annee || '';
                 row.querySelector('[data-field="nom"]').value = nom || '';

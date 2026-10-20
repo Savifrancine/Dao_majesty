@@ -10,6 +10,7 @@ class CatalogueArticle extends Model
     protected $fillable = [
         'categorie',
         'designation',
+        'marque_fabricant',
         'marque_type',
         'commentaire',
         'chemin_prospectus',

@@ -46,8 +46,8 @@
                         <tr>
                             <td style="border:1px solid #000; padding:6px;">{{ $i + 1 }}</td>
                             <td style="border:1px solid #000; padding:6px;">{{ $m['annee'] ?? '' }}</td>
-                            <td style="border:1px solid #000; padding:6px;">{{ $m['nom'] ?? '' }}</td>
-                            <td style="border:1px solid #000; padding:6px;">{{ $m['reference'] ?? '' }}</td>
+                            <td style="border:1px solid #000; padding:6px;">{!! nl2br(e($m['nom'] ?? '')) !!}</td>
+                            <td style="border:1px solid #000; padding:6px;">{!! nl2br(e($m['reference'] ?? '')) !!}</td>
                         </tr>
                     @endforeach
                 </tbody>

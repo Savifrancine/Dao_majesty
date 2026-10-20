@@ -12,7 +12,13 @@
 </div>
 
 <div class="mb-3">
-    <label for="marque_type" class="form-label">Marque / type</label>
+    <label for="marque_fabricant" class="form-label">Marque / Fabricant</label>
+    <input id="marque_fabricant" name="marque_fabricant" class="form-control @error('marque_fabricant') is-invalid @enderror" value="{{ old('marque_fabricant', $catalogueArticle->marque_fabricant ?? '') }}">
+    @error('marque_fabricant') <div class="invalid-feedback">{{ $message }}</div> @enderror
+</div>
+
+<div class="mb-3">
+    <label for="marque_type" class="form-label">Modèle / type</label>
     <input id="marque_type" name="marque_type" class="form-control @error('marque_type') is-invalid @enderror" value="{{ old('marque_type', $catalogueArticle->marque_type ?? '') }}">
     @error('marque_type') <div class="invalid-feedback">{{ $message }}</div> @enderror
 </div>
