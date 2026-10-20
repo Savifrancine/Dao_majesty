@@ -5084,13 +5084,139 @@ class DossierController extends Controller
         $copy->type_offre = $newLabel;
         $copy->save();
 
+        // Capture AVANT le nettoyage : une designation connue uniquement via un
+        // document ensuite retire (ex: Description technique, propre a l'offre
+        // technique) doit quand meme pouvoir alimenter les bordereaux de la
+        // nouvelle offre - voir bordereauArticleRowsForDossier().
+        $articleRows = $this->bordereauArticleRowsForDossier($copy);
+
         $this->pruneSommaireForOfferCategory($copy);
         $this->ensureStandardSommairePieces($copy);
+        $this->populateEmptyBordereauxWithKnownArticles($copy, $articleRows);
 
         $this->logChange($copy, 'dossier_duplique', "« {$newLabel} » créée depuis « {$dossier->nom_dossier} » (#{$dossier->id}).");
 
         return redirect()->route('dossiers.show', $copy->id)
-            ->with('success', "« {$copy->nom_dossier} » créé avec le sommaire {$newLabel}, en reprenant les pièces déjà téléversées communes aux deux offres. Vérifiez-les avant de générer le PDF.");
+            ->with('success', "« {$copy->nom_dossier} » créé avec le sommaire {$newLabel}, en reprenant les pièces déjà téléversées communes aux deux offres (et les désignations déjà connues dans les bordereaux encore vides). Vérifiez-les avant de générer le PDF.");
+    }
+
+    /**
+     * Lignes d'articles "source" du dossier, AVANT tout nettoyage de sommaire
+     * (voir pruneSommaireForOfferCategory()) : reprend, dans l'ordre de
+     * preference habituel (Description technique si remplie, sinon le
+     * premier autre bordereau avec des designations - meme selection que
+     * FicheTechniqueArticles::forDossier()), la ligne ENTIERE de chaque
+     * article (designation, quantite, prix unitaire... quand ils sont
+     * connus), pas seulement la designation. Utilise par createOtherOffer()
+     * pour repeupler automatiquement les bordereaux standards nouvellement
+     * ajoutes a une offre d'une AUTRE categorie (ex: "Bordereau prix
+     * unitaire" ajoute en creant une offre financiere a partir d'une offre
+     * technique qui ne l'avait jamais rempli) : l'utilisateur n'a plus qu'a
+     * completer les colonnes propres a cette offre (prix...) plutot que de
+     * ressaisir chaque article depuis zero.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function bordereauArticleRowsForDossier(Dossier $dossier): array
+    {
+        $dossier->loadMissing(['documents.typeDocument', 'documents.bordereau.lignes']);
+
+        $bordereauDocs = $dossier->documents
+            ->filter(fn ($d) => $d->typeDocument && trim((string) $d->typeDocument->type_formulaire) === 'bordereau')
+            ->sortBy('ordre')
+            ->values();
+
+        $preferredNom = 'Description technique des fournitures/services';
+        $preferred = $bordereauDocs->first(fn ($d) => trim($d->typeDocument->nom) === $preferredNom);
+        $ordered = $preferred
+            ? collect([$preferred])->concat($bordereauDocs->reject(fn ($d) => $d->id === $preferred->id))
+            : $bordereauDocs;
+
+        // Volontairement limite aux colonnes "commerciales" generiques,
+        // communes a la plupart des types de bordereau : les colonnes propres
+        // a un seul type (specifications_* de la Description technique,
+        // cout_benin/transport de la DJI, coef_c1/coef_k du Cadre de sous
+        // details...) n'auraient pas de sens recopiees ailleurs.
+        $copyableFields = ['designation', 'unite_physique', 'quantite', 'nombre_propose', 'prix_unitaire', 'montant', 'site', 'date_prestation', 'frequence'];
+
+        foreach ($ordered as $doc) {
+            $rows = [];
+            foreach ($doc->bordereau as $bordereau) {
+                foreach ($bordereau->lignes as $ligne) {
+                    if (trim((string) $ligne->designation) === '') {
+                        continue;
+                    }
+                    $row = [];
+                    foreach ($copyableFields as $field) {
+                        $row[$field] = $ligne->{$field};
+                    }
+                    $rows[] = $row;
+                }
+            }
+            if (!empty($rows)) {
+                return $rows;
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * Repeuple de lignes les documents de type "bordereau" de ce dossier qui
+     * sont encore totalement vides (aucune ligne), avec les articles deja
+     * connus passes en parametre (voir bordereauArticleRowsForDossier()) :
+     * sans ca, un bordereau standard ajoute par ensureStandardSommairePieces()
+     * pour une offre d'une autre categorie reste vide, alors que les memes
+     * designations existent deja ailleurs dans ce meme dossier. "quantite" ne
+     * peut pas etre NULL en base (contrainte NOT NULL) : 1 par defaut quand
+     * elle n'est pas connue.
+     */
+    private function populateEmptyBordereauxWithKnownArticles(Dossier $dossier, array $articleRows): void
+    {
+        if (empty($articleRows)) {
+            return;
+        }
+
+        $documents = $dossier->documents()
+            ->with(['typeDocument', 'bordereau.lignes'])
+            ->get()
+            ->filter(fn ($d) => $d->typeDocument && trim((string) $d->typeDocument->type_formulaire) === 'bordereau');
+
+        foreach ($documents as $document) {
+            $hasAnyLine = $document->bordereau->contains(fn ($b) => $b->lignes->isNotEmpty());
+            if ($hasAnyLine) {
+                continue;
+            }
+
+            $bordereau = $document->bordereau->first();
+            if (!$bordereau) {
+                $bordereau = Bordereau::create([
+                    'dossier_document_id' => $document->id,
+                    'titre' => $document->typeDocument->nom,
+                ]);
+            }
+
+            foreach ($articleRows as $row) {
+                $ligneData = $row;
+                // quantite/prix_unitaire/montant ne peuvent pas etre NULL en
+                // base (contrainte NOT NULL) : valeurs par defaut neutres
+                // quand la ligne source ne les avait pas renseignees (ex: une
+                // ligne de "Description technique", qui n'a pas de prix).
+                if (empty($ligneData['quantite'])) {
+                    $ligneData['quantite'] = 1;
+                }
+                if (!isset($ligneData['prix_unitaire'])) {
+                    $ligneData['prix_unitaire'] = 0;
+                }
+                if (!isset($ligneData['montant'])) {
+                    $ligneData['montant'] = 0;
+                }
+                $ligneData['bordereau_id'] = $bordereau->id;
+                BordereauLigne::create($ligneData);
+            }
+        }
+
+        $dossier->unsetRelation('documents');
     }
 
     private function applySommaireStandardOrder(Dossier $dossier): void
