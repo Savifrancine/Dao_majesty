@@ -1852,6 +1852,48 @@ class DossierController extends Controller
     }
 
     /**
+     * Chiffres d'affaires proposes pour le document "Chiffre d'affaires
+     * annuel moyen des activites de services" de CE dossier : derives
+     * directement des "Recettes totales (RT)" renseignees dans la fiche de
+     * l'ENTREPRISE de ce dossier (section Finance - memes donnees que le
+     * Formulaire FIN - 3.1, voir syncFormulaireFin31FromEntreprise()
+     * ci-dessus), jamais d'un pool global partage entre TOUTES les
+     * entreprises (l'ancien systeme, ChiffreAffaire::whereNull('dossier_id'),
+     * melangeait les chiffres de n'importe quelle entreprise, peu importe
+     * celle du dossier en cours - trie du plus recent au plus ancien, pour
+     * que les 3 premiers elements soient toujours "les 3 dernieres annees").
+     */
+    private function entrepriseChiffresAffaires(Dossier $dossier): \Illuminate\Support\Collection
+    {
+        $dossier->loadMissing('entreprise');
+        $financeData = optional($dossier->entreprise)->finance_data ?? [];
+        $yearLabels = $financeData['year_labels'] ?? [];
+        $recettes = $financeData['recettes_totales'] ?? [];
+
+        $entries = collect();
+        foreach ($yearLabels as $index => $label) {
+            $year = trim((string) $label);
+            if (!preg_match('/^\d{4}$/', $year)) {
+                continue;
+            }
+
+            $montant = trim((string) ($recettes[$index] ?? ''));
+            $montant = str_replace([' ', "\u{A0}", ','], ['', '', '.'], $montant);
+            if ($montant === '' || !is_numeric($montant)) {
+                continue;
+            }
+
+            $entries->push((object) [
+                'annee' => (int) $year,
+                'montant' => (float) $montant,
+                'monnaie' => 'F CFA',
+            ]);
+        }
+
+        return $entries->sortByDesc('annee')->values();
+    }
+
+    /**
      * Les beneficiaires effectifs (actionnariat/controle) d'une entreprise ne
      * changent pas d'un dossier a l'autre : des qu'ils sont renseignes une
      * fois sur la fiche entreprise, ce document est pre-rempli automatiquement
@@ -2420,12 +2462,14 @@ class DossierController extends Controller
                     'years.*' => ['integer'],
                 ]);
 
-                // Créer des enregistrements de chiffre d'affaires pour le dossier à partir des années sélectionnées.
+                // Créer des enregistrements de chiffre d'affaires pour le dossier à partir des années sélectionnées,
+                // en reprenant les montants des Recettes totales (RT) de la fiche de CETTE entreprise (jamais du
+                // pool global partagé entre entreprises - voir entrepriseChiffresAffaires()).
                 // Le rendu final du PDF principal utilise ces chiffres à partir de $dossier->chiffresAffaires.
-                $selectedEntries = \App\Models\ChiffreAffaire::whereNull('dossier_id')
+                $selectedEntries = $this->entrepriseChiffresAffaires($dossier)
                     ->whereIn('annee', $values['years'])
-                    ->orderBy('annee')
-                    ->get();
+                    ->sortBy('annee')
+                    ->values();
 
                 \App\Models\ChiffreAffaire::where('dossier_id', $dossier->id)->delete();
                 foreach ($selectedEntries as $entry) {
@@ -3820,7 +3864,7 @@ class DossierController extends Controller
         $this->syncFormulaireFin31FromEntreprise($dossier);
         $this->syncFormulaireBeneficiairesFromEntreprise($dossier);
         $this->syncFicheTechniqueFromCatalogue($dossier);
-        $globalChiffres = ChiffreAffaire::whereNull('dossier_id')->orderBy('annee')->get();
+        $entrepriseChiffres = $this->entrepriseChiffresAffaires($dossier);
 
         return view('dossiers.create.step6', [
             'dossier' => $dossier,
@@ -3829,7 +3873,7 @@ class DossierController extends Controller
             'currentIndex' => $currentIndex,
             'totalCount' => $uploadQueue->count(),
             'selectedDocumentIds' => $selectedDocumentIds,
-            'globalChiffres' => $globalChiffres,
+            'entrepriseChiffres' => $entrepriseChiffres,
         ]);
     }
 
@@ -4884,6 +4928,54 @@ class DossierController extends Controller
     }
 
     /**
+     * Retire du sommaire les pieces qui appartiennent EXCLUSIVEMENT a l'autre
+     * modele standard (technique si on vient de passer en financiere, ou
+     * l'inverse) : utilise par createOtherOffer(), qui duplique au depart
+     * TOUTES les pieces de l'offre d'origine - sans ce nettoyage, une offre
+     * financiere creee depuis une offre technique garderait en plus toutes
+     * les pieces techniques (Description technique, EXP 4.x, etc.), alors
+     * que seules les pieces du sommaire financier par defaut doivent
+     * s'appliquer. Ne touche jamais une piece commune aux deux modeles, ni
+     * une piece hors de ces 2 listes (document personnalise, piece jointe
+     * libre, piece administrative non couverte par les modeles...).
+     */
+    private function pruneSommaireForOfferCategory(Dossier $dossier): void
+    {
+        $targetNames = array_map(
+            fn ($nom) => $this->normalizeSommaireName($nom),
+            $this->isOffreFinanciere($dossier) ? self::STANDARD_SOMMAIRE_FINANCIERE : self::STANDARD_SOMMAIRE
+        );
+        $otherNames = array_map(
+            fn ($nom) => $this->normalizeSommaireName($nom),
+            $this->isOffreFinanciere($dossier) ? self::STANDARD_SOMMAIRE : self::STANDARD_SOMMAIRE_FINANCIERE
+        );
+
+        $documents = $dossier->documents()->with(['typeDocument', 'fichiers', 'bordereau.lignes'])->get();
+
+        foreach ($documents as $document) {
+            $nom = $this->normalizeSommaireName(optional($document->typeDocument)->nom ?? '');
+            if ($nom === '' || !in_array($nom, $otherNames, true) || in_array($nom, $targetNames, true)) {
+                continue;
+            }
+
+            foreach ($document->fichiers as $fichier) {
+                if ($fichier->chemin_fichier && Storage::disk('public')->exists($fichier->chemin_fichier)) {
+                    Storage::disk('public')->delete($fichier->chemin_fichier);
+                }
+                $fichier->delete();
+            }
+            $document->valeurs()->delete();
+            foreach ($document->bordereau as $bordereau) {
+                $bordereau->lignes()->delete();
+                $bordereau->delete();
+            }
+            $document->delete();
+        }
+
+        $dossier->unsetRelation('documents');
+    }
+
+    /**
      * Duplique les donnees d'un dossier (hors pieces jointes) vers une
      * nouvelle instance deja persistee : entreprise, signataires,
      * utilisateurs partages, chiffres d'affaires, et le sommaire complet
@@ -4992,12 +5084,13 @@ class DossierController extends Controller
         $copy->type_offre = $newLabel;
         $copy->save();
 
+        $this->pruneSommaireForOfferCategory($copy);
         $this->ensureStandardSommairePieces($copy);
 
         $this->logChange($copy, 'dossier_duplique', "« {$newLabel} » créée depuis « {$dossier->nom_dossier} » (#{$dossier->id}).");
 
         return redirect()->route('dossiers.show', $copy->id)
-            ->with('success', "« {$copy->nom_dossier} » créé avec le sommaire {$newLabel}, en reprenant les pièces déjà téléversées. Vérifiez-les et remplacez celles qui ne conviennent pas à cette offre avant de générer le PDF.");
+            ->with('success', "« {$copy->nom_dossier} » créé avec le sommaire {$newLabel}, en reprenant les pièces déjà téléversées communes aux deux offres. Vérifiez-les avant de générer le PDF.");
     }
 
     private function applySommaireStandardOrder(Dossier $dossier): void
@@ -5459,7 +5552,7 @@ class DossierController extends Controller
         $this->syncFormulaireFin31FromEntreprise($dossier);
         $this->syncFormulaireBeneficiairesFromEntreprise($dossier);
         $this->syncFicheTechniqueFromCatalogue($dossier);
-        $globalChiffres = ChiffreAffaire::whereNull('dossier_id')->orderBy('annee')->get();
+        $entrepriseChiffres = $this->entrepriseChiffresAffaires($dossier);
 
         return view('dossiers.create.step6', [
             'dossier' => $dossier,
@@ -5468,7 +5561,7 @@ class DossierController extends Controller
             'currentIndex' => $resumeIndex,
             'totalCount' => $uploadQueue->count(),
             'selectedDocumentIds' => $selectedDocumentIds,
-            'globalChiffres' => $globalChiffres,
+            'entrepriseChiffres' => $entrepriseChiffres,
         ]);
     }
 

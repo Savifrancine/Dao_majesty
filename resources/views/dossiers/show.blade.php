@@ -573,16 +573,23 @@
                 </form>
 
                 @foreach($missingOfferCategories ?? [] as $categorieCible => $label)
-                    <form action="{{ route('dossiers.createOtherOffer', $dossier) }}" method="POST" style="display:inline;" onsubmit="return confirm('Créer « {{ $label }} » pour ce marché, à partir de ce dossier ? Les pièces déjà téléversées seront reprises aussi : pensez à vérifier et remplacer celles qui ne conviennent pas à cette offre.');">
+                    <form action="{{ route('dossiers.createOtherOffer', $dossier) }}" method="POST" style="display:inline;" onsubmit="return confirm('Créer « {{ $label }} » pour ce marché, à partir de ce dossier ? Seules les pièces du sommaire standard de cette offre seront conservées (les pièces déjà téléversées en commun sont reprises) : pensez à vérifier avant de générer le PDF.');">
                         @csrf
                         <input type="hidden" name="categorie_cible" value="{{ $categorieCible }}">
                         <button type="submit" class="btn btn-ghost">+ Créer {{ $label }}</button>
                     </form>
                 @endforeach
 
-                <form action="{{ route('dossiers.destroy', $dossier) }}" method="POST" style="display:inline;" onsubmit="return confirm('Supprimer définitivement ce dossier et toutes ses pièces ? Cette action est irréversible.');">
+                @php
+                    $hasSiblingOffers = trim((string) $dossier->reference_dossier) !== ''
+                        && \App\Models\Dossier::where('reference_dossier', $dossier->reference_dossier)
+                            ->where('entreprise_id', $dossier->entreprise_id)
+                            ->where('id', '!=', $dossier->id)
+                            ->exists();
+                @endphp
+                <form action="{{ route('dossiers.destroy', $dossier) }}" method="POST" style="display:inline;" onsubmit="return confirm('{{ $hasSiblingOffers ? 'Supprimer définitivement cette offre (« ' . addslashes($dossier->type_offre ?: $dossier->nom_dossier) . ' ») et toutes ses pièces ? Les AUTRES offres de ce même marché ne seront pas touchées. Cette action est irréversible.' : 'Supprimer définitivement ce dossier et toutes ses pièces ? Cette action est irréversible.' }}');">
                     @csrf
-                    <button type="submit" class="btn btn-ghost" style="color:#991b1b; border-color:#fecaca;">🗑 Supprimer le dossier</button>
+                    <button type="submit" class="btn btn-ghost" style="color:#991b1b; border-color:#fecaca;">🗑 {{ $hasSiblingOffers ? 'Supprimer cette offre' : 'Supprimer le dossier' }}</button>
                 </form>
 
                 <a href="{{ route('dossiers.index') }}" class="btn btn-ghost">Retour</a>

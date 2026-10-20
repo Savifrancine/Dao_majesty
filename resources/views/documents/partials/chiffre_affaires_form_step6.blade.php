@@ -11,17 +11,21 @@
 
         <div class="wizard-field" style="margin-bottom:18px;">
             <label class="wizard-label">Sélectionnez les années à inclure dans le PDF</label>
+            <small style="color:#64748b; display:block; margin-bottom:8px;">Montants repris des « Recettes totales (RT) » renseignées sur la fiche de l'entreprise {{ $dossier->entreprise->nom ?? '' }} (section Finance). Les 3 dernières années sont cochées automatiquement ; décochez ou cochez-en d'autres si besoin.</small>
             <div id="years-selection">
-                @if($globalChiffres->isEmpty())
+                @if($entrepriseChiffres->isEmpty())
                     <div class="alert alert-info" id="no-years-message">
-                        Aucun chiffre d'affaires enregistré dans la liste globale. <a href="{{ route('chiffres.index') }}">Allez ajouter des chiffres</a>.
+                        Aucune recette totale enregistrée sur la fiche de l'entreprise.
+                        @if($dossier->entreprise)
+                            <a href="{{ route('entreprises.edit', $dossier->entreprise) }}" target="_blank" rel="noopener noreferrer">Allez compléter la section Finance de l'entreprise</a>.
+                        @endif
                     </div>
                 @else
                     <div class="row g-2">
-                        @foreach($globalChiffres as $entry)
+                        @foreach($entrepriseChiffres as $i => $entry)
                             <div class="col-md-4">
                                 <label class="form-check-label d-flex align-items-center gap-2">
-                                    <input type="checkbox" name="years[]" value="{{ $entry->annee }}" checked class="form-check-input">
+                                    <input type="checkbox" name="years[]" value="{{ $entry->annee }}" {{ $i < 3 ? 'checked' : '' }} class="form-check-input">
                                     <span>{{ $entry->annee }} — {{ number_format($entry->montant, 0, ',', ' ') }} {{ $entry->monnaie }}</span>
                                 </label>
                             </div>
