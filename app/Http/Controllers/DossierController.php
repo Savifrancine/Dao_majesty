@@ -3866,8 +3866,14 @@ class DossierController extends Controller
         $this->syncFormulaireFin31FromEntreprise($dossier);
         $this->syncFormulaireBeneficiairesFromEntreprise($dossier);
         $this->syncFicheTechniqueFromCatalogue($dossier);
-        $this->syncEmptyBordereauxWithKnownArticles($dossier);
-        $this->syncLettreSoumissionDelai($dossier);
+        // Volontairement PAS de syncEmptyBordereauxWithKnownArticles()/
+        // syncLettreSoumissionDelai() ici : cette portion du code s'execute a
+        // CHAQUE navigation dans l'assistant (chaque etape), bien plus souvent
+        // que l'affichage de la fiche dossier (show()) ou la generation du
+        // PDF - les y laisser surchargeait inutilement le serveur (quota CPU
+        // depasse en prod). La fusion/correction automatique reste garantie
+        // au moment ou ca compte reellement : a l'ouverture de la fiche
+        // dossier et a la generation du PDF (voir show()/generatePDF()).
         $entrepriseChiffres = $this->entrepriseChiffresAffaires($dossier);
 
         return view('dossiers.create.step6', [
@@ -6118,8 +6124,8 @@ class DossierController extends Controller
         $this->syncFormulaireFin31FromEntreprise($dossier);
         $this->syncFormulaireBeneficiairesFromEntreprise($dossier);
         $this->syncFicheTechniqueFromCatalogue($dossier);
-        $this->syncEmptyBordereauxWithKnownArticles($dossier);
-        $this->syncLettreSoumissionDelai($dossier);
+        // Meme raison que dans step6() : pas de sync lourde ici, cette
+        // methode est appelee a chaque reprise de l'assistant.
         $entrepriseChiffres = $this->entrepriseChiffresAffaires($dossier);
 
         return view('dossiers.create.step6', [
