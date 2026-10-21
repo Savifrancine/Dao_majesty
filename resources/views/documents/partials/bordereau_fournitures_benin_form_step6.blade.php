@@ -88,12 +88,12 @@
                                 <th style="border:1px solid #ccc; padding:5px; width:3%;">1</th>
                                 <th style="border:1px solid #ccc; padding:5px; width:14%;">2<br>Description</th>
                                 <th style="border:1px solid #ccc; padding:5px; width:9%;">3<br>Date de livraison (Incoterms)</th>
-                                <th style="border:1px solid #ccc; padding:5px; width:7%;">4<br>Quantité</th>
+                                <th style="border:1px solid #ccc; padding:5px; width:10%;">4<br>Quantité</th>
                                 <th style="border:1px solid #ccc; padding:5px; width:9%;">5<br>Prix unitaire EXW</th>
                                 <th style="border:1px solid #ccc; padding:5px; width:9%;">6<br>Prix total EXW (4×5)</th>
                                 <th style="border:1px solid #ccc; padding:5px; width:14%;">7<br>Prix transport terrestre et autres services jusqu'à destination finale</th>
                                 <th style="border:1px solid #ccc; padding:5px; width:13%;">8<br>Coût main-d'œuvre locale, matières premières et composants du Pays de l'Acheteur (% de Col.5)</th>
-                                <th style="border:1px solid #ccc; padding:5px; width:11%;">9<br>Taxe de vente et autres taxes si le marché est attribué</th>
+                                <th style="border:1px solid #ccc; padding:5px; width:8%;">9<br>Taxe de vente et autres taxes si le marché est attribué</th>
                                 <th style="border:1px solid #ccc; padding:5px; width:8%;">10<br>Prix total par article (6+7)</th>
                                 <th style="border:1px solid #ccc; padding:5px; width:3%;"></th>
                             </tr>
@@ -258,12 +258,12 @@
                                 <th style="border:1px solid #ccc; padding:5px; width:3%;">1</th>
                                 <th style="border:1px solid #ccc; padding:5px; width:14%;">2<br>Description</th>
                                 <th style="border:1px solid #ccc; padding:5px; width:9%;">3<br>Date de livraison (Incoterms)</th>
-                                <th style="border:1px solid #ccc; padding:5px; width:7%;">4<br>Quantité</th>
+                                <th style="border:1px solid #ccc; padding:5px; width:10%;">4<br>Quantité</th>
                                 <th style="border:1px solid #ccc; padding:5px; width:9%;">5<br>Prix unitaire EXW</th>
                                 <th style="border:1px solid #ccc; padding:5px; width:9%;">6<br>Prix total EXW (4×5)</th>
                                 <th style="border:1px solid #ccc; padding:5px; width:14%;">7<br>Prix transport terrestre et autres services jusqu'à destination finale</th>
                                 <th style="border:1px solid #ccc; padding:5px; width:13%;">8<br>Coût main-d'œuvre locale, matières premières et composants du Pays de l'Acheteur (% de Col.5)</th>
-                                <th style="border:1px solid #ccc; padding:5px; width:11%;">9<br>Taxe de vente et autres taxes si le marché est attribué</th>
+                                <th style="border:1px solid #ccc; padding:5px; width:8%;">9<br>Taxe de vente et autres taxes si le marché est attribué</th>
                                 <th style="border:1px solid #ccc; padding:5px; width:8%;">10<br>Prix total par article (6+7)</th>
                                 <th style="border:1px solid #ccc; padding:5px; width:3%;"></th>
                             </tr>
