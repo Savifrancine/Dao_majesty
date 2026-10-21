@@ -3704,6 +3704,7 @@ class DossierController extends Controller
 
                     $this->propagateBordereauChanges($dossier, $dossierDocument->id);
                     $this->syncLettreSoumissionDelai($dossier);
+                    $this->syncTableauResumeBordereaux($dossier);
                 }
 
                 if (trim($currentDocument->nom) === self::LISTE_MATERIEL_NOM) {
@@ -4021,6 +4022,7 @@ class DossierController extends Controller
         $this->syncFormulaireBeneficiairesFromEntreprise($dossier);
         $this->syncEmptyBordereauxWithKnownArticles($dossier);
         $this->syncLettreSoumissionDelai($dossier);
+        $this->syncTableauResumeBordereaux($dossier);
 
         $dossier->load([
             'documents.typeDocument.champs',
@@ -4284,6 +4286,7 @@ class DossierController extends Controller
         $this->syncFormulaireBeneficiairesFromEntreprise($dossier);
         $this->syncEmptyBordereauxWithKnownArticles($dossier);
         $this->syncLettreSoumissionDelai($dossier);
+        $this->syncTableauResumeBordereaux($dossier);
         $document->refresh();
 
         $pageGardeDataUri = null;
@@ -5561,6 +5564,60 @@ class DossierController extends Controller
     }
 
     /**
+     * Resynchronise le "Tableau de resume des bordereaux de prix" DEJA
+     * ENREGISTRE (A = fournitures HTVA, D = services connexes HTVA, et les
+     * totaux/TVA derives B/C/E/F/G/H/I) avec les montants REELS actuels des
+     * bordereaux de prix du dossier (voir App\Support\BordereauTotals) -
+     * meme principe que syncLettreSoumissionDelai() : un prix modifie
+     * quelque part (ou remis a 0) doit se repercuter sur ce resume deja
+     * rempli, pour que ses totaux ne restent jamais perimes. Ne fait rien si
+     * le document n'existe pas encore ou n'a jamais ete rempli (son propre
+     * formulaire le pre-remplira directement a l'ouverture).
+     */
+    private function syncTableauResumeBordereaux(Dossier $dossier): void
+    {
+        $tableauType = TypeDocument::where('nom', 'Tableau de résumé des bordereaux de prix')->first();
+        if (!$tableauType) {
+            return;
+        }
+
+        $tableauDoc = DossierDocument::where('dossier_id', $dossier->id)
+            ->where('type_document_id', $tableauType->id)
+            ->first();
+        if (!$tableauDoc || empty($tableauDoc->content)) {
+            return;
+        }
+
+        $content = json_decode($tableauDoc->content, true);
+        if (!is_array($content)) {
+            return;
+        }
+
+        $a = round(\App\Support\BordereauTotals::fournituresHT($dossier), 2);
+        $d = round(\App\Support\BordereauTotals::servicesConnexesHT($dossier), 2);
+
+        if ((float) ($content['a'] ?? 0) === $a && (float) ($content['d'] ?? 0) === $d) {
+            return;
+        }
+
+        $content['a'] = $a;
+        $content['b'] = round($a * 0.18, 2);
+        $content['c'] = round($a + $content['b'], 2);
+        $content['d'] = $d;
+        $content['e'] = round($d * 0.18, 2);
+        $content['f'] = round($d + $content['e'], 2);
+        $content['g'] = round($a + $d, 2);
+        $content['h'] = round($content['g'] * 0.18, 2);
+        $content['i'] = round($content['g'] + $content['h'], 2);
+
+        $json = json_encode($content, JSON_UNESCAPED_UNICODE);
+        if ($json === false) {
+            $json = json_encode($content, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        }
+        $tableauDoc->update(['content' => $json]);
+    }
+
+    /**
      * Repeuple de lignes les documents de type "bordereau" de ce dossier qui
      * sont encore totalement vides (aucune ligne), avec les articles deja
      * connus passes en parametre (voir bordereauArticleRowsForDossier()) :
@@ -5814,6 +5871,7 @@ class DossierController extends Controller
         $this->normalizeDocumentOrders($dossier);
         $this->syncEmptyBordereauxWithKnownArticles($dossier);
         $this->syncLettreSoumissionDelai($dossier);
+        $this->syncTableauResumeBordereaux($dossier);
         $dossier->load(['documents.typeDocument', 'documents.fichiers', 'entreprise', 'typeDossier']);
 
         $uploadableDocs = $dossier->documents

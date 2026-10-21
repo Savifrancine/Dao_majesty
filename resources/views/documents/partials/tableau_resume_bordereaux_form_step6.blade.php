@@ -1,8 +1,18 @@
 <div id="tableau-resume-bordereaux-step6">
+    @php
+        // A/D sont pre-remplis a partir des montants REELS deja saisis dans
+        // les bordereaux de prix du dossier (voir App\Support\BordereauTotals)
+        // - jamais une valeur figee : si l'utilisateur n'a encore rien tape
+        // ici, ces totaux refletent directement les bordereaux ; modifiable
+        // si besoin (ex: un montant different a ete convenu).
+        $defaultA = \App\Support\BordereauTotals::fournituresHT($dossier);
+        $defaultD = \App\Support\BordereauTotals::servicesConnexesHT($dossier);
+        $formatDefault = fn ($v) => $v > 0 ? number_format($v, 2, '.', '') : '';
+    @endphp
     <input type="hidden" name="documents[]" value="{{ $docId }}">
     <div style="max-width:800px; margin:auto;">
         <h5>Tableau de résumé des bordereaux de prix</h5>
-        <p>Remplissez les montants HTVA pour les fournitures et les services, les totaux et les taxes seront calculés automatiquement.</p>
+        <p>Les montants HTVA pour les fournitures et les services sont pré-remplis automatiquement à partir des bordereaux de prix du dossier (modifiables si besoin) ; les totaux et les taxes sont calculés automatiquement.</p>
 
         <table class="table" style="width:100%; border-collapse:collapse; font-size:13px;">
             <thead>
@@ -14,7 +24,7 @@
             <tbody>
                 <tr>
                     <td>Fournitures — Prix Total F CFA HTVA (A)</td>
-                    <td><input type="text" name="tableau_resume[a]" class="form-control numeric-input" value="{{ old('tableau_resume.a', $values['a'] ?? '') }}" style="text-align:right;"></td>
+                    <td><input type="text" name="tableau_resume[a]" class="form-control numeric-input" value="{{ old('tableau_resume.a', $values['a'] ?? $formatDefault($defaultA)) }}" style="text-align:right;"></td>
                 </tr>
                 <tr>
                     <td>TVA sur Fournitures (B = A * 18%)</td>
@@ -29,7 +39,7 @@
 
                 <tr>
                     <td>Services connexes — Prix total F CFA HTVA (D)</td>
-                    <td><input type="text" name="tableau_resume[d]" class="form-control numeric-input" value="{{ old('tableau_resume.d', $values['d'] ?? '') }}" style="text-align:right;"></td>
+                    <td><input type="text" name="tableau_resume[d]" class="form-control numeric-input" value="{{ old('tableau_resume.d', $values['d'] ?? $formatDefault($defaultD)) }}" style="text-align:right;"></td>
                 </tr>
                 <tr>
                     <td>TVA sur Services (E = D * 18%)</td>
