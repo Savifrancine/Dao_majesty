@@ -5207,8 +5207,17 @@ class DossierController extends Controller
                 foreach ($bordereau->lignes as $ligne) {
                     $row = [];
                     foreach ($copyableFields as $field) {
-                        $row[$field] = ($isDescriptionTechnique && in_array($field, $placeholderOnlyFields, true))
-                            ? null
+                        if ($isDescriptionTechnique && in_array($field, $placeholderOnlyFields, true)) {
+                            $row[$field] = null;
+                            continue;
+                        }
+                        // "date_prestation" peut etre la concatenation de
+                        // plusieurs colonnes de date (voir BordereauDelai) :
+                        // ne jamais reprendre les 3 a la fois ailleurs, une
+                        // seule valeur (offerte en priorite, sinon la
+                        // premiere renseignee).
+                        $row[$field] = $field === 'date_prestation'
+                            ? \App\Support\BordereauDelai::singleValueFromRaw((string) $ligne->date_prestation, (string) $doc->typeDocument->nom)
                             : $ligne->{$field};
                     }
                     $rows[] = $row;
@@ -5330,7 +5339,14 @@ class DossierController extends Controller
                         $row[$field] = null;
                         continue;
                     }
-                    $row[$field] = $ligne->{$field};
+                    // Meme regle que bordereauArticleRowsForDossier() : pour
+                    // un document a plusieurs colonnes de date (ex: "Listes
+                    // des Fournitures et Calendrier de livraison"), ne
+                    // propage jamais les 3 valeurs concatenees - une seule
+                    // (offerte en priorite, sinon la premiere renseignee).
+                    $row[$field] = $field === 'date_prestation'
+                        ? \App\Support\BordereauDelai::singleValueFromRaw((string) $ligne->date_prestation, (string) $savedDoc->typeDocument->nom)
+                        : $ligne->{$field};
                 }
                 $sourceByDesignation[$key] = $row;
             }
