@@ -5596,8 +5596,6 @@ class DossierController extends Controller
             $knownByDesignation[$key] = $row;
         }
 
-        $updatableFields = ['unite_physique', 'quantite', 'nombre_propose', 'prix_unitaire', 'montant', 'site', 'date_prestation', 'frequence'];
-
         $documents = $dossier->documents()
             ->with(['typeDocument', 'bordereau.lignes'])
             ->get()
@@ -5651,6 +5649,18 @@ class DossierController extends Controller
                 continue;
             }
 
+            // Champs repares sur une ligne DEJA existante : uniquement les
+            // champs descriptifs (jamais prix_unitaire/quantite/montant).
+            // Ces 3 derniers sont des nombres : "0" y est une valeur
+            // deliberement saisie par l'utilisateur tout autant qu'une
+            // absence de saisie (impossible a distinguer une fois stockee),
+            // donc les completer automatiquement ici reecrasait un vrai "0"
+            // volontaire (ex: prix nul assume) par une valeur trouvee
+            // ailleurs des la prochaine ouverture de la page - cette
+            // reparation automatique ne s'applique donc plus qu'aux champs
+            // texte, sans ambiguite sur ce qu'est une valeur "vide".
+            $repairableExistingFields = ['unite_physique', 'site', 'date_prestation', 'frequence'];
+
             foreach ($existingLignes as $ligne) {
                 $key = $this->normalizeSommaireName((string) $ligne->designation);
                 if ($key === '' || !isset($knownByDesignation[$key])) {
@@ -5659,43 +5669,10 @@ class DossierController extends Controller
 
                 $known = $knownByDesignation[$key];
 
-                // "quantite" vaut systematiquement 1 par defaut des qu'une
-                // ligne est creee sans etre vraiment remplie (meme logique
-                // que BordereauLigne, voir plus haut) : un 1 isole n'est donc
-                // PAS une preuve suffisante d'une vraie saisie utilisateur.
-                // Combine a prix_unitaire ET montant encore vides, c'est en
-                // revanche la signature exacte d'une ligne jamais vraiment
-                // remplie (ex: coincee par une execution passee, moins
-                // complete, de cette meme fonction) : dans ce cas seulement,
-                // on autorise aussi la quantite a etre completee.
-                $isPlaceholderRow = !self::bordereauFieldHasValue($ligne->prix_unitaire)
-                    && !self::bordereauFieldHasValue($ligne->montant);
-
                 $updates = [];
-                foreach ($updatableFields as $field) {
-                    if ($field === 'montant') {
-                        continue; // recalcule ci-dessous a partir du prix/quantite finaux de CETTE ligne.
-                    }
-                    // "quantite" d'une ligne-placeholder (prix_unitaire ET
-                    // montant encore vides) est repris SANS tenir compte de
-                    // sa valeur actuelle (quasi toujours le "1" par defaut) ;
-                    // pour tous les autres champs, et pour quantite sur une
-                    // ligne qui a deja un vrai prix/montant, on ne touche
-                    // jamais une valeur deja presente.
-                    $forceOverride = $field === 'quantite' && $isPlaceholderRow;
-                    if (($forceOverride || !self::bordereauFieldHasValue($ligne->{$field})) && self::bordereauFieldHasValue($known[$field] ?? null)) {
+                foreach ($repairableExistingFields as $field) {
+                    if (!self::bordereauFieldHasValue($ligne->{$field}) && self::bordereauFieldHasValue($known[$field] ?? null)) {
                         $updates[$field] = $known[$field];
-                    }
-                }
-
-                // Le montant doit rester coherent avec LA QUANTITE DE CETTE
-                // LIGNE (qui peut differer de celle de l'article source) :
-                // jamais recopie tel quel depuis $known, toujours recalcule.
-                if ((isset($updates['prix_unitaire']) || isset($updates['quantite'])) && !self::bordereauFieldHasValue($ligne->montant)) {
-                    $prix = $updates['prix_unitaire'] ?? $ligne->prix_unitaire;
-                    $quantite = $updates['quantite'] ?? $ligne->quantite;
-                    if (self::bordereauFieldHasValue($prix) && self::bordereauFieldHasValue($quantite)) {
-                        $updates['montant'] = (float) $prix * (float) $quantite;
                     }
                 }
 
