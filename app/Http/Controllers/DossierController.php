@@ -5368,6 +5368,17 @@ class DossierController extends Controller
             return;
         }
 
+        // "Bordereau des prix et calendrier d'execution des services
+        // connexes" doit RECEVOIR les mises a jour des autres bordereaux
+        // (il reste une cible normale dans la boucle plus bas quand un AUTRE
+        // document est enregistre), mais ne doit jamais, lui, en propager
+        // vers les autres a son propre enregistrement - demande explicite de
+        // l'utilisateur : ses propres lignes (services connexes, distincts
+        // des fournitures) ne doivent pas se repercuter ailleurs.
+        if (trim($savedDoc->typeDocument->nom) === "Bordereau des prix et calendrier d'exécution des services connexes") {
+            return;
+        }
+
         $propagatableFields = ['unite_physique', 'quantite', 'nombre_propose', 'prix_unitaire', 'site', 'date_prestation', 'frequence'];
 
         // Ces documents n'ont pas de vrai champ "quantite" modifiable dans
