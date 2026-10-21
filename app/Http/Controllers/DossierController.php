@@ -3655,6 +3655,8 @@ class DossierController extends Controller
 
                 if ($validLineCreated) {
                     $dossierDocument->update(['statut' => 'complete']);
+                    $this->propagateBordereauChanges($dossier, $dossierDocument->id);
+                    $this->syncLettreSoumissionDelai($dossier);
                 }
 
                 if (trim($currentDocument->nom) === self::LISTE_MATERIEL_NOM) {
@@ -4877,20 +4879,12 @@ class DossierController extends Controller
      * devient "POUELLE CALAVI") : utilise pour l'affichage du nom du marche
      * dans la liste des dossiers, ou la categorie est deja visible via les
      * badges de la colonne "Offres" et n'a pas besoin d'etre repetee dans le
-     * nom.
+     * nom. Delegue a App\Support\OfferCategory, accessible aussi depuis les
+     * vues qui en ont besoin (ex: lettre_soumission_pdf_content).
      */
     private function stripOfferCategorySuffix(?string $nom): string
     {
-        $nom = trim((string) $nom);
-
-        foreach (self::OFFER_CATEGORIES as $info) {
-            $suffix = ' — ' . $info['label'];
-            if (str_ends_with(mb_strtolower($nom, 'UTF-8'), mb_strtolower($suffix, 'UTF-8'))) {
-                return trim(mb_substr($nom, 0, mb_strlen($nom) - mb_strlen($suffix), 'UTF-8'));
-            }
-        }
-
-        return $nom;
+        return \App\Support\OfferCategory::stripSuffix($nom);
     }
 
     /**
@@ -5268,6 +5262,212 @@ class DossierController extends Controller
         }
 
         return trim((string) $value) !== '';
+    }
+
+    /**
+     * Propage IMMEDIATEMENT, juste apres l'enregistrement d'un document
+     * "bordereau", les valeurs (quantite, prix unitaire, montant, date,
+     * site...) de SES lignes vers les lignes de MEME designation (texte
+     * normalise) dans tous les AUTRES bordereaux deja existants de ce meme
+     * dossier - y compris en ECRASANT une valeur deja presente, contrairement
+     * a syncEmptyBordereauxWithKnownArticles()/populateEmptyBordereauxWith
+     * KnownArticles() qui ne completent jamais qu'un champ encore vide.
+     * Demande explicitement par l'utilisateur : modifier une designation, une
+     * date de livraison, un prix unitaire OU une quantite dans un bordereau
+     * doit immediatement se repercuter partout ailleurs ou la meme
+     * designation apparait, pour que les totaux ne soient jamais incoherents
+     * entre documents (donnees financieres sensibles). Le montant de chaque
+     * ligne cible est toujours RECALCULE a partir du prix/de la quantite
+     * FINAUX de cette ligne (apres propagation), jamais copie tel quel depuis
+     * la ligne source.
+     *
+     * Ne propage jamais depuis/vers "Description technique des fournitures/
+     * services" : ce document n'a pas de vrai prix/quantite/date (son
+     * formulaire ne les demande meme pas, voir bordereauArticleRowsForDossier()
+     * plus loin) - seule sa designation a un sens ailleurs, jamais l'inverse.
+     */
+    private function propagateBordereauChanges(Dossier $dossier, int $justSavedDocumentId): void
+    {
+        $dossier->unsetRelation('documents');
+        $dossier->loadMissing(['documents.typeDocument', 'documents.bordereau.lignes']);
+
+        $descriptionTechniqueNom = 'Description technique des fournitures/services';
+
+        $bordereauDocs = $dossier->documents->filter(fn ($d) => $d->typeDocument
+            && trim((string) $d->typeDocument->type_formulaire) === 'bordereau'
+            && trim($d->typeDocument->nom) !== 'Tableau de résumé des bordereaux de prix'
+            && trim($d->typeDocument->nom) !== $descriptionTechniqueNom);
+
+        $savedDoc = $bordereauDocs->firstWhere('id', $justSavedDocumentId);
+        if (!$savedDoc) {
+            return;
+        }
+
+        $propagatableFields = ['unite_physique', 'quantite', 'nombre_propose', 'prix_unitaire', 'site', 'date_prestation', 'frequence'];
+
+        // Ces documents n'ont pas de vrai champ "quantite" modifiable dans
+        // leur propre formulaire (leur enregistrement cote serveur la force
+        // systematiquement a 1, voir le bloc generique et celui des Cadres
+        // de sous details plus haut) : la lire comme une vraie donnee
+        // ecraserait a tort une quantite reelle dans un AUTRE document des
+        // que l'un de ceux-ci est enregistre.
+        $placeholderQuantiteDocNames = ['Bordereau prix unitaire', 'Cadres de sous détails des prix unitaire'];
+        $savedDocHasPlaceholderQuantite = in_array(trim($savedDoc->typeDocument->nom), $placeholderQuantiteDocNames, true);
+
+        $sourceByDesignation = [];
+        foreach ($savedDoc->bordereau as $bordereau) {
+            foreach ($bordereau->lignes as $ligne) {
+                $key = $this->normalizeSommaireName((string) $ligne->designation);
+                if ($key === '') {
+                    continue;
+                }
+                $row = [];
+                foreach ($propagatableFields as $field) {
+                    if ($field === 'quantite' && $savedDocHasPlaceholderQuantite) {
+                        $row[$field] = null;
+                        continue;
+                    }
+                    $row[$field] = $ligne->{$field};
+                }
+                $sourceByDesignation[$key] = $row;
+            }
+        }
+
+        if (empty($sourceByDesignation)) {
+            return;
+        }
+
+        foreach ($bordereauDocs as $doc) {
+            if ($doc->id === $justSavedDocumentId) {
+                continue;
+            }
+
+            // Designations deja presentes dans CE document (pour detecter,
+            // apres la boucle de mise a jour ci-dessous, les articles du
+            // document source qui n'y existent pas encore DU TOUT - voir
+            // plus bas : "ou ligne" modifiee/ajoutee doit aussi se propager,
+            // pas seulement les champs d'une ligne qui existe deja).
+            $existingKeysInDoc = [];
+
+            foreach ($doc->bordereau as $bordereau) {
+                foreach ($bordereau->lignes as $ligne) {
+                    $key = $this->normalizeSommaireName((string) $ligne->designation);
+                    if ($key === '') {
+                        continue;
+                    }
+                    $existingKeysInDoc[$key] = true;
+
+                    if (!isset($sourceByDesignation[$key])) {
+                        continue;
+                    }
+
+                    $source = $sourceByDesignation[$key];
+                    $updates = [];
+                    foreach ($propagatableFields as $field) {
+                        if (self::bordereauFieldHasValue($source[$field])) {
+                            $updates[$field] = $source[$field];
+                        }
+                    }
+
+                    // Le montant est recalcule des que le prix unitaire ou la
+                    // quantite changent, a partir des valeurs FINALES de
+                    // cette ligne (celle propagee si elle l'a ete, sinon
+                    // celle deja presente).
+                    if (isset($updates['prix_unitaire']) || isset($updates['quantite'])) {
+                        $prix = $updates['prix_unitaire'] ?? $ligne->prix_unitaire;
+                        $quantite = $updates['quantite'] ?? $ligne->quantite;
+                        if (self::bordereauFieldHasValue($prix) && self::bordereauFieldHasValue($quantite)) {
+                            $updates['montant'] = (float) $prix * (float) $quantite;
+                        }
+                    }
+
+                    if (!empty($updates)) {
+                        $ligne->update($updates);
+                    }
+                }
+            }
+
+            // Un article TOUT NOUVEAU (jamais vu dans ce document) : on
+            // l'ajoute comme nouvelle ligne, plutot que de se limiter a
+            // completer des lignes deja existantes - une ligne ajoutee
+            // quelque part doit, elle aussi, apparaitre automatiquement
+            // ailleurs, pas seulement ses champs une fois la ligne deja la.
+            $missingKeys = array_diff(array_keys($sourceByDesignation), array_keys($existingKeysInDoc));
+            if (!empty($missingKeys)) {
+                $targetBordereau = $doc->bordereau->first();
+                if (!$targetBordereau) {
+                    $targetBordereau = Bordereau::create([
+                        'dossier_document_id' => $doc->id,
+                        'titre' => $doc->typeDocument->nom,
+                    ]);
+                }
+
+                foreach ($missingKeys as $key) {
+                    $ligneData = $sourceByDesignation[$key];
+                    $ligneData['designation'] = $savedDoc->bordereau->flatMap->lignes
+                        ->first(fn ($l) => $this->normalizeSommaireName((string) $l->designation) === $key)
+                        ->designation ?? '';
+                    if (empty($ligneData['quantite'])) {
+                        $ligneData['quantite'] = 1;
+                    }
+                    if (!isset($ligneData['prix_unitaire'])) {
+                        $ligneData['prix_unitaire'] = 0;
+                    }
+                    $ligneData['montant'] = self::bordereauFieldHasValue($ligneData['prix_unitaire'] ?? null) && self::bordereauFieldHasValue($ligneData['quantite'] ?? null)
+                        ? (float) $ligneData['prix_unitaire'] * (float) $ligneData['quantite']
+                        : 0;
+                    $ligneData['bordereau_id'] = $targetBordereau->id;
+                    BordereauLigne::create($ligneData);
+                }
+            }
+        }
+
+        $dossier->unsetRelation('documents');
+    }
+
+    /**
+     * Synchronise le "b) Delai d'execution" deja ENREGISTRE de la Lettre de
+     * soumission (si ce document existe et a deja ete rempli) avec la "Date
+     * de livraison" actuelle des bordereaux de prix du dossier (voir
+     * App\Support\BordereauDelai) - appele juste apres l'enregistrement d'un
+     * bordereau, meme principe que propagateBordereauChanges() : modifier la
+     * date de livraison quelque part doit se repercuter sur la Lettre de
+     * soumission deja remplie, pour que son texte ne reste jamais obsolete.
+     * Ne fait rien si la Lettre de soumission n'existe pas encore pour ce
+     * dossier (son propre formulaire la pre-remplira directement a l'ouverture,
+     * voir $defaultDelai dans lettre_soumission_form_step6.blade.php), ni si
+     * aucun bordereau n'a de date renseignee (rien a synchroniser).
+     */
+    private function syncLettreSoumissionDelai(Dossier $dossier): void
+    {
+        $delai = \App\Support\BordereauDelai::find($dossier);
+        if ($delai === null) {
+            return;
+        }
+
+        $lettreType = TypeDocument::where('nom', 'Lettre de soumission')->first();
+        if (!$lettreType) {
+            return;
+        }
+
+        $lettreDoc = DossierDocument::where('dossier_id', $dossier->id)
+            ->where('type_document_id', $lettreType->id)
+            ->first();
+        if (!$lettreDoc || empty($lettreDoc->content)) {
+            return;
+        }
+
+        $content = json_decode($lettreDoc->content, true);
+        if (!is_array($content) || ($content['point_b'] ?? null) === $delai) {
+            return;
+        }
+
+        $content['point_b'] = $delai;
+        $json = json_encode($content, JSON_UNESCAPED_UNICODE);
+        if ($json === false) {
+            $json = json_encode($content, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        }
+        $lettreDoc->update(['content' => $json]);
     }
 
     /**

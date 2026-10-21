@@ -1,13 +1,23 @@
 @php
     $formattedDate = !empty($date) ? (new \Carbon\Carbon($date))->format('d/m/Y') : now()->format('d/m/Y');
 
-    $objetMarche = trim(optional($dossier ?? null)->nom_dossier ?? '');
+    // Le nom du dossier peut porter un suffixe " — Offre financière/technique/
+    // administrative" (ajoute par DossierController::renameForOfferCategory()
+    // lors de la creation d'une autre offre pour le meme marche) : la
+    // categorie n'a pas sa place dans l'objet du marche tel qu'annonce dans
+    // la Lettre de soumission, donc on le retire.
+    $objetMarche = \App\Support\OfferCategory::stripSuffix(optional($dossier ?? null)->nom_dossier ?? '');
     $objetMarcheDisplay = $objetMarche !== '' ? ucfirst(mb_strtolower($objetMarche, 'UTF-8')) : '[insérer l’objet du marché]';
 
     $destinataireText = trim($destinataire ?? '');
 
     $addendaText = trim($point_a ?? '') !== '' ? $point_a : '[Neant]';
-    $delaiText = trim($point_b ?? '') !== '' ? $point_b : 'Deux (02) mois';
+    // Jamais de texte fige sans rapport avec le dossier : si "point_b" n'a
+    // pas ete enregistre, on reprend directement la "Date de livraison" deja
+    // saisie dans les bordereaux de prix du dossier (voir App\Support\BordereauDelai).
+    $delaiText = trim($point_b ?? '') !== ''
+        ? $point_b
+        : (($dossier ?? null) ? (\App\Support\BordereauDelai::find($dossier) ?: 'Deux (02) mois') : 'Deux (02) mois');
 
     $montantHtLettres = trim($montant_ht_lettres ?? '');
     $montantHtChiffres = trim($montant_ht_total ?? '');
@@ -25,7 +35,7 @@
     <div style="text-align:right; font-size:11px; margin-bottom:2px;"><strong>Date :</strong> {{ $formattedDate }}</div>
     <div style="text-align:right; font-size:11px; margin-bottom:8px;"><strong>Variante N° :</strong> {{ trim($variante ?? '') }}</div>
 
-    <div style="font-size:12px; margin-bottom:10px;">Avis de demande de renseignements et de prix numero: {{ $objetMarcheDisplay }}</div>
+    <div style="font-size:12px; margin-bottom:10px;"><strong>Avis de demande de renseignements et de prix numero:</strong> {{ $objetMarcheDisplay }}</div>
 
     @if($destinataireText)
         <div style="margin-bottom:10px; font-size:12px;"><strong>A :</strong> {{ $destinataireText }}</div>

@@ -21,6 +21,7 @@
                             'designation' => $ligne->designation,
                             'quantite' => $ligne->quantite,
                             'prix_unitaire' => $ligne->prix_unitaire,
+                            'montant' => $ligne->montant,
                             'date_prestation' => $ligne->date_prestation,
                             'transport' => $ligne->transport ?? '',
                             'cout_main_oeuvre_locale' => $ligne->cout_main_oeuvre_locale ?? '',
@@ -99,6 +100,15 @@
                         </thead>
                         <tbody class="bordereau-lines">
                             @foreach($section['lignes'] as $lineIndex => $ligne)
+                                @php
+                                    // "Prix total par article (6+7)" n'est pas enregistre tel quel
+                                    // en base (seul "montant", colonne 6, l'est) : on le recalcule a
+                                    // l'affichage pour que ce champ desactive montre une valeur au
+                                    // lieu de rester vide a l'ouverture du formulaire.
+                                    $montantVal = is_numeric($ligne['montant'] ?? null) ? (float) $ligne['montant'] : null;
+                                    $transportVal = is_numeric($ligne['transport'] ?? null) ? (float) $ligne['transport'] : 0.0;
+                                    $prixTotalVal = $montantVal !== null ? $montantVal + $transportVal : null;
+                                @endphp
                                 <tr>
                                     <td style="border:1px solid #ccc; padding:5px; text-align:center; vertical-align:top;">{{ $lineIndex + 1 }}</td>
                                     <td style="border:1px solid #ccc; padding:5px; vertical-align:top;">
@@ -114,7 +124,7 @@
                                         <input type="text" name="sections[{{ $sectionIndex }}][lignes][{{ $lineIndex }}][prix_unitaire]" class="form-control wizard-input prix-input" value="{{ $ligne['prix_unitaire'] ?? '' }}">
                                     </td>
                                     <td style="border:1px solid #ccc; padding:5px; vertical-align:top;">
-                                        <input type="text" name="sections[{{ $sectionIndex }}][lignes][{{ $lineIndex }}][montant]" class="form-control wizard-input montant-display" placeholder="Auto-calc" disabled value="">
+                                        <input type="text" name="sections[{{ $sectionIndex }}][lignes][{{ $lineIndex }}][montant]" class="form-control wizard-input montant-display" placeholder="Auto-calc" disabled value="{{ $montantVal !== null ? $montantVal : '' }}">
                                     </td>
                                     <td style="border:1px solid #ccc; padding:5px; vertical-align:top;">
                                         <input type="text" name="sections[{{ $sectionIndex }}][lignes][{{ $lineIndex }}][transport]" class="form-control wizard-input transport-input" value="{{ $ligne['transport'] ?? '' }}">
@@ -126,7 +136,7 @@
                                         <input type="text" name="sections[{{ $sectionIndex }}][lignes][{{ $lineIndex }}][taxe_vente]" class="form-control wizard-input" value="{{ $ligne['taxe_vente'] ?? '' }}">
                                     </td>
                                     <td style="border:1px solid #ccc; padding:5px; vertical-align:top;">
-                                        <input type="text" name="sections[{{ $sectionIndex }}][lignes][{{ $lineIndex }}][prix_total]" class="form-control wizard-input prix-total-display" placeholder="Auto-calc" disabled value="">
+                                        <input type="text" name="sections[{{ $sectionIndex }}][lignes][{{ $lineIndex }}][prix_total]" class="form-control wizard-input prix-total-display" placeholder="Auto-calc" disabled value="{{ $prixTotalVal !== null ? $prixTotalVal : '' }}">
                                     </td>
                                     <td style="border:1px solid #ccc; padding:5px; vertical-align:top; text-align:center;">
                                         <button type="button" class="btn btn-sm btn-danger removeBordereauLine" style="padding:0.25rem 0.45rem;">×</button>

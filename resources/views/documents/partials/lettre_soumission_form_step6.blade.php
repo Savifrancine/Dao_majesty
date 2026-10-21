@@ -75,6 +75,12 @@
         $defaultTotalHtLettres = $formatLetters($totalHT);
         $defaultTotalTtcLettres = $formatLetters($totalTTC);
         $defaultTvaValue = $formatMoney($totalTVA);
+
+        // Le delai d'execution (point b) doit correspondre a la "Date de
+        // livraison" deja saisie dans les bordereaux de prix du dossier,
+        // jamais a un texte fige sans rapport avec le dossier (voir
+        // App\Support\BordereauDelai).
+        $defaultDelai = \App\Support\BordereauDelai::find($dossier) ?: 'Deux (02) mois';
     @endphp
 
     <div class="wizard-field" style="margin-bottom: 12px;">
@@ -100,7 +106,8 @@
 
         <div style="margin-bottom:18px;">
             <label class="wizard-label" for="point_b">b) Délai d'exécution des fournitures/services</label>
-            <input id="point_b" type="text" name="point_b" class="form-control wizard-input" placeholder="Ex : Deux (02) mois" value="{{ $value('point_b', 'Deux (02) mois') }}">
+            <input id="point_b" type="text" name="point_b" class="form-control wizard-input" placeholder="Ex : Deux (02) mois" value="{{ $value('point_b', $defaultDelai) }}">
+            <small style="color:#64748b;">Pré-rempli à partir de la « Date de livraison » déjà saisie dans les bordereaux de prix ; modifiable si besoin.</small>
         </div>
 
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:18px;">

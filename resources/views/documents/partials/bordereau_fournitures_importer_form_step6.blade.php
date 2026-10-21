@@ -10,6 +10,7 @@
                             'designation' => $ligne->designation,
                             'quantite' => $ligne->quantite,
                             'prix_unitaire' => $ligne->prix_unitaire,
+                            'montant' => $ligne->montant,
                             'date_prestation' => $ligne->date_prestation,
                             'cout_benin' => $ligne->cout_benin ?? '',
                         ];
@@ -165,7 +166,7 @@
                                         <input type="text" name="sections[{{ $sectionIndex }}][lignes][{{ $lineIndex }}][prix_unitaire]" class="form-control wizard-input prix-input" placeholder="150000" value="{{ $ligne['prix_unitaire'] ?? '' }}">
                                     </td>
                                     <td style="border:1px solid #ccc; padding:6px; vertical-align:top;">
-                                        <input type="text" name="sections[{{ $sectionIndex }}][lignes][{{ $lineIndex }}][montant]" class="form-control wizard-input montant-display" placeholder="Auto-calc" disabled value="">
+                                        <input type="text" name="sections[{{ $sectionIndex }}][lignes][{{ $lineIndex }}][montant]" class="form-control wizard-input montant-display" placeholder="Auto-calc" disabled value="{{ $ligne['montant'] ?? '' }}">
                                     </td>
                                     <td style="border:1px solid #ccc; padding:6px; vertical-align:top;">
                                         <input type="text" name="sections[{{ $sectionIndex }}][lignes][{{ $lineIndex }}][cout_benin]" class="form-control wizard-input" placeholder="0" value="{{ $ligne['cout_benin'] ?? '' }}">

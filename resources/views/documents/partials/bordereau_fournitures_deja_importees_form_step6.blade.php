@@ -22,6 +22,7 @@
                             'site' => $ligne->site ?? '',
                             'quantite' => $ligne->quantite,
                             'prix_unitaire' => $ligne->prix_unitaire,
+                            'montant' => $ligne->montant,
                             'date_prestation' => $ligne->date_prestation,
                             'droits_douane' => $ligne->droits_douane ?? '',
                             'transport' => $ligne->transport ?? '',
@@ -172,6 +173,19 @@
                         </thead>
                         <tbody class="bordereau-lines">
                             @foreach($section['lignes'] as $lineIndex => $ligne)
+                                @php
+                                    // "Prix unit. net" et "Prix total" ne sont pas enregistres tels
+                                    // quels en base (seul "montant" = Prix article net l'est) : on
+                                    // les recalcule a l'affichage, a partir des memes champs deja
+                                    // enregistres, pour que les champs desactives affichent une
+                                    // valeur au lieu de rester vides a l'ouverture du formulaire.
+                                    $prixUnitaireVal = is_numeric($ligne['prix_unitaire'] ?? null) ? (float) $ligne['prix_unitaire'] : null;
+                                    $droitsDouaneVal = is_numeric($ligne['droits_douane'] ?? null) ? (float) $ligne['droits_douane'] : 0.0;
+                                    $prixNetVal = $prixUnitaireVal !== null ? $prixUnitaireVal - $droitsDouaneVal : null;
+                                    $montantVal = is_numeric($ligne['montant'] ?? null) ? (float) $ligne['montant'] : null;
+                                    $transportVal = is_numeric($ligne['transport'] ?? null) ? (float) $ligne['transport'] : 0.0;
+                                    $prixTotalVal = $montantVal !== null ? $montantVal + $transportVal : null;
+                                @endphp
                                 <tr>
                                     <td style="border:1px solid #ccc; padding:5px; text-align:center; vertical-align:top;">{{ $lineIndex + 1 }}</td>
                                     <td style="border:1px solid #ccc; padding:5px; vertical-align:top;">
@@ -193,10 +207,10 @@
                                         <input type="text" name="sections[{{ $sectionIndex }}][lignes][{{ $lineIndex }}][droits_douane]" class="form-control wizard-input droits-input" value="{{ $ligne['droits_douane'] ?? '' }}">
                                     </td>
                                     <td style="border:1px solid #ccc; padding:5px; vertical-align:top;">
-                                        <input type="text" class="form-control wizard-input prix-net-display" placeholder="Auto-calc" disabled value="">
+                                        <input type="text" class="form-control wizard-input prix-net-display" placeholder="Auto-calc" disabled value="{{ $prixNetVal !== null ? $prixNetVal : '' }}">
                                     </td>
                                     <td style="border:1px solid #ccc; padding:5px; vertical-align:top;">
-                                        <input type="text" name="sections[{{ $sectionIndex }}][lignes][{{ $lineIndex }}][montant]" class="form-control wizard-input montant-display" placeholder="Auto-calc" disabled value="">
+                                        <input type="text" name="sections[{{ $sectionIndex }}][lignes][{{ $lineIndex }}][montant]" class="form-control wizard-input montant-display" placeholder="Auto-calc" disabled value="{{ $montantVal !== null ? $montantVal : '' }}">
                                     </td>
                                     <td style="border:1px solid #ccc; padding:5px; vertical-align:top;">
                                         <input type="text" name="sections[{{ $sectionIndex }}][lignes][{{ $lineIndex }}][transport]" class="form-control wizard-input transport-input" value="{{ $ligne['transport'] ?? '' }}">
@@ -205,7 +219,7 @@
                                         <input type="text" name="sections[{{ $sectionIndex }}][lignes][{{ $lineIndex }}][taxe_vente]" class="form-control wizard-input" value="{{ $ligne['taxe_vente'] ?? '' }}">
                                     </td>
                                     <td style="border:1px solid #ccc; padding:5px; vertical-align:top;">
-                                        <input type="text" class="form-control wizard-input prix-total-display" placeholder="Auto-calc" disabled value="">
+                                        <input type="text" class="form-control wizard-input prix-total-display" placeholder="Auto-calc" disabled value="{{ $prixTotalVal !== null ? $prixTotalVal : '' }}">
                                     </td>
                                     <td style="border:1px solid #ccc; padding:5px; vertical-align:top; text-align:center;">
                                         <button type="button" class="btn btn-sm btn-danger removeBordereauLine" style="padding:0.25rem 0.45rem;">×</button>
