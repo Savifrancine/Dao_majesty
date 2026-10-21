@@ -20,11 +20,13 @@ class DossierDocument extends Model
         'paysage',
         'linked_entreprise_document_ids',
         'excluded_entreprise_fichier_ids',
+        'designations_supprimees',
     ];
 
     protected $casts = [
         'linked_entreprise_document_ids' => 'array',
         'excluded_entreprise_fichier_ids' => 'array',
+        'designations_supprimees' => 'array',
         'paysage' => 'boolean',
     ];
 

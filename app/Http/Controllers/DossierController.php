@@ -3290,7 +3290,23 @@ class DossierController extends Controller
 
                 $values = $request->validate($rules);
 
-                $oldBordereaux = Bordereau::where('dossier_document_id', $dossierDocument->id)->get();
+                // Memorise les designations deja presentes AVANT remplacement
+                // (voir plus bas, juste apres la recreation des lignes) : si
+                // l'utilisateur supprime volontairement une ligne ici, sans la
+                // remettre, il ne faut plus jamais la reinjecter depuis un
+                // AUTRE bordereau du meme dossier (voir le tombstone
+                // "designations_supprimees" plus loin et son usage dans
+                // propagateBordereauChanges()).
+                $designationsAvant = [];
+                $oldBordereaux = Bordereau::with('lignes')->where('dossier_document_id', $dossierDocument->id)->get();
+                foreach ($oldBordereaux as $old) {
+                    foreach ($old->lignes as $ligne) {
+                        $key = $this->normalizeSommaireName((string) $ligne->designation);
+                        if ($key !== '') {
+                            $designationsAvant[$key] = true;
+                        }
+                    }
+                }
                 $oldBordereaux->each(function ($old) {
                     $old->lignes()->delete();
                 });
@@ -3655,6 +3671,37 @@ class DossierController extends Controller
 
                 if ($validLineCreated) {
                     $dossierDocument->update(['statut' => 'complete']);
+
+                    // Designations presentes APRES enregistrement : toute
+                    // designation qui etait presente AVANT (voir plus haut)
+                    // mais absente maintenant a ete supprimee volontairement
+                    // par l'utilisateur dans CE document precis - on le
+                    // retient (tombstone) pour que propagateBordereauChanges()
+                    // ne la reinjecte plus jamais ici depuis un autre
+                    // bordereau. A l'inverse, si l'utilisateur la r'ajoute
+                    // lui-meme plus tard dans ce meme document, on l'oublie
+                    // du tombstone (il la veut de nouveau ici).
+                    $designationsApres = [];
+                    foreach (Bordereau::with('lignes')->where('dossier_document_id', $dossierDocument->id)->get() as $b) {
+                        foreach ($b->lignes as $ligne) {
+                            $key = $this->normalizeSommaireName((string) $ligne->designation);
+                            if ($key !== '') {
+                                $designationsApres[$key] = true;
+                            }
+                        }
+                    }
+                    $tombstone = $dossierDocument->designations_supprimees ?? [];
+                    $tombstone = array_fill_keys($tombstone, true);
+                    foreach ($designationsAvant as $key => $_) {
+                        if (!isset($designationsApres[$key])) {
+                            $tombstone[$key] = true;
+                        }
+                    }
+                    foreach ($designationsApres as $key => $_) {
+                        unset($tombstone[$key]);
+                    }
+                    $dossierDocument->update(['designations_supprimees' => array_keys($tombstone)]);
+
                     $this->propagateBordereauChanges($dossier, $dossierDocument->id);
                     $this->syncLettreSoumissionDelai($dossier);
                 }
@@ -5417,7 +5464,14 @@ class DossierController extends Controller
             // completer des lignes deja existantes - une ligne ajoutee
             // quelque part doit, elle aussi, apparaitre automatiquement
             // ailleurs, pas seulement ses champs une fois la ligne deja la.
-            $missingKeys = array_diff(array_keys($sourceByDesignation), array_keys($existingKeysInDoc));
+            // Une designation que l'utilisateur a deliberement supprimee de
+            // CE document precis (voir le tombstone "designations_supprimees"
+            // alimente juste apres l'enregistrement d'un bordereau) ne doit
+            // jamais y revenir toute seule, meme si elle existe toujours
+            // ailleurs - sinon une suppression manuelle redeviendrait
+            // impossible des qu'un AUTRE bordereau du dossier est resauvegarde.
+            $tombstoneKeys = array_fill_keys($doc->designations_supprimees ?? [], true);
+            $missingKeys = array_diff(array_keys($sourceByDesignation), array_keys($existingKeysInDoc), array_keys($tombstoneKeys));
             if (!empty($missingKeys)) {
                 $targetBordereau = $doc->bordereau->first();
                 if (!$targetBordereau) {
@@ -5556,7 +5610,15 @@ class DossierController extends Controller
                     ]);
                 }
 
+                $tombstoneKeys = array_fill_keys($document->designations_supprimees ?? [], true);
                 foreach ($articleRows as $row) {
+                    $key = $this->normalizeSommaireName((string) ($row['designation'] ?? ''));
+                    if ($key !== '' && isset($tombstoneKeys[$key])) {
+                        // L'utilisateur a deliberement supprime cette
+                        // designation de ce document precis : ne pas la
+                        // reinjecter meme si le document redevient "vide".
+                        continue;
+                    }
                     $ligneData = $row;
                     // quantite/prix_unitaire/montant ne peuvent pas etre NULL en
                     // base (contrainte NOT NULL) : valeurs par defaut neutres
