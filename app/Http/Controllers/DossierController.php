@@ -3867,6 +3867,7 @@ class DossierController extends Controller
         $this->syncFormulaireBeneficiairesFromEntreprise($dossier);
         $this->syncFicheTechniqueFromCatalogue($dossier);
         $this->syncEmptyBordereauxWithKnownArticles($dossier);
+        $this->syncLettreSoumissionDelai($dossier);
         $entrepriseChiffres = $this->entrepriseChiffresAffaires($dossier);
 
         return view('dossiers.create.step6', [
@@ -3966,6 +3967,7 @@ class DossierController extends Controller
         $this->syncFormulaireFin31FromEntreprise($dossier);
         $this->syncFormulaireBeneficiairesFromEntreprise($dossier);
         $this->syncEmptyBordereauxWithKnownArticles($dossier);
+        $this->syncLettreSoumissionDelai($dossier);
 
         $dossier->load([
             'documents.typeDocument.champs',
@@ -4228,6 +4230,7 @@ class DossierController extends Controller
         $this->syncFormulaireFin31FromEntreprise($dossier);
         $this->syncFormulaireBeneficiairesFromEntreprise($dossier);
         $this->syncEmptyBordereauxWithKnownArticles($dossier);
+        $this->syncLettreSoumissionDelai($dossier);
         $document->refresh();
 
         $pageGardeDataUri = null;
@@ -5738,6 +5741,7 @@ class DossierController extends Controller
         $this->applySommaireStandardOrder($dossier);
         $this->normalizeDocumentOrders($dossier);
         $this->syncEmptyBordereauxWithKnownArticles($dossier);
+        $this->syncLettreSoumissionDelai($dossier);
         $dossier->load(['documents.typeDocument', 'documents.fichiers', 'entreprise', 'typeDossier']);
 
         $uploadableDocs = $dossier->documents
@@ -6099,6 +6103,7 @@ class DossierController extends Controller
         $this->syncFormulaireBeneficiairesFromEntreprise($dossier);
         $this->syncFicheTechniqueFromCatalogue($dossier);
         $this->syncEmptyBordereauxWithKnownArticles($dossier);
+        $this->syncLettreSoumissionDelai($dossier);
         $entrepriseChiffres = $this->entrepriseChiffresAffaires($dossier);
 
         return view('dossiers.create.step6', [
