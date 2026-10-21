@@ -5,6 +5,15 @@
 
     RewriteEngine On
 
+    # Bloque, avant meme d'atteindre PHP-FPM, les sondes de robots qui
+    # scannent des failles WordPress/scripts legacy inexistants sur cette
+    # application Laravel (wp-login.php, xmlrpc.php, filefuns.php...) : ce
+    # trafic representait l'essentiel des 404 constatees en prod et
+    # consommait du CPU pour rien a chaque requete (demarrage complet de
+    # Laravel juste pour repondre 404).
+    RewriteCond %{REQUEST_URI} ^/(wp-login\.php|wp-admin|wp-includes|wp-content|xmlrpc\.php|filefuns\.php|txets\.php|postnews\.php)(/|$) [NC]
+    RewriteRule .* - [F,L]
+
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
