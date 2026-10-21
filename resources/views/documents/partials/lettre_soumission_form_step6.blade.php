@@ -106,8 +106,8 @@
 
         <div style="margin-bottom:18px;">
             <label class="wizard-label" for="point_b">b) Délai d'exécution des fournitures/services</label>
-            <input id="point_b" type="text" name="point_b" class="form-control wizard-input" placeholder="Ex : Deux (02) mois" value="{{ $value('point_b', $defaultDelai) }}">
-            <small style="color:#64748b;">Pré-rempli à partir de la « Date de livraison » déjà saisie dans les bordereaux de prix ; modifiable si besoin.</small>
+            <input id="point_b" type="text" name="point_b" class="form-control wizard-input" readonly value="{{ $value('point_b', $defaultDelai) }}">
+            <small style="color:#64748b;">Repris automatiquement de la « Date de livraison » saisie dans les bordereaux de prix ; se met à jour tout seul si elle change là-bas.</small>
         </div>
 
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:18px;">
