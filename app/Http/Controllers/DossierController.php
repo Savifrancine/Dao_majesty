@@ -1401,6 +1401,29 @@ class DossierController extends Controller
     }
 
     /**
+     * Lignes de la Liste de Materiel du dossier, dans l'ordre stable utilise
+     * comme lien avec les Formulaire MAT (position = index dans cette liste)
+     * - jamais la designation elle-meme, qui peut etre dupliquee ou changer,
+     * pour que ce lien reste fiable. Utilise par syncFormulaireMatRecords()
+     * et par la suppression d'un materiel depuis le Formulaire MAT.
+     */
+    private function listeMaterielLignesOrdered(Dossier $dossier): \Illuminate\Support\Collection
+    {
+        $listeDoc = $dossier->documents()
+            ->whereHas('typeDocument', fn ($q) => $q->where('nom', self::LISTE_MATERIEL_NOM))
+            ->with('bordereau.lignes')
+            ->first();
+        if (!$listeDoc) {
+            return collect();
+        }
+
+        return $listeDoc->bordereau
+            ->flatMap(fn ($bordereau) => $bordereau->lignes)
+            ->filter(fn ($ligne) => trim((string) ($ligne->designation ?? '')) !== '')
+            ->values();
+    }
+
+    /**
      * Crée ou met à jour un Formulaire MAT par ligne de la Liste de Matériel
      * du dossier : le type et caractéristiques du matériel suivent toujours
      * cette liste (lien direct, non modifiable dans ce formulaire) ; le
@@ -1416,29 +1439,12 @@ class DossierController extends Controller
             return;
         }
 
-        $listeDoc = $dossier->documents()
-            ->whereHas('typeDocument', fn ($q) => $q->where('nom', self::LISTE_MATERIEL_NOM))
-            ->with('bordereau.lignes')
-            ->first();
-        if (!$listeDoc) {
+        $lignes = $this->listeMaterielLignesOrdered($dossier);
+        if ($lignes->isEmpty()) {
             return;
         }
 
-        $materiels = [];
-        foreach ($listeDoc->bordereau as $bordereau) {
-            foreach ($bordereau->lignes as $ligne) {
-                $designation = trim((string) ($ligne->designation ?? ''));
-                if ($designation === '') {
-                    continue;
-                }
-                $materiels[] = $designation;
-            }
-        }
-        if (empty($materiels)) {
-            return;
-        }
-
-        foreach ($materiels as $position => $designation) {
+        foreach ($lignes as $position => $ligne) {
             $record = FormulaireMat::firstOrNew(['dossier_id' => $dossier->id, 'materiel_position' => $position]);
 
             if (!$record->exists) {
@@ -1448,15 +1454,38 @@ class DossierController extends Controller
             // Le type et caracteristiques du materiel est purement derive de
             // la Liste de Materiel : il suit toujours sa valeur actuelle,
             // sans etre modifiable ici.
-            $record->piece_materiel = mb_substr($designation, 0, 250);
+            $record->piece_materiel = mb_substr(trim((string) $ligne->designation), 0, 250);
 
             $record->save();
         }
 
         FormulaireMat::where('dossier_id', $dossier->id)
             ->whereNotNull('materiel_position')
-            ->where('materiel_position', '>=', count($materiels))
+            ->where('materiel_position', '>=', $lignes->count())
             ->delete();
+    }
+
+    /**
+     * Retire un materiel du dossier a la demande de l'utilisateur depuis le
+     * Formulaire MAT : supprime la ligne CORRESPONDANTE de la Liste de
+     * Materiel (lien par position dans la liste, jamais par designation -
+     * demande explicite, pour rester fiable meme si 2 materiels portent le
+     * meme nom). syncFormulaireMatRecords() re-derive ensuite normalement
+     * les positions/Formulaire MAT restants a partir de la liste ainsi
+     * reduite.
+     */
+    private function removeListeMaterielLignesAtPositions(Dossier $dossier, array $positions): void
+    {
+        if (empty($positions)) {
+            return;
+        }
+
+        $lignes = $this->listeMaterielLignesOrdered($dossier);
+        foreach ($positions as $position) {
+            if (isset($lignes[$position])) {
+                $lignes[$position]->delete();
+            }
+        }
     }
 
     /**
@@ -3767,6 +3796,18 @@ class DossierController extends Controller
                         ->whereNotNull('materiel_position')
                         ->whereKey($id)
                         ->first()?->update($data);
+                }
+
+                // La suppression (liee a la Liste de Materiel, jamais a la
+                // designation - voir removeListeMaterielLignesAtPositions())
+                // est appliquee APRES les mises a jour ci-dessus : les
+                // identifiants $f->id soumis dans "mat[...]" restent ceux
+                // affiches au moment de l'ouverture du formulaire, avant
+                // tout decalage de position cause par un retrait.
+                $positionsASupprimer = array_map('intval', $request->input('mat_supprimer', []));
+                if (!empty($positionsASupprimer)) {
+                    $this->removeListeMaterielLignesAtPositions($dossier, $positionsASupprimer);
+                    $this->syncFormulaireMatRecords($dossier);
                 }
 
                 $dossierDocument->update(['statut' => 'complete']);

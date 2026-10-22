@@ -14,7 +14,13 @@
     @else
         @foreach($formulairesMat as $f)
             <div class="mat-block" data-record-id="{{ $f->id }}" style="margin-bottom:28px; padding:14px; border:1px solid #d1d5db; border-radius:6px;">
-                <div style="font-weight:700; margin-bottom:10px;">Matériel {{ $f->materiel_position + 1 }} — {{ $f->piece_materiel }}</div>
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:10px;">
+                    <div style="font-weight:700;">Matériel {{ $f->materiel_position + 1 }} — {{ $f->piece_materiel }}</div>
+                    <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:#b91c1c; white-space:nowrap; cursor:pointer;">
+                        <input type="checkbox" name="mat_supprimer[]" value="{{ $f->materiel_position }}" onchange="if(this.checked && !confirm('Retirer ce matériel ? Il sera aussi retiré de la Liste de Matériel.')) this.checked=false;">
+                        Supprimer ce matériel
+                    </label>
+                </div>
 
                 <div class="row" style="display:flex; gap:12px; margin-bottom:10px; flex-wrap:wrap;">
                     <div style="flex:1; min-width:200px;">
