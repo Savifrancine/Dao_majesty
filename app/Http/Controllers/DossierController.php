@@ -386,6 +386,29 @@ class DossierController extends Controller
     }
 
     /**
+     * Supprime (fichier physique + ligne DocumentFichier) toutes les pieces
+     * deja attachees a ce document avant d'y attacher le PDF fraichement
+     * regenere - sans ca, chaque nouvel enregistrement d'un formulaire qui
+     * regenere son propre PDF (Formulaire de qualification, Declaration de
+     * garantie, Formulaire ELI 1.1, Lettre de soumission...) AJOUTAIT un
+     * fichier de plus au lieu de remplacer le precedent : un dossier souvent
+     * corrige accumulait ainsi des dizaines de versions perimees, toutes
+     * fusionnees dans le PDF final du dossier - ce qui a fini par depasser
+     * la limite de 60 secondes d'execution PHP sur l'hebergement (voir
+     * dossier 8 : 10 versions de "Formulaire de qualification" fusionnees).
+     */
+    private function replaceGeneratedFiles(DossierDocument $document): void
+    {
+        foreach ($document->fichiers as $ancien) {
+            if ($ancien->chemin_fichier && Storage::disk('public')->exists($ancien->chemin_fichier)) {
+                Storage::disk('public')->delete($ancien->chemin_fichier);
+            }
+            $ancien->delete();
+        }
+        $document->unsetRelation('fichiers');
+    }
+
+    /**
      * (Re)génère le PDF individuel du Formulaire de qualification à partir de son
      * contenu courant, et l'attache au document du dossier.
      */
@@ -409,6 +432,7 @@ class DossierController extends Controller
             $filename = 'dossiers/documents/dossier_' . $dossier->id . '_qualification_' . time() . '.pdf';
             Storage::disk('public')->put($filename, $output);
 
+            $this->replaceGeneratedFiles($qualificationDoc);
             DocumentFichier::create([
                 'dossier_document_id' => $qualificationDoc->id,
                 'chemin_fichier' => $filename,
@@ -2370,6 +2394,7 @@ class DossierController extends Controller
                     $filename = 'dossiers/documents/dossier_' . $dossier->id . '_declaration_' . time() . '.pdf';
                     Storage::disk('public')->put($filename, $output);
 
+                    $this->replaceGeneratedFiles($dossierDocument);
                     DocumentFichier::create([
                         'dossier_document_id' => $dossierDocument->id,
                         'chemin_fichier' => $filename,
@@ -2747,6 +2772,7 @@ class DossierController extends Controller
                     $filename = 'dossiers/documents/dossier_' . $dossier->id . '_formulaire_candidat_' . time() . '.pdf';
                     Storage::disk('public')->put($filename, $output);
 
+                    $this->replaceGeneratedFiles($dossierDocument);
                     DocumentFichier::create([
                         'dossier_document_id' => $dossierDocument->id,
                         'chemin_fichier' => $filename,
@@ -3814,6 +3840,7 @@ class DossierController extends Controller
                     $filename = 'dossiers/documents/dossier_' . $dossier->id . '_lettre_soumission_' . time() . '.pdf';
                     Storage::disk('public')->put($filename, $output);
 
+                    $this->replaceGeneratedFiles($dossierDocument);
                     DocumentFichier::create([
                         'dossier_document_id' => $dossierDocument->id,
                         'chemin_fichier' => $filename,
