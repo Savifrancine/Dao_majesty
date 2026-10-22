@@ -5935,7 +5935,14 @@ class DossierController extends Controller
             abort(403, 'Accès refusé');
         }
 
-        $this->applySommaireStandardOrder($dossier);
+        // PAS d'applySommaireStandardOrder() ici : cette fonction reclasse
+        // TOUT le sommaire selon l'ordre standard a chaque affichage, ce qui
+        // ecrasait systematiquement un ordre reorganise a la main (glisser-
+        // deposer, voir reorderDocuments()) des le prochain chargement de la
+        // page - l'utilisateur devait alors reordonner sans cesse. Le
+        // classement standard reste disponible a la demande (bouton dedie,
+        // voir applyStandardOrder()) et s'applique une fois a la creation
+        // d'une piece standard manquante (voir ensureStandardSommairePieces()).
         $this->normalizeDocumentOrders($dossier);
         $this->syncEmptyBordereauxWithKnownArticles($dossier);
         $this->syncLettreSoumissionDelai($dossier);
