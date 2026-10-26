@@ -313,6 +313,48 @@
         .app-sidebar .menu-item .icon { width:36px;height:36px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;background:var(--mint);color:var(--emerald);font-weight:800 }
         .app-sidebar .menu-item:hover { background: #f8fafc; transform:translateY(-2px) }
 
+        /* Sidebar toggle (mobile/tablet only) - selector specificity matches
+           Bootstrap's ".navbar-expand-md .navbar-toggler" so it reliably wins
+           the cascade (this rule is declared after Bootstrap's stylesheet). */
+        .navbar-expand-md .sidebar-toggle-btn { display: none; }
+
+        .sidebar-backdrop {
+            display: none;
+            position: fixed;
+            top: 88px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(15, 15, 35, 0.4);
+            z-index: 899;
+        }
+
+        @media (max-width: 991.98px) {
+            main {
+                margin-left: 0 !important;
+            }
+
+            .navbar-expand-md .sidebar-toggle-btn {
+                display: inline-flex;
+            }
+
+            .app-sidebar {
+                left: -280px;
+                width: 260px;
+                transition: left 0.25s ease;
+                z-index: 1050;
+            }
+
+            .app-sidebar.is-open {
+                left: 0;
+                box-shadow: var(--shadow-lg);
+            }
+
+            .sidebar-backdrop.is-open {
+                display: block;
+            }
+        }
+
         @keyframes fadeIn {
             from {
                 opacity: 0;
@@ -406,9 +448,17 @@
     </style>
 </head>
 <body>
+    @php
+        $hideSidebar = request()->routeIs('login', 'register') || request()->is('/');
+    @endphp
     <div id="app">
         <nav class="navbar navbar-expand-md navbar-light bg-white shadow-sm">
             <div class="container">
+                @unless($hideSidebar)
+                <button class="navbar-toggler sidebar-toggle-btn" type="button" id="sidebarToggleBtn" aria-controls="appSidebar" aria-expanded="false" aria-label="{{ __('Ouvrir le menu') }}" style="order:-1; margin-right:0.5rem;">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                @endunless
                 <a class="navbar-brand" href="@auth{{ route('home') }}@else{{ url('/') }}@endauth">
                     <img src="{{ asset('storage/logo.jpeg') }}" alt="Logo" width="36" height="36" class="d-inline-block align-text-top me-2">
                     Majesty
@@ -481,12 +531,9 @@
             </div>
         </nav>
 
-        @php
-            $hideSidebar = request()->routeIs('login', 'register') || request()->is('/');
-        @endphp
-
         @unless($hideSidebar)
-        <aside class="app-sidebar">
+        <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+        <aside class="app-sidebar" id="appSidebar">
             <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
                 <div style="width:44px;height:44px;border-radius:10px;background:var(--emerald);display:flex;align-items:center;justify-content:center;color:white;font-weight:800">D</div>
                 <div>
@@ -552,6 +599,48 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        // Mobile/tablet sidebar drawer
+        (function() {
+            var toggleBtn = document.getElementById('sidebarToggleBtn');
+            var sidebar = document.getElementById('appSidebar');
+            var backdrop = document.getElementById('sidebarBackdrop');
+            if (!toggleBtn || !sidebar || !backdrop) return;
+
+            function closeSidebar() {
+                sidebar.classList.remove('is-open');
+                backdrop.classList.remove('is-open');
+                toggleBtn.setAttribute('aria-expanded', 'false');
+            }
+
+            function openSidebar() {
+                sidebar.classList.add('is-open');
+                backdrop.classList.add('is-open');
+                toggleBtn.setAttribute('aria-expanded', 'true');
+            }
+
+            toggleBtn.addEventListener('click', function() {
+                if (sidebar.classList.contains('is-open')) {
+                    closeSidebar();
+                } else {
+                    openSidebar();
+                }
+            });
+
+            backdrop.addEventListener('click', closeSidebar);
+
+            sidebar.querySelectorAll('a.menu-item').forEach(function(link) {
+                link.addEventListener('click', closeSidebar);
+            });
+
+            window.addEventListener('resize', function() {
+                if (window.innerWidth > 991.98) {
+                    closeSidebar();
+                }
+            });
+        })();
+    </script>
 
     <script>
         // CSS fallback: if CDN CSS fails to load, switch to local copy
