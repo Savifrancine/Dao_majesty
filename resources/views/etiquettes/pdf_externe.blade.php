@@ -38,10 +38,14 @@
             line-height: 1.4;
         }
 
+        .reference-bloc {
+            margin-bottom: 22px;
+        }
+
         .reference-ligne {
             font-size: 26px;
             font-weight: 700;
-            margin-bottom: 22px;
+            margin-bottom: 6px;
         }
 
         .objet-ligne {
@@ -65,6 +69,10 @@
     </style>
 </head>
 <body>
+    @php
+        $objetMarche = \App\Support\OfferCategory::stripSuffix($dossier->nom_dossier);
+        $dateLancement = $dossier->date_lancement ? \Illuminate\Support\Carbon::parse($dossier->date_lancement)->format('d/m/Y') : null;
+    @endphp
     <div class="label-box">
         <div class="attention-titre">ATTENTION: {{ strtoupper($dossier->prmp_titre ?? 'PERSONNE RESPONSABLE DES MARCHES PUBLICS') }}</div>
 
@@ -86,19 +94,26 @@
             <div class="secretariat-adresse">{{ strtoupper($dossier->secretariat_adresse) }}</div>
         @endif
 
-        @if(!empty($dossier->ref))
-            <div class="reference-ligne">{{ $dossier->ref }};</div>
+        @if(!empty($dossier->reference_dossier) || !empty($dossier->ref))
+            <div class="reference-bloc">
+                @if(!empty($dossier->reference_dossier))
+                    <div class="reference-ligne">N° {{ $dossier->reference_dossier }}{{ $dateLancement ? ' DU ' . $dateLancement : '' }}</div>
+                @endif
+                @if(!empty($dossier->ref))
+                    <div class="reference-ligne">{{ $dossier->ref }};</div>
+                @endif
+            </div>
         @endif
 
-        @if(!empty($dossier->nom_dossier))
-            <div class="objet-ligne">DRP &quot;{{ $dossier->nom_dossier }}&quot;</div>
+        @if(!empty($objetMarche))
+            <div class="objet-ligne">DRP &quot;{{ $objetMarche }}&quot;</div>
         @endif
 
         @if(!empty($dossier->lots))
             <div class="lot-ligne">{{ $dossier->lots }}{{ !empty($dossier->titre_lot) ? ' : ' . $dossier->titre_lot : '' }}</div>
         @endif
 
-        <div class="avertissement">&laquo;&laquo; A N'OUVRIR QU'EN SEANCE &raquo;&raquo;</div>
+        <div class="avertissement">&laquo; NE PAS OUVRIR AVANT LA DATE ET L'HEURE FIXEE POUR L'OUVERTURE DES PLIS &raquo;</div>
     </div>
 </body>
 </html>

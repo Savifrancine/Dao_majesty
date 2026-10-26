@@ -52,8 +52,14 @@
         </div>
 
         <div class="mb-3">
+            <label for="ref" class="form-label">Numéro de référence (laisser vide pour ne pas l'afficher)</label>
+            <input id="ref" name="ref" class="form-control @error('ref') is-invalid @enderror" value="{{ old('ref', $dossier->ref) }}" placeholder="Ex: F_PEDIATRIE_117121">
+            @error('ref') <div class="invalid-feedback">{{ $message }}</div> @enderror
+        </div>
+
+        <div class="mb-3">
             <label for="nom_dossier" class="form-label">Objet du marché</label>
-            <textarea id="nom_dossier" name="nom_dossier" rows="2" class="form-control @error('nom_dossier') is-invalid @enderror">{{ old('nom_dossier', $dossier->nom_dossier) }}</textarea>
+            <textarea id="nom_dossier" name="nom_dossier" rows="2" class="form-control @error('nom_dossier') is-invalid @enderror">{{ old('nom_dossier', \App\Support\OfferCategory::stripSuffix($dossier->nom_dossier)) }}</textarea>
             @error('nom_dossier') <div class="invalid-feedback">{{ $message }}</div> @enderror
         </div>
 

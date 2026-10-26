@@ -51,6 +51,18 @@
         </div>
 
         <h5 class="mt-4">Marché</h5>
+        <div class="row">
+            <div class="col-md-8 mb-3">
+                <label for="reference_dossier" class="form-label">Référence</label>
+                <input id="reference_dossier" name="reference_dossier" class="form-control @error('reference_dossier') is-invalid @enderror" value="{{ old('reference_dossier', $dossier->reference_dossier) }}">
+                @error('reference_dossier') <div class="invalid-feedback">{{ $message }}</div> @enderror
+            </div>
+            <div class="col-md-4 mb-3">
+                <label for="date_lancement" class="form-label">Date</label>
+                <input type="date" id="date_lancement" name="date_lancement" class="form-control @error('date_lancement') is-invalid @enderror" value="{{ old('date_lancement', optional($dossier->date_lancement)->format('Y-m-d')) }}">
+                @error('date_lancement') <div class="invalid-feedback">{{ $message }}</div> @enderror
+            </div>
+        </div>
         <div class="mb-3">
             <label for="ref" class="form-label">Numéro de référence</label>
             <input id="ref" name="ref" class="form-control @error('ref') is-invalid @enderror" value="{{ old('ref', $dossier->ref) }}" placeholder="Ex: F_PRMP_102619">
@@ -58,7 +70,7 @@
         </div>
         <div class="mb-3">
             <label for="nom_dossier" class="form-label">Objet du marché</label>
-            <textarea id="nom_dossier" name="nom_dossier" rows="2" class="form-control @error('nom_dossier') is-invalid @enderror">{{ old('nom_dossier', $dossier->nom_dossier) }}</textarea>
+            <textarea id="nom_dossier" name="nom_dossier" rows="2" class="form-control @error('nom_dossier') is-invalid @enderror">{{ old('nom_dossier', \App\Support\OfferCategory::stripSuffix($dossier->nom_dossier)) }}</textarea>
             @error('nom_dossier') <div class="invalid-feedback">{{ $message }}</div> @enderror
         </div>
         <div class="row">

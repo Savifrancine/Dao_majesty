@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Dossier;
+use App\Support\OfferCategory;
 use Dompdf\Dompdf;
 use Illuminate\Http\Request;
 
@@ -83,10 +84,12 @@ class EtiquetteController extends Controller
             'destinataire_adresse' => ['nullable', 'string', 'max:500'],
             'titre_dossier' => ['nullable', 'string', 'max:255'],
             'reference_dossier' => ['nullable', 'string', 'max:255'],
+            'ref' => ['nullable', 'string', 'max:255'],
             'date_lancement' => ['nullable', 'date'],
             'nom_dossier' => ['nullable', 'string', 'max:500'],
         ]);
 
+        $this->reattachOfferCategorySuffix($data, $dossier);
         $dossier->update($data);
 
         return redirect()->route('etiquettes.interne.form', $dossier)->with('success', 'Informations enregistrées. Vous pouvez générer l\'étiquette ci-dessous.');
@@ -101,14 +104,40 @@ class EtiquetteController extends Controller
             'prmp_email' => ['nullable', 'string', 'max:255'],
             'institution_nom' => ['nullable', 'string', 'max:255'],
             'secretariat_adresse' => ['nullable', 'string', 'max:2000'],
+            'reference_dossier' => ['nullable', 'string', 'max:255'],
+            'date_lancement' => ['nullable', 'date'],
             'ref' => ['nullable', 'string', 'max:255'],
             'nom_dossier' => ['nullable', 'string', 'max:500'],
             'lots' => ['nullable', 'string', 'max:255'],
             'titre_lot' => ['nullable', 'string', 'max:500'],
         ]);
 
+        $this->reattachOfferCategorySuffix($data, $dossier);
         $dossier->update($data);
 
         return redirect()->route('etiquettes.externe.form', $dossier)->with('success', 'Informations enregistrées. Vous pouvez générer l\'étiquette ci-dessous.');
+    }
+
+    /**
+     * Les formulaires d'etiquette (interne/externe) n'affichent et ne
+     * modifient jamais le suffixe " — Offre technique/financiere/
+     * administrative" ajoute par ailleurs au nom du dossier (voir
+     * OfferCategory) : il sert a distinguer les dossiers dupliques par
+     * categorie d'offre pour un meme marche et ne doit jamais etre perdu en
+     * enregistrant ce formulaire. On le reapplique ici a partir du nom
+     * encore present en base avant mise a jour.
+     */
+    private function reattachOfferCategorySuffix(array &$data, Dossier $dossier): void
+    {
+        if (!array_key_exists('nom_dossier', $data) || $data['nom_dossier'] === null) {
+            return;
+        }
+
+        $suffix = OfferCategory::extractSuffix($dossier->nom_dossier);
+        if ($suffix === null) {
+            return;
+        }
+
+        $data['nom_dossier'] = rtrim($data['nom_dossier']) . $suffix;
     }
 }

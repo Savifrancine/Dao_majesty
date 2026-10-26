@@ -35,10 +35,14 @@
             margin-bottom: 8px;
         }
 
+        .reference-bloc {
+            margin-bottom: 20px;
+        }
+
         .reference-ligne {
             font-size: 20px;
             font-weight: 700;
-            margin-bottom: 20px;
+            margin-bottom: 4px;
         }
 
         .objet-ligne {
@@ -76,6 +80,7 @@
         $entreprise = $dossier->entreprise;
         $dateLancement = $dossier->date_lancement ? \Illuminate\Support\Carbon::parse($dossier->date_lancement)->format('d/m/Y') : null;
         $etiquetteA = $dossier->etiquette_a === null ? 'À' : $dossier->etiquette_a;
+        $objetMarche = \App\Support\OfferCategory::stripSuffix($dossier->nom_dossier);
     @endphp
     <div class="label-box">
         @if($etiquetteA !== '')
@@ -87,9 +92,14 @@
         @endif
 
         <div class="procedure-titre">{{ strtoupper($dossier->titre_dossier ?? '') }}</div>
-        <div class="reference-ligne">N° {{ $dossier->reference_dossier ?? '-' }}{{ $dateLancement ? ' DU ' . mb_strtoupper($dateLancement) : '' }}</div>
+        <div class="reference-bloc">
+            <div class="reference-ligne">N° {{ $dossier->reference_dossier ?? '-' }}{{ $dateLancement ? ' DU ' . mb_strtoupper($dateLancement) : '' }}</div>
+            @if(!empty($dossier->ref))
+                <div class="reference-ligne">{{ $dossier->ref }}</div>
+            @endif
+        </div>
 
-        <div class="objet-ligne">POUR {{ strtoupper($dossier->nom_dossier ?? '') }}</div>
+        <div class="objet-ligne">POUR {{ strtoupper($objetMarche) }}</div>
 
         <div class="entreprise-block">
             <div class="entreprise-info">{{ strtoupper(optional($entreprise)->nom ?? 'MAJESTY SERVICES ET EQUIPEMENTS') }}</div>
