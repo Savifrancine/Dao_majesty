@@ -10,8 +10,6 @@
     $cnss = $allDocs->where('type', 'cnss')->sortByDesc('date_delivrance')->values();
     $nonFaillites = $allDocs->where('type', 'non_faillite')->sortByDesc('date_delivrance')->values();
     $ribs = $allDocs->where('type', 'rib')->sortBy('banque')->values();
-    $bonnesFin = $allDocs->where('type', 'bonne_fin')->sortBy('intitule')->values();
-    $bonsCommandeContrats = $allDocs->where('type', 'bon_commande_contrats')->sortBy('intitule')->values();
     $identificationStatutDoc = $allDocs->firstWhere('type', 'identification_statut');
     $arreteMinistreSanteDoc = $allDocs->firstWhere('type', 'arrete_ministre_sante');
     $pieceIdentiteResponsableDoc = $allDocs->firstWhere('type', 'piece_identite_responsable');
@@ -53,38 +51,6 @@
     'fieldLabel' => 'Nom de la banque',
     'fieldPlaceholder' => 'Ex : Ecobank',
     'addBtnLabel' => '+ Ajouter une banque',
-])
-
-@include('entreprises.partials._repeatable_labeled_document_block', [
-    'items' => $bonnesFin,
-    'requestKey' => 'bonne_fin',
-    'fichiersKey' => 'bonne_fin_fichiers',
-    'label' => 'Attestation de bonne fin',
-    'description' => "Une entreprise peut en avoir plusieurs (une par marché) : ajoutez un bloc par attestation, avec un intitulé pour la reconnaître. Dans un dossier, vous choisirez celle(s) qui conviennent, ou vous pourrez en ajouter une nouvelle directement depuis le dossier si besoin.",
-    'containerId' => 'bonneFinBlocks',
-    'addBtnId' => 'addBonneFinBtn',
-    'blockClass' => 'bonne-fin-block',
-    'removeClass' => 'remove-bonne-fin',
-    'fieldName' => 'intitule',
-    'fieldLabel' => 'Intitulé',
-    'fieldPlaceholder' => 'Ex : Marché XYZ 2024',
-    'addBtnLabel' => '+ Ajouter une attestation',
-])
-
-@include('entreprises.partials._repeatable_labeled_document_block', [
-    'items' => $bonsCommandeContrats,
-    'requestKey' => 'bon_commande_contrats',
-    'fichiersKey' => 'bon_commande_contrats_fichiers',
-    'label' => 'Bon de commande et contrats',
-    'description' => "Une entreprise peut en avoir plusieurs (un par marché/fournisseur) : ajoutez un bloc par document, avec un intitulé pour le reconnaître. Dans un dossier, vous choisirez celui ou ceux qui conviennent, ou vous pourrez en ajouter un nouveau directement depuis le dossier si besoin.",
-    'containerId' => 'bonCommandeContratsBlocks',
-    'addBtnId' => 'addBonCommandeContratsBtn',
-    'blockClass' => 'bon-commande-contrats-block',
-    'removeClass' => 'remove-bon-commande-contrats',
-    'fieldName' => 'intitule',
-    'fieldLabel' => 'Intitulé',
-    'fieldPlaceholder' => 'Ex : Contrat Fournisseur ABC',
-    'addBtnLabel' => '+ Ajouter un bon de commande/contrat',
 ])
 
 <div class="fw-bold mt-2 mb-2">États financiers</div>
@@ -244,8 +210,6 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     setupRepeatableBlocks('ribBlocks', 'addRibBtn', 'rib-block', 'remove-rib', buildLabeledFieldHtml('rib', 'rib_fichiers', 'remove-rib', 'banque', 'Nom de la banque', 'Ex : Ecobank'));
-    setupRepeatableBlocks('bonneFinBlocks', 'addBonneFinBtn', 'bonne-fin-block', 'remove-bonne-fin', buildLabeledFieldHtml('bonne_fin', 'bonne_fin_fichiers', 'remove-bonne-fin', 'intitule', 'Intitulé', 'Ex : Marché XYZ 2024'));
-    setupRepeatableBlocks('bonCommandeContratsBlocks', 'addBonCommandeContratsBtn', 'bon-commande-contrats-block', 'remove-bon-commande-contrats', buildLabeledFieldHtml('bon_commande_contrats', 'bon_commande_contrats_fichiers', 'remove-bon-commande-contrats', 'intitule', 'Intitulé', 'Ex : Contrat Fournisseur ABC'));
 
     setupRepeatableBlocks('etatsFinanciersBlocks', 'addEtatFinancierBtn', 'etat-financier-block', 'remove-etat-financier', (key) => `
         <div class="card-body">

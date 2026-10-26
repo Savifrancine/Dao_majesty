@@ -800,7 +800,7 @@
                                     @endphp
                                     @if($entrepriseDocsForPicker->isNotEmpty())
                                         <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px;margin-bottom:12px">
-                                            <div style="font-weight:700;margin-bottom:8px">Documents de l'entreprise disponibles</div>
+                                            <div style="font-weight:700;margin-bottom:8px">Documents de l'entreprise disponibles <span id="entDocStatus-{{ $dossierDocument->id }}" style="font-size:12px;font-weight:400;"></span></div>
                                             @foreach($entrepriseDocsForPicker as $edoc)
                                                 <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
                                                     <input type="checkbox"
@@ -909,37 +909,45 @@
 </div>
 
 <script>
-    // Meme principe que window.applyEntreprisePersonnelCv (Formulaire PER) :
-    // un formulaire independant, directement attache au body, pour eviter
-    // de casser le formulaire principal de l'etape 6 (pas de <form> imbrique)
-    // et appliquer le choix immediatement a chaque coche/decoche.
+    // Envoye en arriere-plan (fetch), sans recharger la page : avec un
+    // recharchement complet a chaque coche/decoche (ancien comportement, un
+    // <form> independant soumis normalement), cocher plusieurs documents
+    // d'affilee etait tres penible - la page sautait a chaque clic. Chaque
+    // coche/decoche reste appliquee immediatement cote serveur, juste sans
+    // interrompre la saisie ni perdre la position de defilement.
     window.applyEntrepriseDocumentSelection = function (dossierDocumentId) {
         const checkboxes = document.querySelectorAll('.entreprise-doc-checkbox-' + dossierDocumentId);
         const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}';
+        const status = document.getElementById('entDocStatus-' + dossierDocumentId);
 
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = '{{ route('dossiers.applyEntrepriseDocumentSelection', $dossier->id) }}';
-        form.style.display = 'none';
-
-        const addField = (name, value) => {
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = name;
-            input.value = value;
-            form.appendChild(input);
-        };
-
-        addField('_token', token);
-        addField('dossier_document_id', dossierDocumentId);
+        const formData = new FormData();
+        formData.append('_token', token);
+        formData.append('dossier_document_id', dossierDocumentId);
         checkboxes.forEach((checkbox) => {
             if (checkbox.checked) {
-                addField('entreprise_document_ids[]', checkbox.value);
+                formData.append('entreprise_document_ids[]', checkbox.value);
             }
         });
 
-        document.body.appendChild(form);
-        form.submit();
+        if (status) { status.style.color = '#6b7280'; status.textContent = 'Enregistrement...'; }
+
+        fetch('{{ route('dossiers.applyEntrepriseDocumentSelection', $dossier->id) }}', {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        }).then((response) => {
+            if (!status) return;
+            if (response.ok) {
+                status.style.color = '#16a34a';
+                status.textContent = '✓ Enregistré';
+                setTimeout(() => { status.textContent = ''; }, 2000);
+            } else {
+                status.style.color = '#dc2626';
+                status.textContent = 'Erreur, réessayez.';
+            }
+        }).catch(() => {
+            if (status) { status.style.color = '#dc2626'; status.textContent = 'Erreur, réessayez.'; }
+        });
     };
 
     // Ajoute un nouveau document de l'entreprise (intitule + fichiers) et le

@@ -119,6 +119,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/dossiers/{dossier}/appliquer-cv-personnel', [App\Http\Controllers\DossierController::class, 'applyEntreprisePersonnelCv'])->name('dossiers.applyEntreprisePersonnelCv');
     Route::post('/dossiers/{dossier}/appliquer-document-entreprise', [App\Http\Controllers\DossierController::class, 'applyEntrepriseDocumentSelection'])->name('dossiers.applyEntrepriseDocumentSelection');
     Route::post('/dossiers/{dossier}/ajouter-document-entreprise', [App\Http\Controllers\DossierController::class, 'createEntrepriseDocumentFromPicker'])->name('dossiers.createEntrepriseDocumentFromPicker');
+    Route::post('/dossiers/{dossier}/importer-marche-execute', [App\Http\Controllers\DossierController::class, 'importMarcheExecute'])->name('dossiers.importMarcheExecute');
     Route::post('/dossiers/{dossier}/versions-finales', [App\Http\Controllers\DossierController::class, 'uploadVersionFinale'])->name('dossiers.versionsFinales.store');
     Route::delete('/dossiers/versions-finales/{versionFinale}', [App\Http\Controllers\DossierController::class, 'destroyVersionFinale'])->name('dossiers.versionsFinales.destroy');
 

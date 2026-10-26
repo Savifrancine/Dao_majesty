@@ -12,6 +12,7 @@ class EntrepriseDocument extends Model
 
     protected $fillable = [
         'entreprise_id',
+        'marche_execute_id',
         'type',
         'annee',
         'banque',
@@ -41,6 +42,11 @@ class EntrepriseDocument extends Model
     public function entreprise(): BelongsTo
     {
         return $this->belongsTo(Entreprise::class);
+    }
+
+    public function marcheExecute(): BelongsTo
+    {
+        return $this->belongsTo(MarcheExecute::class);
     }
 
     public function fichiers(): HasMany

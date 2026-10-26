@@ -37,7 +37,51 @@
                 }
             }
         }
+        $marchesExecutes = $dossier->entreprise
+            ? \App\Models\MarcheExecute::where('entreprise_id', $dossier->entreprise_id)->orderByDesc('id')->get()
+            : collect();
     @endphp
+
+    @if($doc && $marchesExecutes->isNotEmpty())
+        <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; padding:10px; margin-bottom:14px; display:flex; gap:8px; flex-wrap:wrap; align-items:flex-start;">
+            <label for="marcheExecuteSelectQualif" style="font-size:13px; color:#1e40af; font-weight:600; margin-top:6px;">Importer des marchés déjà exécutés :</label>
+            <select id="marcheExecuteSelectQualif" class="form-control" multiple size="{{ min(6, max(3, $marchesExecutes->count())) }}" style="max-width:420px;">
+                @foreach($marchesExecutes as $m)
+                    <option value="{{ $m->id }}">{{ \Illuminate\Support\Str::limit(trim($m->identification_marche) ?: ('Marché #' . $m->id), 80) }}</option>
+                @endforeach
+            </select>
+            <button type="button" class="btn btn-sm btn-primary" onclick="window.importMarcheExecuteQualif()">Importer la sélection</button>
+            <div style="font-size:11px; color:#1e40af; flex-basis:100%;">Maintenez Ctrl (ou Cmd sur Mac) pour en sélectionner plusieurs. Ajoute une nouvelle ligne pré-remplie par marché ci-dessous (sans toucher aux lignes existantes) et remplit aussi le Formulaire EXP – 4.1 ; relie le contrat/bon de commande et l'attestation de bonne fin de chaque marché à ce dossier. Un marché déjà importé ici n'est jamais dupliqué.</div>
+        </div>
+        <script>
+            window.importMarcheExecuteQualif = function () {
+                const select = document.getElementById('marcheExecuteSelectQualif');
+                if (!select) return;
+                const selectedIds = Array.from(select.selectedOptions).map((o) => o.value);
+                if (selectedIds.length === 0) return;
+                const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}';
+
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '{{ route('dossiers.importMarcheExecute', $dossier->id) }}';
+                form.style.display = 'none';
+
+                const addField = (name, value) => {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = name;
+                    input.value = value;
+                    form.appendChild(input);
+                };
+
+                addField('_token', token);
+                selectedIds.forEach((id) => addField('marche_execute_ids[]', id));
+
+                document.body.appendChild(form);
+                form.submit();
+            };
+        </script>
+    @endif
 
     <div class="mb-3">
         <label class="wizard-label">Nombre de marchés similaires</label>

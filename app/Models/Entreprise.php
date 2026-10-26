@@ -59,4 +59,15 @@ class Entreprise extends Model
     {
         return $this->hasMany(EntrepriseDocument::class);
     }
+
+    /**
+     * Marches deja executes par l'entreprise (bibliotheque reutilisable
+     * depuis n'importe quel dossier pour pre-remplir Formulaire EXP - 4.1 /
+     * Formulaire de qualification, et relier les pieces jointes du marche
+     * choisi - voir MarcheExecute).
+     */
+    public function marchesExecutes(): HasMany
+    {
+        return $this->hasMany(MarcheExecute::class);
+    }
 }

@@ -9,6 +9,7 @@ use App\Models\Entreprise;
 use App\Models\EntrepriseDocument;
 use App\Models\EntrepriseDocumentFichier;
 use App\Models\EntreprisePersonnel;
+use App\Models\MarcheExecute;
 use App\Models\TypeDossier;
 use App\Models\TypeDocument;
 use App\Models\DossierDocument;
@@ -56,13 +57,13 @@ class DossierController extends Controller
         'Formulaire EXP – 4.1 : Expérience générale de fournitures/services',
         'Formulaire EXP – 4.2 a) Expérience spécifique de fournitures/services',
         'Formulaire EXP – 4.2 a) (suite) Expérience spécifique de fournitures/services dans les activités principales (suite)',
-        'Formulaire EXP – 4.2 b) Expérience spécifique de fournitures',
+        'Formulaire EXP – 4.2 b)  Expérience spécifique de fournitures',
         'Formulaire EXP – 4.2 b) (suite) Expérience spécifique de fournitures/services dans les activités principales (suite)',
         'Formulaire ANT-2 : Formulaire renseignant sur les antécédents de marchés non exécutés, de litiges en instance et d\'antécédents de litiges',
         'Engagement du soumissionnaire à respecter le code d\'éthique et de déontologie',
         'Listes des Fournitures et Calendrier de livraison',
-        'Description technique des fournitures/services',
-        'Liste de Matériel',
+        'Liste des fournitures associées et calendrier de réalisation',
+        'Tableau des spécifications techniques',
         'Fiche technique de chaque article, délivrée par le fabricant',
         'Attestation de bonne fin',
         'Bon de commande et contrats',
@@ -77,8 +78,15 @@ class DossierController extends Controller
         'Formulaire de divulgation des bénéficiaires effectifs',
         'Pièce d\'identité du premier responsable',
         'Déclaration de l\'autorité contractante',
-        'Plan de charge',
         'Formulaire MTC/FIN – 3.5 : Marchés de fournitures/services en cours',
+        'Plan de charge',
+        'Liste de Matériel',
+        'Formulaire MAT',
+        'Liste du personnel affecté à l\'exécution du marché',
+        'Formulaire PER',
+        'Engagement de Service après Vente',
+        'Description Technique des Services',
+        'Garantie Contractuelle',
     ];
 
     /**
@@ -6190,12 +6198,12 @@ class DossierController extends Controller
             ->whereKey($data['dossier_document_id'])
             ->first();
         if (!$dossierDocument) {
-            return back()->with('error', 'Pièce introuvable sur ce dossier.');
+            return $this->respondAfterEntrepriseDocSelection($request, false, 'Pièce introuvable sur ce dossier.');
         }
 
         $pickerType = $this->entrepriseDocumentPickerType($dossierDocument);
         if (!$pickerType) {
-            return back()->with('error', 'Cette pièce ne prend pas en charge les documents de l\'entreprise.');
+            return $this->respondAfterEntrepriseDocSelection($request, false, 'Cette pièce ne prend pas en charge les documents de l\'entreprise.');
         }
 
         $validIds = EntrepriseDocument::where('entreprise_id', $dossier->entreprise_id)
@@ -6207,7 +6215,25 @@ class DossierController extends Controller
         $dossierDocument->linked_entreprise_document_ids = $validIds;
         $dossierDocument->save();
 
-        return back()->with('success', 'Documents de l\'entreprise mis à jour pour cette pièce.');
+        return $this->respondAfterEntrepriseDocSelection($request, true, 'Documents de l\'entreprise mis à jour pour cette pièce.');
+    }
+
+    /**
+     * Coche/decoche d'un document entreprise (cases a cocher de l'etape 6) :
+     * envoye en arriere-plan (fetch, sans recharger la page - voir
+     * applyEntrepriseDocumentSelection cote JS). Pour cet appel, une reponse
+     * JSON legere suffit ; inutile de faire re-rendre toute la page du
+     * dossier comme le ferait un redirect() classique, simplement ignore par
+     * le JS. Les navigateurs/clients qui n'envoient pas ce header (ex: appel
+     * direct sans JS) gardent l'ancien comportement (redirect + flash).
+     */
+    private function respondAfterEntrepriseDocSelection(Request $request, bool $success, string $message)
+    {
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json(['success' => $success, 'message' => $message], $success ? 200 : 422);
+        }
+
+        return $success ? back()->with('success', $message) : back()->with('error', $message);
     }
 
     /**
@@ -6264,6 +6290,216 @@ class DossierController extends Controller
         $dossierDocument->save();
 
         return back()->with('success', "« {$data['intitule']} » ajouté et lié à ce dossier.");
+    }
+
+    private const FORMULAIRE_EXP41_PICKER_NOM = 'Formulaire EXP – 4.1 : Expérience générale de fournitures/services';
+    private const FORMULAIRE_QUALIFICATION_PICKER_NOM = 'Formulaire de qualification';
+
+    /**
+     * Importe un ou plusieurs marches deja executes (bibliotheque de
+     * l'entreprise, voir MarcheExecute) dans le Formulaire EXP - 4.1 ET le
+     * Formulaire de qualification de ce dossier : ajoute une nouvelle ligne
+     * pre-remplie dans chacun par marche (jamais d'ecrasement d'une ligne
+     * existante), et relie immediatement les pieces jointes de chaque marche
+     * precis (contrat/bon de commande, attestation de bonne fin) aux
+     * documents correspondants du dossier - en plus de ce qui y est deja
+     * lie, jamais a la place. Un marche dont le texte "identification" est
+     * deja present tel quel dans le Formulaire EXP - 4.1 (importe ou saisi a
+     * la main, peu importe) est ignore silencieusement, pour ne jamais le
+     * dupliquer - fiable meme apres un enregistrement normal du formulaire,
+     * contrairement a un marqueur separe qui serait perdu a cet enregistrement
+     * (seuls mois_depart/mois_final/identification/role_candidat survivent).
+     */
+    public function importMarcheExecute(Request $request, Dossier $dossier)
+    {
+        $data = $request->validate([
+            'marche_execute_ids' => ['required', 'array', 'min:1'],
+            'marche_execute_ids.*' => ['integer'],
+        ]);
+
+        $marches = MarcheExecute::where('entreprise_id', $dossier->entreprise_id)
+            ->whereIn('id', $data['marche_execute_ids'])
+            ->get();
+        if ($marches->isEmpty()) {
+            return back()->with('error', 'Marché introuvable sur la fiche entreprise.');
+        }
+
+        $exp41Doc = $dossier->documents()
+            ->whereHas('typeDocument', fn ($q) => $q->where('nom', self::FORMULAIRE_EXP41_PICKER_NOM))
+            ->first();
+        if (!$exp41Doc) {
+            return back()->with('error', "Le Formulaire EXP – 4.1 n'existe pas encore sur ce dossier.");
+        }
+
+        $content = [];
+        if (!empty($exp41Doc->content)) {
+            $decoded = json_decode($exp41Doc->content, true);
+            if (is_array($decoded)) {
+                $content = $decoded;
+            }
+        }
+
+        foreach (['mois_depart', 'mois_final', 'identification', 'role_candidat'] as $field) {
+            if (!isset($content[$field]) || !is_array($content[$field])) {
+                $content[$field] = [];
+            }
+        }
+
+        $importedCount = 0;
+
+        foreach ($marches as $marche) {
+            $identificationComplete = trim(
+                ($marche->reference_marche ? 'Marché n° ' . trim($marche->reference_marche) . ' - ' : '')
+                . (string) $marche->identification_marche
+            );
+
+            if ($identificationComplete !== '' && in_array($identificationComplete, $content['identification'], true)) {
+                continue;
+            }
+
+            $content['mois_depart'][] = $this->formatMoisAnneeMarche($marche->mois_annee_depart);
+            $content['mois_final'][] = $this->formatMoisAnneeMarche($marche->mois_annee_fin);
+            $content['identification'][] = $identificationComplete;
+            $content['role_candidat'][] = (string) $marche->role_candidat;
+
+            $this->importMarcheExecuteIntoQualification($dossier, $marche);
+            $this->linkMarcheExecuteFichiersToDossier($dossier, $marche);
+            $importedCount++;
+        }
+
+        $exp41Doc->content = json_encode($content);
+        $exp41Doc->save();
+
+        if ($importedCount === 0) {
+            return back()->with('error', 'Ce(s) marché(s) sont déjà importés dans ce dossier.');
+        }
+
+        // Les formulaires EXP - 4.2 a)/b) (et leurs "suite") ont un bloc par
+        // marche de EXP - 4.1 : sans ca, les marches tout juste importes ne
+        // s'y refleteraient qu'au prochain chargement normal de la page (show,
+        // generation PDF...), jamais immediatement apres l'import.
+        $this->syncExp42aRecords($dossier);
+        $this->syncExp42bRecords($dossier);
+        $this->syncExp42aSuiteRecords($dossier);
+        $this->syncExp42bSuiteRecords($dossier);
+
+        $label = $importedCount > 1 ? "{$importedCount} marchés importés" : 'Marché importé';
+
+        return back()->with('success', "{$label} dans le Formulaire EXP – 4.1 et le Formulaire de qualification.");
+    }
+
+    /**
+     * Ramene "mois_annee_depart"/"mois_annee_fin" (saisis via un selecteur
+     * mois/annee, format "AAAA-MM") au format "MM/AAAA" attendu par les
+     * formulaires papier (EXP - 4.1). Les valeurs plus anciennes deja
+     * enregistrees en texte libre (avant l'ajout du selecteur) sont reprises
+     * telles quelles.
+     */
+    private function formatMoisAnneeMarche(?string $value): string
+    {
+        $value = trim((string) $value);
+        if (preg_match('/^(\d{4})-(\d{2})$/', $value, $m)) {
+            return $m[2] . '/' . $m[1];
+        }
+
+        return $value;
+    }
+
+    /**
+     * Ajoute une nouvelle ligne "marches" au Formulaire de qualification de ce
+     * dossier a partir du marche importe (annee extraite de mois_annee_depart,
+     * nom = identification du marche, reference = reference_marche) - jamais
+     * d'ecrasement d'une ligne existante. Independant de la resynchronisation
+     * automatique (deja en place) qui lit le Formulaire EXP - 4.1 par analyse
+     * de texte : ici les champs du marche sont repris directement, de facon
+     * fiable, sans dependre de ce parsing.
+     */
+    private function importMarcheExecuteIntoQualification(Dossier $dossier, MarcheExecute $marche): void
+    {
+        $qualificationDoc = $dossier->documents()
+            ->whereHas('typeDocument', fn ($q) => $q->where('nom', self::FORMULAIRE_QUALIFICATION_PICKER_NOM))
+            ->first();
+        if (!$qualificationDoc) {
+            return;
+        }
+
+        $content = [];
+        if (!empty($qualificationDoc->content)) {
+            $decoded = json_decode($qualificationDoc->content, true);
+            if (is_array($decoded)) {
+                $content = $decoded;
+            }
+        }
+
+        if (!isset($content['marches']) || !is_array($content['marches'])) {
+            $content['marches'] = [];
+        }
+
+        $nom = (string) $marche->identification_marche;
+        $reference = (string) $marche->reference_marche;
+
+        $dejaPresent = collect($content['marches'])->contains(function ($m) use ($nom, $reference) {
+            $mNom = trim((string) ($m['nom'] ?? ''));
+            $mRef = trim((string) ($m['reference'] ?? ''));
+            if ($reference !== '') {
+                return $mRef === trim($reference);
+            }
+            return $mNom === trim($nom) && $mNom !== '';
+        });
+        if ($dejaPresent) {
+            return;
+        }
+
+        $annee = '';
+        if (preg_match('/(\d{4})/', (string) $marche->mois_annee_depart, $m)) {
+            $annee = $m[1];
+        }
+
+        $content['marches'][] = [
+            'annee' => $annee,
+            'nom' => $nom,
+            'reference' => $reference,
+        ];
+
+        $content['nombre_marches'] = max((int) ($content['nombre_marches'] ?? 0), count($content['marches']));
+
+        $qualificationDoc->content = json_encode($content);
+        $qualificationDoc->save();
+    }
+
+    /**
+     * Relie (sans jamais remplacer ce qui est deja choisi) les documents
+     * entreprise du marche importe aux pieces "Bon de commande et contrats"
+     * et "Attestation de bonne fin" du dossier, si elles existent - meme
+     * mecanisme de reference (jamais de copie) que le choix manuel via les
+     * cases a cocher de l'etape 6.
+     */
+    private function linkMarcheExecuteFichiersToDossier(Dossier $dossier, MarcheExecute $marche): void
+    {
+        $marche->loadMissing(['contratDocument', 'attestationDocument']);
+
+        $map = [
+            'Bon de commande et contrats' => optional($marche->contratDocument)->id,
+            'Attestation de bonne fin' => optional($marche->attestationDocument)->id,
+        ];
+
+        foreach ($map as $typeName => $entrepriseDocumentId) {
+            if (!$entrepriseDocumentId) {
+                continue;
+            }
+
+            $dossierDocument = $dossier->documents->first(fn ($d) => $d->typeDocument && trim($d->typeDocument->nom) === $typeName);
+            if (!$dossierDocument) {
+                continue;
+            }
+
+            $linkedIds = $dossierDocument->linked_entreprise_document_ids ?? [];
+            if (!in_array($entrepriseDocumentId, $linkedIds, true)) {
+                $linkedIds[] = $entrepriseDocumentId;
+                $dossierDocument->linked_entreprise_document_ids = array_values($linkedIds);
+                $dossierDocument->save();
+            }
+        }
     }
 
     /**

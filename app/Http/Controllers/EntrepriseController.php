@@ -7,6 +7,7 @@ use App\Models\EntrepriseDocument;
 use App\Models\EntrepriseDocumentFichier;
 use App\Models\EntreprisePersonnel;
 use App\Models\EntreprisePersonnelFichier;
+use App\Models\MarcheExecute;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -53,6 +54,7 @@ class EntrepriseController extends Controller
         $entreprise = Entreprise::create($data);
         $this->syncPersonnels($request, $entreprise);
         $this->syncDocumentsAdministratifs($request, $entreprise);
+        $this->syncMarchesExecutes($request, $entreprise);
 
         return redirect()->route('entreprises.index')->with('success', 'Entreprise créée avec succès.');
     }
@@ -95,6 +97,7 @@ class EntrepriseController extends Controller
         $entreprise->update($data);
         $this->syncPersonnels($request, $entreprise);
         $this->syncDocumentsAdministratifs($request, $entreprise);
+        $this->syncMarchesExecutes($request, $entreprise);
 
         return redirect()->route('entreprises.index')->with('success', 'Entreprise mise à jour.');
     }
@@ -373,14 +376,6 @@ class EntrepriseController extends Controller
             'rib.*.banque' => ['nullable', 'string', 'max:255'],
             'rib.*.delete_fichier_ids' => ['nullable', 'array'],
             'rib.*.delete_fichier_ids.*' => ['integer'],
-            'bonne_fin' => ['nullable', 'array'],
-            'bonne_fin.*.intitule' => ['nullable', 'string', 'max:255'],
-            'bonne_fin.*.delete_fichier_ids' => ['nullable', 'array'],
-            'bonne_fin.*.delete_fichier_ids.*' => ['integer'],
-            'bon_commande_contrats' => ['nullable', 'array'],
-            'bon_commande_contrats.*.intitule' => ['nullable', 'string', 'max:255'],
-            'bon_commande_contrats.*.delete_fichier_ids' => ['nullable', 'array'],
-            'bon_commande_contrats.*.delete_fichier_ids.*' => ['integer'],
         ]);
 
         foreach (['rccm', 'ifu', 'identification_statut', 'arrete_ministre_sante', 'piece_identite_responsable'] as $type) {
@@ -401,8 +396,9 @@ class EntrepriseController extends Controller
         $this->syncRepeatableEntrepriseDocuments($request, $entreprise, 'cnss', 'date_delivrance', $validated['cnss'] ?? [], 'cnss_fichiers');
         $this->syncRepeatableEntrepriseDocuments($request, $entreprise, 'non_faillite', 'date_delivrance', $validated['non_faillite'] ?? [], 'non_faillite_fichiers');
         $this->syncRepeatableEntrepriseDocuments($request, $entreprise, 'rib', 'banque', $validated['rib'] ?? [], 'rib_fichiers');
-        $this->syncRepeatableEntrepriseDocuments($request, $entreprise, 'bonne_fin', 'intitule', $validated['bonne_fin'] ?? [], 'bonne_fin_fichiers');
-        $this->syncRepeatableEntrepriseDocuments($request, $entreprise, 'bon_commande_contrats', 'intitule', $validated['bon_commande_contrats'] ?? [], 'bon_commande_contrats_fichiers');
+        // "bonne_fin" et "bon_commande_contrats" ne se saisissent plus ici :
+        // voir syncMarchesExecutes() (section "Nos marches executes", chaque
+        // entree rattachee a un marche precis via marche_execute_id).
     }
 
     /**
@@ -479,6 +475,97 @@ class EntrepriseController extends Controller
                 'nom_original' => $uploaded->getClientOriginalName(),
                 'utilisateur_id' => auth()->id(),
             ]);
+        }
+    }
+
+    /**
+     * "Nos marches executes" : bibliotheque des marches deja realises par
+     * l'entreprise, reutilisable depuis n'importe quel dossier pour
+     * pre-remplir Formulaire EXP - 4.1 (et par ricochet le Formulaire de
+     * qualification) en un clic (voir DossierController::importMarcheExecute).
+     * Chaque bloc (cle = id existant ou "new_N", meme principe que
+     * syncPersonnels) porte ses 2 pieces jointes (contrat/bon de commande,
+     * attestation de bonne fin) comme des EntrepriseDocument ordinaires
+     * (memes types que la section "Documents administratifs" existante),
+     * juste rattaches a ce marche precis via marche_execute_id - jamais
+     * copies, uniquement references depuis le dossier qui importe le marche.
+     */
+    private function syncMarchesExecutes(Request $request, Entreprise $entreprise): void
+    {
+        $validated = $request->validate([
+            'marches_executes' => ['nullable', 'array'],
+            'marches_executes.*.mois_annee_depart' => ['nullable', 'string', 'max:50'],
+            'marches_executes.*.mois_annee_fin' => ['nullable', 'string', 'max:50'],
+            'marches_executes.*.reference_marche' => ['nullable', 'string', 'max:255'],
+            'marches_executes.*.identification_marche' => ['nullable', 'string', 'max:4000'],
+            'marches_executes.*.role_candidat' => ['nullable', 'string', 'max:255'],
+            'marches_executes.*.delete_contrat_fichier_ids' => ['nullable', 'array'],
+            'marches_executes.*.delete_contrat_fichier_ids.*' => ['integer'],
+            'marches_executes.*.delete_attestation_fichier_ids' => ['nullable', 'array'],
+            'marches_executes.*.delete_attestation_fichier_ids.*' => ['integer'],
+        ]);
+
+        $submittedIds = [];
+
+        foreach ($validated['marches_executes'] ?? [] as $key => $row) {
+            $identification = trim((string) ($row['identification_marche'] ?? ''));
+            $depart = trim((string) ($row['mois_annee_depart'] ?? ''));
+            $reference = trim((string) ($row['reference_marche'] ?? ''));
+            if ($identification === '' && $depart === '' && $reference === '') {
+                continue;
+            }
+
+            $data = [
+                'entreprise_id' => $entreprise->id,
+                'mois_annee_depart' => $row['mois_annee_depart'] ?? null,
+                'mois_annee_fin' => $row['mois_annee_fin'] ?? null,
+                'reference_marche' => $row['reference_marche'] ?? null,
+                'identification_marche' => $row['identification_marche'] ?? null,
+                'role_candidat' => $row['role_candidat'] ?? null,
+            ];
+
+            $marche = is_numeric($key)
+                ? MarcheExecute::where('entreprise_id', $entreprise->id)->find((int) $key)
+                : null;
+
+            if ($marche) {
+                $marche->update($data);
+            } else {
+                $marche = MarcheExecute::create($data);
+            }
+
+            $submittedIds[] = $marche->id;
+
+            $intitule = \Illuminate\Support\Str::limit($identification, 255, '');
+
+            $contrat = EntrepriseDocument::firstOrCreate(
+                ['marche_execute_id' => $marche->id, 'type' => 'bon_commande_contrats'],
+                ['entreprise_id' => $entreprise->id, 'intitule' => $intitule]
+            );
+            $contrat->update(['intitule' => $intitule]);
+            $this->deleteEntrepriseDocumentFichiers($contrat, $row['delete_contrat_fichier_ids'] ?? []);
+            $this->storeEntrepriseDocumentFichiers($request, $contrat, "marches_executes_contrat_fichiers.$key");
+
+            $attestation = EntrepriseDocument::firstOrCreate(
+                ['marche_execute_id' => $marche->id, 'type' => 'bonne_fin'],
+                ['entreprise_id' => $entreprise->id, 'intitule' => $intitule]
+            );
+            $attestation->update(['intitule' => $intitule]);
+            $this->deleteEntrepriseDocumentFichiers($attestation, $row['delete_attestation_fichier_ids'] ?? []);
+            $this->storeEntrepriseDocumentFichiers($request, $attestation, "marches_executes_attestation_fichiers.$key");
+        }
+
+        $removed = MarcheExecute::where('entreprise_id', $entreprise->id)
+            ->whereNotIn('id', $submittedIds)
+            ->with('documents.fichiers')
+            ->get();
+        foreach ($removed as $marche) {
+            foreach ($marche->documents as $document) {
+                foreach ($document->fichiers as $fichier) {
+                    Storage::disk('public')->delete($fichier->chemin_fichier);
+                }
+            }
+            $marche->delete();
         }
     }
 }

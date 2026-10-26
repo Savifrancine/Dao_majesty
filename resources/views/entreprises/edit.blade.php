@@ -88,6 +88,8 @@
 
         @include('entreprises.partials.documents_administratifs_section', ['entrepriseDocuments' => $entreprise->documentsAdministratifs()->with('fichiers')->get()])
 
+        @include('entreprises.partials.marches_executes_section', ['marchesExecutes' => $entreprise->marchesExecutes()->with(['contratDocument.fichiers', 'attestationDocument.fichiers'])->orderByDesc('id')->get()])
+
         <button type="submit" class="btn btn-success">Enregistrer</button>
         <a href="{{ route('entreprises.index') }}" class="btn btn-secondary">Annuler</a>
     </form>
