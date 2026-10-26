@@ -5297,7 +5297,8 @@ class DossierController extends Controller
         $bordereauDocs = $dossier->documents
             ->filter(fn ($d) => $d->typeDocument
                 && trim((string) $d->typeDocument->type_formulaire) === 'bordereau'
-                && trim($d->typeDocument->nom) !== 'Tableau de résumé des bordereaux de prix')
+                && trim($d->typeDocument->nom) !== 'Tableau de résumé des bordereaux de prix'
+                && trim($d->typeDocument->nom) !== self::LISTE_MATERIEL_NOM)
             ->sortBy('ordre')
             ->values();
 
@@ -5432,7 +5433,13 @@ class DossierController extends Controller
         $bordereauDocs = $dossier->documents->filter(fn ($d) => $d->typeDocument
             && trim((string) $d->typeDocument->type_formulaire) === 'bordereau'
             && trim($d->typeDocument->nom) !== 'Tableau de résumé des bordereaux de prix'
-            && trim($d->typeDocument->nom) !== $descriptionTechniqueNom);
+            && trim($d->typeDocument->nom) !== $descriptionTechniqueNom
+            // "Liste de Materiel" recense le materiel DEJA possede par le
+            // candidat (pour le Formulaire MAT, preuve de capacite technique)
+            // - une liste sans aucun rapport avec les designations des
+            // fournitures/services demandees par le marche : elle ne doit
+            // jamais echanger de designations/prix avec les autres bordereaux.
+            && trim($d->typeDocument->nom) !== self::LISTE_MATERIEL_NOM);
 
         $savedDoc = $bordereauDocs->firstWhere('id', $justSavedDocumentId);
         if (!$savedDoc) {
@@ -5730,7 +5737,11 @@ class DossierController extends Controller
                 // mais stocke ses totaux dans un JSON "content" (voir step6()),
                 // jamais de lignes d'articles - lui en creer n'aurait aucun effet
                 // visible et pourrait fausser la selection de FicheTechniqueArticles.
-                && trim($d->typeDocument->nom) !== 'Tableau de résumé des bordereaux de prix');
+                && trim($d->typeDocument->nom) !== 'Tableau de résumé des bordereaux de prix'
+                // "Liste de Materiel" (equipement deja possede par le
+                // candidat) n'a aucun rapport avec les designations des
+                // fournitures/services du marche - jamais de reprise croisee.
+                && trim($d->typeDocument->nom) !== self::LISTE_MATERIEL_NOM);
 
         foreach ($documents as $document) {
             $existingLignes = $document->bordereau->flatMap->lignes;

@@ -18,6 +18,7 @@ class BordereauDelai
     private const NOM_PREFERE = 'Bordereau des prix pour les fournitures à importer';
     private const DESCRIPTION_TECHNIQUE_NOM = 'Description technique des fournitures/services';
     private const TABLEAU_RESUME_NOM = 'Tableau de résumé des bordereaux de prix';
+    private const LISTE_MATERIEL_NOM = 'Liste de Matériel';
 
     /**
      * Documents dont "date_prestation" n'est pas une date unique mais la
@@ -80,7 +81,8 @@ class BordereauDelai
             ->filter(fn ($d) => $d->typeDocument
                 && trim((string) $d->typeDocument->type_formulaire) === 'bordereau'
                 && trim($d->typeDocument->nom) !== self::TABLEAU_RESUME_NOM
-                && trim($d->typeDocument->nom) !== self::DESCRIPTION_TECHNIQUE_NOM)
+                && trim($d->typeDocument->nom) !== self::DESCRIPTION_TECHNIQUE_NOM
+                && trim($d->typeDocument->nom) !== self::LISTE_MATERIEL_NOM)
             ->sortBy('ordre')
             ->values();
 
