@@ -487,7 +487,7 @@
                                 }
                             @endphp
 
-                            <script src="{{ asset('js/table-import.js') }}"></script>
+                            <script src="{{ asset('js/table-import.js') }}?v={{ filemtime(public_path('js/table-import.js')) }}"></script>
                             <script>
                                 document.addEventListener('DOMContentLoaded', function () {
                                     if (window.DaoTableImport && window.DaoTableImport.setupCrossTableFill) {

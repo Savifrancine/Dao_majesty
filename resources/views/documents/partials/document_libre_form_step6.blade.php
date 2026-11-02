@@ -32,11 +32,11 @@
         <div id="libreTablesContainer"></div>
         <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:8px;">
             <button type="button" id="libreAddTable" class="btn btn-secondary btn-sm">+ Ajouter un tableau</button>
-            <button type="button" id="libreImportBtn" class="btn btn-outline-secondary btn-sm">Importer un tableau depuis un fichier (Excel/CSV)</button>
-            <input type="file" id="libreImportFile" accept=".csv,.txt,.xlsx,.docx" style="display:none;">
+            <button type="button" id="libreImportBtn" class="btn btn-outline-secondary btn-sm">Importer un tableau depuis un fichier (Excel/Word/PDF/image)</button>
+            <input type="file" id="libreImportFile" accept=".csv,.txt,.xlsx,.docx,.pdf,.png,.jpg,.jpe,.jpeg,.webp,.bmp,image/*,application/pdf" style="display:none;">
             <span id="libreImportStatus" style="font-size:0.8rem;"></span>
         </div>
-        <small style="color:#64748b;">Donnez un nom à chaque colonne directement dans son en-tête, ou importez un fichier Excel/CSV pour créer un tableau automatiquement à partir de ses colonnes et lignes.</small>
+        <small style="color:#64748b;">Donnez un nom à chaque colonne directement dans son en-tête, ou importez un fichier Excel, Word, PDF ou une image de tableau pour créer un tableau automatiquement. Les données reconnues sont à vérifier avant l'enregistrement.</small>
     </div>
 
     <div class="mb-3" id="librePaysageWrapper" style="display:none;">
@@ -220,8 +220,8 @@
                 createTableBlock('', [], []);
             }
 
-            // Import depuis un fichier Excel/CSV : crée un nouveau tableau à partir
-            // des en-têtes et des lignes du fichier importé.
+            // L'import garde le traitement local des PDF et images et conserve
+            // le parseur existant pour Excel, CSV et Word.
             const importBtn = document.getElementById('libreImportBtn');
             const importFile = document.getElementById('libreImportFile');
             const importStatus = document.getElementById('libreImportStatus');
@@ -232,22 +232,12 @@
                 const file = this.files[0];
                 if (!file) return;
                 importStatus.textContent = 'Import en cours...';
-                const formData = new FormData();
-                formData.append('fichier', file);
                 try {
-                    const res = await fetch('{{ route('dossiers.importTableau') }}', {
-                        method: 'POST',
-                        headers: {
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}',
-                            'X-Requested-With': 'XMLHttpRequest',
-                        },
-                        body: formData,
-                    });
-                    if (!res.ok) {
-                        const err = await res.json().catch(() => ({}));
-                        throw new Error(err.message || 'Erreur lors de l\'import');
-                    }
-                    const json = await res.json();
+                    const json = await window.DaoTableImport.readFile(
+                        file,
+                        '{{ route('dossiers.importTableau') }}',
+                        (message) => { importStatus.textContent = message; },
+                    );
                     const headers = json.headers || [];
                     const rows = json.rows || [];
                     if (headers.length === 0) {
