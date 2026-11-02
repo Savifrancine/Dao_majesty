@@ -92,7 +92,6 @@
         const mapping = resolveColumnMapping(headers, fieldSynonyms);
 
         if (columnWidths.length === headers.length) {
-            const mappedColumns = new Set(Object.keys(mapping).map(Number));
             const numberColumns = new Set(headers
                 .map((header, index) => isNumberHeader(normalize(header)) ? index : -1)
                 .filter((index) => index !== -1));
@@ -112,12 +111,25 @@
             const explicitDigitPriceColumn = headers.findIndex((header) =>
                 /\b(en )?chiffres\b/.test(normalize(header))
             );
-            if (priceKey && explicitDigitPriceColumn !== -1) {
-                Object.keys(mapping).forEach((column) => {
-                    if (mapping[column] === priceKey) delete mapping[column];
-                });
-                mapping[explicitDigitPriceColumn] = priceKey;
+            if (priceKey) {
+                const numericPriceColumn = explicitDigitPriceColumn !== -1
+                    ? explicitDigitPriceColumn
+                    : Array.from(numericColumns)
+                        .filter((index) => !numberColumns.has(index)
+                            && !Object.entries(mapping).some(([column, field]) =>
+                                Number(column) === index && field !== priceKey
+                            ))
+                        .sort((a, b) => b - a)[0];
+
+                if (numericPriceColumn !== undefined && numericPriceColumn !== -1) {
+                    Object.keys(mapping).forEach((column) => {
+                        if (mapping[column] === priceKey) delete mapping[column];
+                    });
+                    mapping[numericPriceColumn] = priceKey;
+                }
             }
+
+            const mappedColumns = new Set(Object.keys(mapping).map(Number));
 
             const designationKey = Object.keys(fieldSynonyms).find((key) =>
                 /designation|description/.test(normalize(key))
@@ -137,7 +149,8 @@
 
             if (priceKey && !Object.values(mapping).includes(priceKey)) {
                 const priceColumn = Array.from(numericColumns)
-                    .filter((index) => !numberColumns.has(index) && !mappedColumns.has(index))
+                    .filter((index) => !numberColumns.has(index)
+                        && !mappedColumns.has(index))
                     .sort((a, b) => b - a)[0];
                 if (priceColumn !== undefined) mapping[priceColumn] = priceKey;
             }
