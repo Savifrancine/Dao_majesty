@@ -215,6 +215,7 @@
                     <div style="display:flex; gap:10px; margin-top:8px;">
                         <button type="button" class="btn btn-secondary btn-sm libreAddColumn">+ Colonne</button>
                         <button type="button" class="btn btn-secondary btn-sm libreAddRow">+ Ligne</button>
+                        <button type="button" class="btn btn-outline-primary btn-sm libreBringDesignations">Ramener les désignations du dossier</button>
                     </div>
                 `;
                 container.appendChild(block);
@@ -246,6 +247,20 @@
                 }
                 if (e.target.classList.contains('libreAddRow')) {
                     addRow(e.target.closest('.libre-tableau-block'), []);
+                    return;
+                }
+                if (e.target.classList.contains('libreBringDesignations')) {
+                    if (dossierDesignations.length === 0) {
+                        importStatus.textContent = 'Aucune désignation existante n’a été trouvée dans le dossier.';
+                        return;
+                    }
+                    if (!confirm('Voulez-vous ramener dans ce tableau les désignations déjà présentes dans le dossier ?')) {
+                        return;
+                    }
+                    const result = addDossierDesignations(e.target.closest('.libre-tableau-block'), dossierDesignations);
+                    importStatus.textContent = result.added > 0
+                        ? `${result.added} désignation(s) ajoutée(s) depuis le dossier.${result.createdColumn ? ' Une colonne « Désignation » a été créée.' : ''}`
+                        : 'Toutes les désignations du dossier sont déjà présentes dans ce tableau.';
                     return;
                 }
                 if (e.target.classList.contains('libreRemoveColumn')) {
@@ -297,18 +312,8 @@
                         importStatus.textContent = 'Aucune colonne détectée dans le fichier.';
                         return;
                     }
-                    const block = createTableBlock(file.name.replace(/\.[^.]+$/, ''), headers, rows);
+                    createTableBlock(file.name.replace(/\.[^.]+$/, ''), headers, rows);
                     importStatus.textContent = `Tableau importé (${rows.length} ligne(s)).`;
-                    if (dossierDesignations.length > 0) {
-                        if (confirm('Voulez-vous aussi ajouter les désignations déjà présentes dans le dossier à ce tableau ? Les lignes importées seront conservées et les doublons évités.')) {
-                            const result = addDossierDesignations(block, dossierDesignations);
-                            importStatus.textContent += ` ${result.added} désignation(s) ajoutée(s) depuis le dossier.${result.createdColumn ? ' Une colonne « Désignation » a été créée.' : ''}`;
-                        } else {
-                            importStatus.textContent += ' Les désignations du dossier n’ont pas été ajoutées.';
-                        }
-                    } else {
-                        importStatus.textContent += ' Aucune désignation existante n’a été trouvée dans le dossier.';
-                    }
                 } catch (e) {
                     importStatus.textContent = e.message || 'Impossible d\'importer ce fichier.';
                 } finally {
