@@ -36,7 +36,7 @@
             <input type="file" id="libreImportFile" accept=".csv,.txt,.xlsx,.docx,.pdf,.png,.jpg,.jpe,.jpeg,.webp,.bmp,image/*,application/pdf" style="display:none;">
             <span id="libreImportStatus" style="font-size:0.8rem;"></span>
         </div>
-        <small style="color:#64748b;">Donnez un nom à chaque colonne directement dans son en-tête, ou importez un fichier Excel, Word, PDF ou une image de tableau pour créer un tableau automatiquement. Les données reconnues sont à vérifier avant l'enregistrement.</small>
+        <small style="color:#64748b;">Donnez un nom à chaque colonne directement dans son en-tête, ou importez un fichier Excel, Word, PDF ou une image de tableau pour créer un tableau automatiquement. Après l'import, vous pourrez aussi ajouter les désignations déjà présentes dans le dossier. Vérifiez les données reconnues avant l'enregistrement.</small>
     </div>
 
     <div class="mb-3" id="librePaysageWrapper" style="display:none;">
@@ -51,6 +51,7 @@
         (function(){
             const container = document.getElementById('libreTablesContainer');
             const initialTableaux = @json($libreTableaux ?: []);
+            const dossierDesignations = @json($dossierDesignations ?? []);
 
             function reindexAll() {
                 Array.from(container.querySelectorAll('.libre-tableau-block')).forEach((block, t) => {
@@ -139,6 +140,58 @@
                 row.appendChild(actionTd);
                 body.appendChild(row);
                 reindexAll();
+            }
+
+            function normalizeDesignation(value) {
+                return String(value || '')
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '')
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]+/g, ' ')
+                    .trim();
+            }
+
+            function findDesignationColumn(block) {
+                return Array.from(block.querySelectorAll('.libre-header-row th.libre-col input'))
+                    .findIndex((input) => /(^|\s)(designation|description|article|produit|service|objet)(\s|$)/.test(normalizeDesignation(input.value)));
+            }
+
+            function addDossierDesignations(block, designations) {
+                let columnIndex = findDesignationColumn(block);
+                const createdColumn = columnIndex === -1;
+                if (createdColumn) {
+                    addColumn(block, 'Désignation');
+                    columnIndex = columnCount(block) - 1;
+                }
+
+                const existing = new Set();
+                block.querySelectorAll('.libre-body tr').forEach((row) => {
+                    const value = row.querySelectorAll('td.libre-cell textarea')[columnIndex]?.value;
+                    const normalized = normalizeDesignation(value);
+                    if (normalized) existing.add(normalized);
+                });
+
+                let added = 0;
+                Array.from(new Set(designations.map((value) => String(value || '').trim()).filter(Boolean)))
+                    .forEach((designation) => {
+                        const normalized = normalizeDesignation(designation);
+                        if (!normalized || existing.has(normalized)) return;
+
+                        const emptyRow = Array.from(block.querySelectorAll('.libre-body tr')).find((row) =>
+                            Array.from(row.querySelectorAll('td.libre-cell textarea')).every((input) => !input.value.trim())
+                        );
+                        if (emptyRow) {
+                            emptyRow.querySelectorAll('td.libre-cell textarea')[columnIndex].value = designation;
+                        } else {
+                            const values = Array(columnCount(block)).fill('');
+                            values[columnIndex] = designation;
+                            addRow(block, values);
+                        }
+                        existing.add(normalized);
+                        added++;
+                    });
+
+                return { added, createdColumn };
             }
 
             function createTableBlock(titre, colonnes, lignes) {
@@ -244,8 +297,18 @@
                         importStatus.textContent = 'Aucune colonne détectée dans le fichier.';
                         return;
                     }
-                    createTableBlock(file.name.replace(/\.[^.]+$/, ''), headers, rows);
+                    const block = createTableBlock(file.name.replace(/\.[^.]+$/, ''), headers, rows);
                     importStatus.textContent = `Tableau importé (${rows.length} ligne(s)).`;
+                    if (dossierDesignations.length > 0) {
+                        if (confirm('Voulez-vous aussi ajouter les désignations déjà présentes dans le dossier à ce tableau ? Les lignes importées seront conservées et les doublons évités.')) {
+                            const result = addDossierDesignations(block, dossierDesignations);
+                            importStatus.textContent += ` ${result.added} désignation(s) ajoutée(s) depuis le dossier.${result.createdColumn ? ' Une colonne « Désignation » a été créée.' : ''}`;
+                        } else {
+                            importStatus.textContent += ' Les désignations du dossier n’ont pas été ajoutées.';
+                        }
+                    } else {
+                        importStatus.textContent += ' Aucune désignation existante n’a été trouvée dans le dossier.';
+                    }
                 } catch (e) {
                     importStatus.textContent = e.message || 'Impossible d\'importer ce fichier.';
                 } finally {

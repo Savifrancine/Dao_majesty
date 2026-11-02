@@ -723,9 +723,20 @@
                             @elseif($currentDocument->type_formulaire === 'libre')
                                 @php
                                     $dossierDocument = $dossier->documents->firstWhere('type_document_id', $currentDocument->id);
+                                    $dossierDesignations = $dossier->documents
+                                        ->filter(function ($document) use ($currentDocument) {
+                                            return $document->id !== $currentDocument->id
+                                                && $document->typeDocument
+                                                && $document->typeDocument->type_formulaire === 'bordereau';
+                                        })
+                                        ->flatMap(fn ($document) => $document->bordereau->flatMap(fn ($bordereau) => $bordereau->lignes->pluck('designation')))
+                                        ->map(fn ($designation) => trim((string) $designation))
+                                        ->filter(fn ($designation) => $designation !== '')
+                                        ->unique()
+                                        ->values();
                                 @endphp
 
-                                @include('documents.partials.document_libre_form_step6', ['docId' => $currentDocument->id, 'dossierDocument' => $dossierDocument])
+                                @include('documents.partials.document_libre_form_step6', ['docId' => $currentDocument->id, 'dossierDocument' => $dossierDocument, 'dossierDesignations' => $dossierDesignations])
 
                             @elseif(trim($currentDocument->nom) === 'Fiche technique de chaque article, délivrée par le fabricant')
                                 @php
