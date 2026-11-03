@@ -266,6 +266,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/documents-personnalises', [App\Http\Controllers\CustomDocumentTypeController::class, 'index'])->name('custom-document-types.index');
     Route::get('/documents-personnalises/create', [App\Http\Controllers\CustomDocumentTypeController::class, 'create'])->name('custom-document-types.create');
     Route::post('/documents-personnalises', [App\Http\Controllers\CustomDocumentTypeController::class, 'store'])->name('custom-document-types.store');
+    Route::post('/documents-personnalises/{customDocumentType}/ajouter-dossier', [App\Http\Controllers\CustomDocumentTypeController::class, 'addToDossier'])->name('custom-document-types.add-to-dossier');
     Route::get('/documents-personnalises/{customDocumentType}/edit', [App\Http\Controllers\CustomDocumentTypeController::class, 'edit'])->name('custom-document-types.edit');
     Route::put('/documents-personnalises/{customDocumentType}', [App\Http\Controllers\CustomDocumentTypeController::class, 'update'])->name('custom-document-types.update');
     Route::delete('/documents-personnalises/{customDocumentType}', [App\Http\Controllers\CustomDocumentTypeController::class, 'destroy'])->name('custom-document-types.destroy');

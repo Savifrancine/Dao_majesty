@@ -7,7 +7,7 @@
         <a href="{{ route('custom-document-types.create') }}" class="btn btn-primary">Créer un document personnalisé</a>
     </div>
 
-    <p class="text-muted">À la création, vous choisissez le dossier concerné : le document est ajouté directement au sommaire du dossier, prêt à être rempli.</p>
+    <p class="text-muted">Pour ajouter un document déjà créé à un autre dossier, cliquez sur « Modifier ». Chaque dossier aura sa propre version à remplir.</p>
 
     @if(session('success'))
         <div class="alert alert-success">{{ session('success') }}</div>
