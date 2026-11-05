@@ -1480,14 +1480,18 @@ class DossierController extends Controller
             $record = FormulaireMat::firstOrNew(['dossier_id' => $dossier->id, 'materiel_position' => $position]);
 
             if (!$record->exists) {
-                $record->fill([
-                    'utilisateur_id' => auth()->id(),
-                    // Valeurs par defaut demandees : "Fait a" Cotonou (siege),
-                    // "le" la date de soumission du dossier - l'utilisateur
-                    // reste libre de les modifier ensuite dans le formulaire.
-                    'lieu_fait' => 'Cotonou',
-                    'date_fait' => $dossier->date_soumission,
-                ]);
+                $record->fill(['utilisateur_id' => auth()->id()]);
+            }
+
+            // Valeurs par defaut demandees : "Fait a" Cotonou (siege), "le" la
+            // date de soumission du dossier - appliquees aussi aux materiels
+            // deja crees avant ce correctif, tant que l'utilisateur n'a pas
+            // encore rempli le champ lui-meme (on ne l'ecrase jamais).
+            if (empty($record->lieu_fait)) {
+                $record->lieu_fait = 'Cotonou';
+            }
+            if (empty($record->date_fait)) {
+                $record->date_fait = $dossier->date_soumission;
             }
 
             // Le type et caracteristiques du materiel est purement derive de
