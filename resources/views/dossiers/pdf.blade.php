@@ -1953,14 +1953,46 @@
                                             revele pas le probleme).
                                         --}}
                                         @php
+                                            // Colonnes "spécifications" configurables par tableau (masquage/
+                                            // renommage, cf. DescriptionTechniqueColumns) : on ne garde que
+                                            // celles marquées visibles, et on redistribue a parts égales le
+                                            // budget de largeur (77%) qu'occupaient a l'origine les 3 colonnes.
+                                            $dtVisibleColumns = \App\Support\DescriptionTechniqueColumns::visibleOnly(
+                                                \App\Support\DescriptionTechniqueColumns::resolve($bordereau->column_defs)
+                                            );
+                                            $dtSpecWidthPercent = count($dtVisibleColumns) > 0 ? (25 + 25 + 27) / count($dtVisibleColumns) : 0;
+                                            $dtColumnWidths = ['designation' => 18];
+                                            foreach ($dtVisibleColumns as $dtCol) {
+                                                $dtColumnWidths[$dtCol['key']] = $dtSpecWidthPercent;
+                                            }
+
+                                            // "Fusion" de lignes (cf. formulaire) : une ligne dont merge_rows > 1
+                                            // porte la valeur affichée pour les N-1 lignes numérotées suivantes,
+                                            // qui doivent donc apparaître vides ici - sans toucher à la pagination
+                                            // elle-même (DescriptionTechniquePaginator n'a aucune notion de
+                                            // fusion : on lui fournit simplement des lignes déjà "vidées" aux
+                                            // bons endroits, ce qui reste sûr vis-à-vis de son calcul de hauteur/
+                                            // découpe en pages, contrairement à une vraie cellule fusionnée
+                                            // (rowspan) qui ne pourrait pas franchir une coupure de page).
+                                            $dtEffectiveLignes = [];
+                                            $dtRemainingMerge = 0;
+                                            foreach ($bordereau->lignes as $dtLigne) {
+                                                $dtClone = clone $dtLigne;
+                                                if ($dtRemainingMerge > 0) {
+                                                    foreach ($dtVisibleColumns as $dtCol) {
+                                                        $dtClone->{$dtCol['key']} = '';
+                                                    }
+                                                    $dtRemainingMerge--;
+                                                } elseif ((int) $dtLigne->merge_rows > 1) {
+                                                    $dtRemainingMerge = (int) $dtLigne->merge_rows - 1;
+                                                }
+                                                $dtEffectiveLignes[] = $dtClone;
+                                            }
+                                        @endphp
+                                        @php
                                             $dtPages = \App\Support\DescriptionTechniquePaginator::chunk(
-                                                $bordereau->lignes,
-                                                [
-                                                    'designation' => 18,
-                                                    'specifications_techniques' => 25,
-                                                    'specifications_obligatoires' => 25,
-                                                    'specifications_proposees' => 27,
-                                                ],
+                                                $dtEffectiveLignes,
+                                                $dtColumnWidths,
                                                 170.0,  // largeur utile de la page (A4 210mm - marges 20+20mm)
                                                 1.1,    // padding de cellule (mm, ~4px)
                                                 11.0,   // taille de police (px) - DOIT matcher exactement le font-size CSS ci-dessous
@@ -2062,18 +2094,18 @@
                                                     <tr style="background:#f3f4f6; font-weight:700;">
                                                         <th style="text-align:center; width:5%;">N°</th>
                                                         <th style="text-align:left; width:18%;">Désignation</th>
-                                                        <th style="text-align:left; width:25%;">Spécifications techniques</th>
-                                                        <th style="text-align:left; width:25%;">Spécifications obligatoires</th>
-                                                        <th style="text-align:left; width:27%;">Spécifications proposées</th>
+                                                        @foreach($dtVisibleColumns as $dtCol)
+                                                            <th style="text-align:left; width:{{ $dtSpecWidthPercent }}%;">{{ $dtCol['label'] }}</th>
+                                                        @endforeach
                                                     </tr>
                                                 </thead>
                                                 @foreach($page['rows'] as $row)
                                                     <tr>
                                                         <td style="text-align:center; width:5%;">{{ $row['numero'] }}{{ $row['suite'] ? ' (suite)' : '' }}</td>
                                                         <td style="width:18%;">{!! $row['cells']['designation'] !!}</td>
-                                                        <td style="width:25%;">{!! $row['cells']['specifications_techniques'] !!}</td>
-                                                        <td style="width:25%;">{!! $row['cells']['specifications_obligatoires'] !!}</td>
-                                                        <td style="width:27%;">{!! $row['cells']['specifications_proposees'] !!}</td>
+                                                        @foreach($dtVisibleColumns as $dtCol)
+                                                            <td style="width:{{ $dtSpecWidthPercent }}%;">{!! $row['cells'][$dtCol['key']] !!}</td>
+                                                        @endforeach
                                                     </tr>
                                                 @endforeach
                                             </table>

@@ -223,7 +223,10 @@
                     <div><strong>Signature</strong></div>
                     <br><br>
                     <div style="margin-top: 20px;">
-                        <strong>Fait à</strong> {{ $formulaireMat->lieu_fait ?? 'Cotonou' }} <strong>le</strong> {{ $formulaireMat->date_fait ? $formulaireMat->date_fait->format('d/m/Y') : '' }}
+                        @php
+                            $matDateFait = $formulaireMat->date_fait ?? $formulaireMat->dossier?->date_soumission;
+                        @endphp
+                        <strong>Fait à</strong> {{ $formulaireMat->lieu_fait ?? 'Cotonou' }} <strong>le</strong> {{ $matDateFait ? $matDateFait->format('d/m/Y') : '' }}
                     </div>
                 </div>
             </div>

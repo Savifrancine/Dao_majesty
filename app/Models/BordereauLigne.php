@@ -28,6 +28,7 @@ class BordereauLigne extends Model
         'specifications_techniques',
         'specifications_obligatoires',
         'specifications_proposees',
+        'merge_rows',
         'total_materiel',
         'location_amort',
         'matiere_frais',
@@ -48,6 +49,7 @@ class BordereauLigne extends Model
         'taxe_vente' => 'decimal:2',
         'droits_douane' => 'decimal:2',
         'frequence' => 'string',
+        'merge_rows' => 'integer',
     ];
 
     /**

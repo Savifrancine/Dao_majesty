@@ -294,6 +294,30 @@ class DossierController extends Controller
         return $sections;
     }
 
+    /**
+     * Reconstruit column_defs à partir de la saisie du formulaire, en ne
+     * retenant QUE les 3 clés connues de \App\Support\DescriptionTechniqueColumns
+     * (jamais une clé arbitraire envoyée par le client) et toujours dans le
+     * même ordre, avec un libellé par défaut quand l'utilisateur ne l'a pas
+     * personnalisé.
+     *
+     * @return array<int,array{key:string,label:string,visible:bool}>
+     */
+    private function normalizeDescriptionTechniqueColumnDefs(array $raw): array
+    {
+        $byKey = [];
+        foreach (\App\Support\DescriptionTechniqueColumns::DEFAULTS as $key => $defaultLabel) {
+            $entry = is_array($raw[$key] ?? null) ? $raw[$key] : [];
+            $byKey[] = [
+                'key' => $key,
+                'label' => $entry['label'] ?? '',
+                'visible' => filter_var($entry['visible'] ?? true, FILTER_VALIDATE_BOOLEAN),
+            ];
+        }
+
+        return \App\Support\DescriptionTechniqueColumns::resolve($byKey);
+    }
+
     private function normalizeNumericString(string $value): string
     {
         $clean = trim($value);
@@ -1456,7 +1480,14 @@ class DossierController extends Controller
             $record = FormulaireMat::firstOrNew(['dossier_id' => $dossier->id, 'materiel_position' => $position]);
 
             if (!$record->exists) {
-                $record->fill(['utilisateur_id' => auth()->id()]);
+                $record->fill([
+                    'utilisateur_id' => auth()->id(),
+                    // Valeurs par defaut demandees : "Fait a" Cotonou (siege),
+                    // "le" la date de soumission du dossier - l'utilisateur
+                    // reste libre de les modifier ensuite dans le formulaire.
+                    'lieu_fait' => 'Cotonou',
+                    'date_fait' => $dossier->date_soumission,
+                ]);
             }
 
             // Le type et caracteristiques du materiel est purement derive de
@@ -3277,6 +3308,10 @@ class DossierController extends Controller
                         'sections.*.lignes.*.specifications_techniques' => ['nullable', 'string', 'max:2000'],
                         'sections.*.lignes.*.specifications_obligatoires' => ['nullable', 'string', 'max:2000'],
                         'sections.*.lignes.*.specifications_proposees' => ['nullable', 'string', 'max:2000'],
+                        'sections.*.lignes.*.merge_rows' => ['nullable', 'integer', 'min:1', 'max:50'],
+                        'sections.*.column_defs' => ['nullable', 'array'],
+                        'sections.*.column_defs.*.label' => ['nullable', 'string', 'max:255'],
+                        'sections.*.column_defs.*.visible' => ['nullable'],
                     ]);
                 }
 
@@ -3381,6 +3416,7 @@ class DossierController extends Controller
                         'dossier_document_id' => $dossierDocument->id,
                         'titre' => trim($section['titre'] ?? '') !== '' ? $section['titre'] : $currentDocument->nom,
                         'designation_label' => trim($section['designation_label'] ?? '') !== '' ? $section['designation_label'] : null,
+                        'column_defs' => $isDescriptionTechnique ? $this->normalizeDescriptionTechniqueColumnDefs($section['column_defs'] ?? []) : null,
                     ]);
 
                     foreach ($section['lignes'] as $ligne) {
@@ -3692,6 +3728,7 @@ class DossierController extends Controller
                                 $lignData['specifications_techniques'] = trim($ligne['specifications_techniques'] ?? '');
                                 $lignData['specifications_obligatoires'] = trim($ligne['specifications_obligatoires'] ?? '');
                                 $lignData['specifications_proposees'] = trim($ligne['specifications_proposees'] ?? '');
+                                $lignData['merge_rows'] = max(1, (int) ($ligne['merge_rows'] ?? 1));
                             }
 
                             BordereauLigne::create($lignData);
