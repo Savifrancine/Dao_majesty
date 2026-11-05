@@ -407,10 +407,10 @@
                 sectionsContainerId: 'bordereauSections',
                 importUrl: '{{ route('dossiers.importTableau') }}',
                 fieldSynonyms: {
-                    designation: ['designation', 'description', 'objet'],
-                    specifications_techniques: ['specifications techniques', 'specification technique'],
+                    designation: ['designation', 'objet'],
+                    specifications_techniques: ['specifications techniques', 'specification technique', 'description detaillee des services', 'description technique', 'description des services'],
                     specifications_obligatoires: ['specifications obligatoires', 'specification obligatoire'],
-                    specifications_proposees: ['specifications proposees', 'specification proposee'],
+                    specifications_proposees: ['specifications proposees', 'specification proposee', 'description detaillee des services proposee', 'description proposee', 'service propose'],
                 },
             });
         }

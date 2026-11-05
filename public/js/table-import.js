@@ -79,6 +79,30 @@
                 });
             }
 
+            // 3) A defaut, un en-tete "similaire" sans etre identique ni une
+            // phrase complete (formulation differente, pluriel/singulier, mots
+            // en plus) : on retient l'en-tete qui partage le plus de mots avec
+            // un des synonymes du champ, a condition qu'une bonne partie des
+            // mots du synonyme s'y retrouve (seuil choisi pour rester sur un
+            // vrai air de famille, pas une coincidence sur 1 mot courant).
+            if (bestCol === -1) {
+                let bestScore = 0;
+                synonyms.forEach((syn) => {
+                    const synWords = syn.split(' ').filter(Boolean);
+                    if (synWords.length === 0) return;
+                    normalizedHeaders.forEach((header, idx) => {
+                        if (usedColumns.has(idx)) return;
+                        const headerWords = new Set(header.split(' ').filter(Boolean));
+                        const common = synWords.filter((w) => headerWords.has(w)).length;
+                        const score = common / synWords.length;
+                        if (score > bestScore && score >= 0.6) {
+                            bestScore = score;
+                            bestCol = idx;
+                        }
+                    });
+                });
+            }
+
             if (bestCol !== -1) {
                 mapping[bestCol] = fieldKey;
                 usedColumns.add(bestCol);
