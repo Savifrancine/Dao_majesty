@@ -2211,6 +2211,70 @@
                                 @endif
                             </div>
                         @endforeach
+
+                        {{--
+                            "TABLEAU RECAPITULATIF DES SERVICES" : recapitulatif FINAL
+                            de tout le document (different du petit total apres chaque
+                            tableau ci-dessus) - une ligne par tableau (designation =
+                            titre du tableau, montant = son total TTC), suivie des 3
+                            totaux de la soumission. Affiche uniquement quand le
+                            document a plusieurs tableaux (avec un seul, le total apres
+                            ce tableau unique suffit deja).
+                        --}}
+                        @if(($isMethodes || $isCalendrier) && $bordereaux->count() > 1)
+                            @php
+                                $recapLignes = $bordereaux->values()->map(function ($b) {
+                                    return [
+                                        'designation' => $b->titre,
+                                        'montant' => $b->lignes->sum(function ($ligne) {
+                                            $prix = (float) ($ligne->prix_unitaire ?? 0);
+                                            $quantite = (int) ($ligne->quantite ?? 1);
+                                            $montantCalcule = $prix * $quantite;
+                                            return (int) $ligne->montant ? $ligne->montant : $montantCalcule;
+                                        }),
+                                    ];
+                                });
+                                $totalTtcSoumission = $recapLignes->sum('montant');
+                                $totalHtSoumission = $totalTtcSoumission / \App\Support\PrixUnitaireTtc::MULTIPLICATEUR;
+                                $tvaSoumission = $totalTtcSoumission - $totalHtSoumission;
+                                $sommeLabel = $recapLignes->keys()->map(fn ($i) => $i + 1)->implode('+');
+                            @endphp
+                            <div style="margin-top:14px; font-size:11px;">
+                                <div style="font-weight:700; font-size:12px; text-align:center; margin-bottom:10px;">TABLEAU RECAPITULATIF DES SERVICES</div>
+                                <table style="width:100%; border-collapse:collapse; font-size:10px;">
+                                    <thead>
+                                        <tr style="background:#f3f4f6; font-weight:700;">
+                                            <th style="border:1px solid #000; padding:6px; text-align:center; width:10%;">N° D'ORDRE</th>
+                                            <th style="border:1px solid #000; padding:6px; text-align:center; width:45%;">DESIGNATION</th>
+                                            <th style="border:1px solid #000; padding:6px; text-align:center; width:20%;">MONTANT</th>
+                                            <th style="border:1px solid #000; padding:6px; text-align:center; width:25%;">OBSERVATIONS</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach($recapLignes as $index => $recapLigne)
+                                            <tr>
+                                                <td style="border:1px solid #000; padding:6px; text-align:center; vertical-align:top;">{{ $index + 1 }}</td>
+                                                <td style="border:1px solid #000; padding:6px; vertical-align:top;">{{ $recapLigne['designation'] }}</td>
+                                                <td style="border:1px solid #000; padding:6px; text-align:right; vertical-align:top;">{{ number_format($recapLigne['montant'], 0, ',', ' ') }}</td>
+                                                <td style="border:1px solid #000; padding:6px; vertical-align:top;">&nbsp;</td>
+                                            </tr>
+                                        @endforeach
+                                        <tr>
+                                            <td colspan="2" style="border:1px solid #000; padding:6px; font-weight:700; text-align:right;">TOTAL TTC DE LA SOUMISSION ({{ $sommeLabel }})</td>
+                                            <td colspan="2" style="border:1px solid #000; padding:6px; text-align:right; font-weight:700;">{{ number_format($totalTtcSoumission, 0, ',', ' ') }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td colspan="2" style="border:1px solid #000; padding:6px; font-weight:700; text-align:right;">TVA DE LA SOUMISSION ({{ $sommeLabel }})</td>
+                                            <td colspan="2" style="border:1px solid #000; padding:6px; text-align:right; font-weight:700;">{{ number_format($tvaSoumission, 0, ',', ' ') }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td colspan="2" style="border:1px solid #000; padding:6px; font-weight:700; text-align:right;">TOTAL HT DE LA SOUMISSION ({{ $sommeLabel }})</td>
+                                            <td colspan="2" style="border:1px solid #000; padding:6px; text-align:right; font-weight:700;">{{ number_format($totalHtSoumission, 0, ',', ' ') }}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        @endif
                     </div>
                 @else
                     <div style="margin-top:8px; font-style:italic; color:#444;">Aucun bordereau enregistré pour ce document.</div>
