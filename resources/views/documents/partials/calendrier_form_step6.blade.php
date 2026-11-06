@@ -130,10 +130,13 @@
     </div>
 </div>
 
+<script src="{{ asset('js/bordereau-autofill.js') }}"></script>
 <script>
     (function () {
         const sectionsContainer = document.getElementById('bordereauSections');
         const addSectionButton = document.getElementById('addBordereauSection');
+        const autofillKeys = ['date_prestation'];
+        window.DaoBordereauAutofill.attach(sectionsContainer, autofillKeys);
 
         function updateSectionIndexes() {
             Array.from(sectionsContainer.querySelectorAll('.bordereau-section')).forEach((sectionEl, sectionIndex) => {
@@ -257,17 +260,10 @@
                 const section = event.target.closest('.bordereau-section');
                 const sectionIndex = Array.from(sectionsContainer.querySelectorAll('.bordereau-section')).indexOf(section);
                 const tbody = section.querySelector('.bordereau-lines');
-                // La date de realisation est presque toujours la meme pour
-                // tout le tableau (un seul lot/periode) : on la reprend de la
-                // derniere ligne existante, pour ne pas avoir a la retaper a
-                // chaque nouvelle ligne.
-                const previousRows = tbody.querySelectorAll('tr');
-                const lastDate = previousRows.length
-                    ? (previousRows[previousRows.length - 1].querySelector('[name*="[date_prestation]"]')?.value || '')
-                    : '';
-                const row = createLineRow(sectionIndex, '', lastDate, '1', '');
+                const row = createLineRow(sectionIndex, '', '', '1', '');
                 tbody.appendChild(row);
                 updateLineIndexes(section, sectionIndex);
+                window.DaoBordereauAutofill.fillNewRow(section, row, autofillKeys);
             }
             if (event.target.classList.contains('removeBordereauLine')) {
                 const row = event.target.closest('tr');
