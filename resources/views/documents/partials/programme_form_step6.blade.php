@@ -12,7 +12,13 @@
                             return [
                                 'designation' => $ligne->designation,
                                 'unite_physique' => $ligne->unite_physique,
-                                'quantite' => $ligne->quantite,
+                                // $ligne->quantite est cast "decimal:2" en base (ex: "1.00") :
+                                // ce champ exige un entier strict a l'enregistrement
+                                // (contrairement aux autres documents bordereau, qui
+                                // acceptent un nombre decimal) - sans cet arrondi, la
+                                // valeur brute "1.00" rend la validation invalide des
+                                // qu'on reenregistre ce formulaire sans y retoucher.
+                                'quantite' => $ligne->quantite !== null ? (int) round((float) $ligne->quantite) : '',
                                 'prix_unitaire' => $ligne->prix_unitaire,
                                 'montant' => $ligne->montant,
                                 'site' => $ligne->site,
@@ -85,7 +91,14 @@
                                         <input type="text" name="sections[{{ $sectionIndex }}][lignes][{{ $lineIndex }}][unite_physique]" class="form-control wizard-input" placeholder="1" value="{{ $ligne['unite_physique'] ?? '' }}">
                                     </td>
                                     <td style="border:1px solid #ccc; padding:8px; vertical-align:top;">
-                                        <input type="number" min="1" name="sections[{{ $sectionIndex }}][lignes][{{ $lineIndex }}][quantite]" class="form-control wizard-input" placeholder="1" value="{{ $ligne['quantite'] ?? 1 }}">
+                                        @php
+                                            // Filet de securite supplementaire : meme si la valeur vient
+                                            // d'ailleurs (pre-remplissage depuis un autre document, vieille
+                                            // saisie...) sous une forme decimale ("1.00"), ce champ exige un
+                                            // entier strict a l'enregistrement.
+                                            $quantiteAffichee = isset($ligne['quantite']) && $ligne['quantite'] !== '' ? (int) round((float) $ligne['quantite']) : 1;
+                                        @endphp
+                                        <input type="number" min="1" name="sections[{{ $sectionIndex }}][lignes][{{ $lineIndex }}][quantite]" class="form-control wizard-input" placeholder="1" value="{{ $quantiteAffichee }}">
                                     </td>
                                     <td style="border:1px solid #ccc; padding:8px; vertical-align:top;">
                                         <input type="text" name="sections[{{ $sectionIndex }}][lignes][{{ $lineIndex }}][prix_unitaire]" class="form-control wizard-input" placeholder="150000" value="{{ $ligne['prix_unitaire'] ?? '' }}">
