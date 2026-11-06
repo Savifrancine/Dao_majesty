@@ -5536,12 +5536,24 @@ class DossierController extends Controller
         // meme dossier.
         $sourceByDesignationPerTableau = [];
         foreach ($savedDoc->bordereau->values() as $tableauIndex => $bordereau) {
+            // Compte les occurrences DANS CE TABLEAU : une meme designation
+            // peut apparaitre plusieurs fois (ex: "Hotte de la salle PC1" en
+            // 2 exemplaires) - cle'e uniquement par texte, la 2e occurrence
+            // ecraserait la 1ere dans ce dictionnaire et une seule des deux
+            // lignes serait jamais propagee. La 1ere occurrence d'une
+            // designation s'apparie avec la 1ere occurrence de la MEME
+            // designation cote cible, la 2e avec la 2e, etc.
+            $occurrenceCounts = [];
             foreach ($bordereau->lignes as $ligne) {
-                $key = $this->normalizeSommaireName((string) $ligne->designation);
-                if ($key === '') {
+                $baseKey = $this->normalizeSommaireName((string) $ligne->designation);
+                if ($baseKey === '') {
                     continue;
                 }
-                $row = [];
+                $occurrence = $occurrenceCounts[$baseKey] ?? 0;
+                $occurrenceCounts[$baseKey] = $occurrence + 1;
+                $key = $baseKey . '#' . $occurrence;
+
+                $row = ['designation' => $ligne->designation];
                 foreach ($propagatableFields as $field) {
                     if ($field === 'quantite' && $savedDocHasPlaceholderQuantite) {
                         $row[$field] = null;
@@ -5582,13 +5594,17 @@ class DossierController extends Controller
                 // aussi se propager, pas seulement les champs d'une ligne qui
                 // existe deja).
                 $existingKeysInTableau = [];
+                $targetOccurrenceCounts = [];
 
                 if ($targetBordereau) {
                     foreach ($targetBordereau->lignes as $ligne) {
-                        $key = $this->normalizeSommaireName((string) $ligne->designation);
-                        if ($key === '') {
+                        $baseKey = $this->normalizeSommaireName((string) $ligne->designation);
+                        if ($baseKey === '') {
                             continue;
                         }
+                        $occurrence = $targetOccurrenceCounts[$baseKey] ?? 0;
+                        $targetOccurrenceCounts[$baseKey] = $occurrence + 1;
+                        $key = $baseKey . '#' . $occurrence;
                         $existingKeysInTableau[$key] = true;
 
                         if (!isset($sourceByDesignation[$key])) {
@@ -5643,7 +5659,17 @@ class DossierController extends Controller
                 // une suppression manuelle redeviendrait impossible des
                 // qu'un AUTRE bordereau du dossier est resauvegarde.
                 $tombstoneKeys = array_fill_keys($doc->designations_supprimees ?? [], true);
-                $missingKeys = array_diff(array_keys($sourceByDesignation), array_keys($existingKeysInTableau), array_keys($tombstoneKeys));
+                // Le tombstone est memorise par designation "de base" (sans
+                // le suffixe d'occurrence "#0"/"#1" utilise ci-dessus pour
+                // distinguer les doublons) : on compare donc sur la base,
+                // pas sur la cle complete.
+                $missingKeys = array_filter(
+                    array_diff(array_keys($sourceByDesignation), array_keys($existingKeysInTableau)),
+                    function ($key) use ($tombstoneKeys) {
+                        $baseKey = preg_replace('/#\d+$/', '', $key);
+                        return !isset($tombstoneKeys[$baseKey]);
+                    }
+                );
                 if (!empty($missingKeys)) {
                     if (!$targetBordereau) {
                         $sourceTableau = $savedDoc->bordereau->values()->get($tableauIndex);
@@ -5656,10 +5682,6 @@ class DossierController extends Controller
 
                     foreach ($missingKeys as $key) {
                         $ligneData = $sourceByDesignation[$key];
-                        $sourceTableau = $savedDoc->bordereau->values()->get($tableauIndex);
-                        $ligneData['designation'] = $sourceTableau?->lignes
-                            ->first(fn ($l) => $this->normalizeSommaireName((string) $l->designation) === $key)
-                            ->designation ?? '';
                         if (empty($ligneData['quantite'])) {
                             $ligneData['quantite'] = 1;
                         }
