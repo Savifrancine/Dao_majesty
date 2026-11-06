@@ -1842,6 +1842,7 @@ class DossierController extends Controller
         }
 
         $dossierDocument->linked_entreprise_document_ids = $ids;
+        $dossierDocument->statut = 'complete';
         $dossierDocument->save();
     }
 
@@ -6276,6 +6277,13 @@ class DossierController extends Controller
             ->all();
 
         $dossierDocument->linked_entreprise_document_ids = $validIds;
+        // Sans cette mise a jour du statut, cocher/decocher ici (applique
+        // immediatement, sans passer par l'enregistrement normal du
+        // formulaire de cette piece) ne suffisait jamais a la faire
+        // considerer comme completee : l'assistant redemandait quand meme
+        // d'ajouter une piece au moment de valider, alors que la selection
+        // avait deja ete enregistree.
+        $dossierDocument->statut = !empty($validIds) ? 'complete' : 'vide';
         $dossierDocument->save();
 
         return $this->respondAfterEntrepriseDocSelection($request, true, 'Documents de l\'entreprise mis à jour pour cette pièce.');
@@ -6350,6 +6358,7 @@ class DossierController extends Controller
         $linkedIds = $dossierDocument->linked_entreprise_document_ids ?? [];
         $linkedIds[] = $entrepriseDocument->id;
         $dossierDocument->linked_entreprise_document_ids = array_values(array_unique($linkedIds));
+        $dossierDocument->statut = 'complete';
         $dossierDocument->save();
 
         return back()->with('success', "« {$data['intitule']} » ajouté et lié à ce dossier.");
