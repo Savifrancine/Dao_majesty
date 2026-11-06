@@ -484,15 +484,25 @@
                                         ->first();
 
                                     if ($bordereauSiblingSource) {
-                                        $sharedDesignationPrefill = $bordereauSiblingSource->bordereau->map(function ($bordereau) {
+                                        // "Methodes d'execution"/"Calendrier d'execution" affichent le
+                                        // prix unitaire en TTC, tous les autres bordereaux en HT - voir
+                                        // App\Support\PrixUnitaireTtc.
+                                        $prefillSourceIsTtc = \App\Support\PrixUnitaireTtc::estDocumentTtc($bordereauSiblingSource->typeDocument->nom);
+                                        $prefillTargetIsTtc = \App\Support\PrixUnitaireTtc::estDocumentTtc($currentDocument->nom);
+
+                                        $sharedDesignationPrefill = $bordereauSiblingSource->bordereau->map(function ($bordereau) use ($prefillSourceIsTtc, $prefillTargetIsTtc) {
                                             return [
                                                 'titre' => $bordereau->titre,
-                                                'lignes' => $bordereau->lignes->map(function ($ligne) {
+                                                'lignes' => $bordereau->lignes->map(function ($ligne) use ($prefillSourceIsTtc, $prefillTargetIsTtc) {
+                                                    $prix = $ligne->prix_unitaire;
+                                                    if ($prix !== null && $prix !== '') {
+                                                        $prix = \App\Support\PrixUnitaireTtc::convertir((float) $prix, $prefillSourceIsTtc, $prefillTargetIsTtc);
+                                                    }
                                                     return [
                                                         'designation' => $ligne->designation,
                                                         'unite_physique' => $ligne->unite_physique,
                                                         'quantite' => $ligne->quantite,
-                                                        'prix_unitaire' => $ligne->prix_unitaire,
+                                                        'prix_unitaire' => $prix,
                                                         'site' => $ligne->site,
                                                         'date_prestation' => $ligne->date_prestation,
                                                     ];

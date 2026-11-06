@@ -2137,10 +2137,10 @@
                                             <tbody>
                                                 @foreach($bordereau->lignes as $index => $ligne)
                                                     @php
-                                                        $prixHt = (float) ($ligne->prix_unitaire ?? 0);
+                                                        // Le prix unitaire est deja stocke TTC pour Methodes/Calendrier
+                                                        // (voir App\Support\PrixUnitaireTtc) - plus de conversion ici.
+                                                        $prix = (float) ($ligne->prix_unitaire ?? 0);
                                                         $quantite = (int) ($ligne->quantite ?? 1);
-                                                        // Pour Méthodes et Calendrier, appliquer la TVA au prix unitaire
-                                                        $prix = ($isMethodes || $isCalendrier) ? round($prixHt * 1.18) : $prixHt;
                                                         $montantCalcule = $prix * $quantite;
                                                         $montant = (int)$ligne->montant ? $ligne->montant : $montantCalcule;
                                                     @endphp
@@ -2153,30 +2153,6 @@
                                                         <td style="border:1px solid #000; padding:6px; text-align:right; vertical-align:top;">{{ $montant ? number_format($montant, 0, ',', ' ') : '' }}</td>
                                                     </tr>
                                                 @endforeach
-                                                @if($isMethodes || $isCalendrier)
-                                                    @php
-                                                        $totalHtCol6 = $bordereau->lignes->sum(function ($ligne) {
-                                                            $prix = (float) ($ligne->prix_unitaire ?? 0);
-                                                            $quantite = (int) ($ligne->quantite ?? 1);
-                                                            $montantCalcule = $prix * $quantite;
-                                                            return (int)$ligne->montant ? $ligne->montant : $montantCalcule;
-                                                        });
-                                                        $tvaCol6 = round($totalHtCol6 * 0.18);
-                                                        $totalCol6 = $totalHtCol6 + $tvaCol6;
-                                                    @endphp
-                                                    <tr>
-                                                        <td colspan="5" style="border:1px solid #000; padding:6px; font-weight:700; text-align:right;">TOTAL TTC Colonne 6</td>
-                                                        <td style="border:1px solid #000; padding:6px; text-align:right; font-weight:700;">{{ number_format($totalCol6, 0, ',', ' ') }}</td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td colspan="5" style="border:1px solid #000; padding:6px; font-weight:700; text-align:right;">TVA Colonne 6</td>
-                                                        <td style="border:1px solid #000; padding:6px; text-align:right; font-weight:700;">{{ number_format($tvaCol6, 0, ',', ' ') }}</td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td colspan="5" style="border:1px solid #000; padding:6px; font-weight:700; text-align:right;">Total HT Colonne 6</td>
-                                                        <td style="border:1px solid #000; padding:6px; text-align:right; font-weight:700;">{{ number_format($totalHtCol6, 0, ',', ' ') }}</td>
-                                                    </tr>
-                                                @endif
                                             </tbody>
                                         </table>
                                     @endif
@@ -2207,6 +2183,45 @@
                                 @endif
                             </div>
                         @endforeach
+
+                        {{--
+                            Tableau recapitulatif final, UNE SEULE FOIS pour tout le
+                            document (pas par tableau/lot) - demande explicite de
+                            l'utilisateur : quand Methodes/Calendrier d'execution ont
+                            plusieurs tableaux (ex: un pour le materiel, un pour les
+                            kits), le recap TOTAL TTC/TVA/Total HT porte sur la somme
+                            de TOUS les tableaux, affiche a la toute fin.
+                        --}}
+                        @if($isMethodes || $isCalendrier)
+                            @php
+                                $totalTtcGeneral = $bordereaux->sum(function ($b) {
+                                    return $b->lignes->sum(function ($ligne) {
+                                        $prix = (float) ($ligne->prix_unitaire ?? 0);
+                                        $quantite = (int) ($ligne->quantite ?? 1);
+                                        $montantCalcule = $prix * $quantite;
+                                        return (int) $ligne->montant ? $ligne->montant : $montantCalcule;
+                                    });
+                                });
+                                $totalHtGeneral = $totalTtcGeneral / \App\Support\PrixUnitaireTtc::MULTIPLICATEUR;
+                                $tvaGeneral = $totalTtcGeneral - $totalHtGeneral;
+                            @endphp
+                            <table style="width:100%; border-collapse:collapse; font-size:10px; margin-top:4px;">
+                                <tbody>
+                                    <tr>
+                                        <td style="border:1px solid #000; padding:6px; font-weight:700; text-align:right; width:80%;">TOTAL TTC Colonne 6</td>
+                                        <td style="border:1px solid #000; padding:6px; text-align:right; font-weight:700; width:20%;">{{ number_format($totalTtcGeneral, 0, ',', ' ') }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="border:1px solid #000; padding:6px; font-weight:700; text-align:right;">TVA Colonne 6</td>
+                                        <td style="border:1px solid #000; padding:6px; text-align:right; font-weight:700;">{{ number_format($tvaGeneral, 0, ',', ' ') }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="border:1px solid #000; padding:6px; font-weight:700; text-align:right;">Total HT Colonne 6</td>
+                                        <td style="border:1px solid #000; padding:6px; text-align:right; font-weight:700;">{{ number_format($totalHtGeneral, 0, ',', ' ') }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        @endif
                     </div>
                 @else
                     <div style="margin-top:8px; font-style:italic; color:#444;">Aucun bordereau enregistré pour ce document.</div>

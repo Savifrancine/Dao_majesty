@@ -5518,6 +5518,10 @@ class DossierController extends Controller
         $placeholderQuantiteDocNames = ['Bordereau prix unitaire', 'Cadres de sous détails des prix unitaire'];
         $savedDocHasPlaceholderQuantite = in_array(trim($savedDoc->typeDocument->nom), $placeholderQuantiteDocNames, true);
 
+        // "Methodes d'execution" et "Calendrier d'execution" affichent le
+        // prix unitaire en TTC (TVA 18%) : voir App\Support\PrixUnitaireTtc.
+        $savedDocIsTtc = \App\Support\PrixUnitaireTtc::estDocumentTtc($savedDoc->typeDocument->nom);
+
         // Indexe par POSITION du tableau (0 = premier "Ajouter un tableau" du
         // document, 1 = le deuxieme...), jamais par designation seule tous
         // tableaux confondus : un document peut avoir plusieurs tableaux
@@ -5566,6 +5570,7 @@ class DossierController extends Controller
             }
 
             $targetBordereaux = $doc->bordereau->values();
+            $targetDocIsTtc = \App\Support\PrixUnitaireTtc::estDocumentTtc($doc->typeDocument->nom);
 
             foreach ($sourceByDesignationPerTableau as $tableauIndex => $sourceByDesignation) {
                 $targetBordereau = $targetBordereaux->get($tableauIndex);
@@ -5593,9 +5598,18 @@ class DossierController extends Controller
                         $source = $sourceByDesignation[$key];
                         $updates = [];
                         foreach ($propagatableFields as $field) {
-                            if (self::bordereauFieldHasValue($source[$field])) {
-                                $updates[$field] = $source[$field];
+                            if (!self::bordereauFieldHasValue($source[$field])) {
+                                continue;
                             }
+                            if ($field === 'prix_unitaire') {
+                                $converted = \App\Support\PrixUnitaireTtc::convertir((float) $source[$field], $savedDocIsTtc, $targetDocIsTtc);
+                                if ($converted === null) {
+                                    continue;
+                                }
+                                $updates[$field] = $converted;
+                                continue;
+                            }
+                            $updates[$field] = $source[$field];
                         }
 
                         // Le montant est recalcule des que le prix unitaire ou
@@ -5649,8 +5663,11 @@ class DossierController extends Controller
                         if (empty($ligneData['quantite'])) {
                             $ligneData['quantite'] = 1;
                         }
-                        if (!isset($ligneData['prix_unitaire'])) {
+                        if (!isset($ligneData['prix_unitaire']) || !self::bordereauFieldHasValue($ligneData['prix_unitaire'])) {
                             $ligneData['prix_unitaire'] = 0;
+                        } else {
+                            $converted = \App\Support\PrixUnitaireTtc::convertir((float) $ligneData['prix_unitaire'], $savedDocIsTtc, $targetDocIsTtc);
+                            $ligneData['prix_unitaire'] = $converted ?? 0;
                         }
                         $ligneData['montant'] = self::bordereauFieldHasValue($ligneData['prix_unitaire'] ?? null) && self::bordereauFieldHasValue($ligneData['quantite'] ?? null)
                             ? (float) $ligneData['prix_unitaire'] * (float) $ligneData['quantite']
