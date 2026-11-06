@@ -724,6 +724,18 @@
                                 @endphp
 
                                 @include('documents.partials.tableau_resume_bordereaux_form_step6', ['docId' => $currentDocument->id, 'values' => $values])
+                            @elseif(trim($currentDocument->nom) === 'Récapitulatif général des DQE')
+                                @php
+                                    $dossierDocument = $dossier->documents->firstWhere('type_document_id', $currentDocument->id);
+                                    $recapDqeShowAib = true;
+                                    if ($dossierDocument && !empty($dossierDocument->content)) {
+                                        $decoded = json_decode($dossierDocument->content, true);
+                                        if (is_array($decoded) && array_key_exists('show_aib', $decoded)) {
+                                            $recapDqeShowAib = (bool) $decoded['show_aib'];
+                                        }
+                                    }
+                                @endphp
+                                @include('documents.partials.recapitulatif_general_dqe_form_step6', ['docId' => $currentDocument->id, 'showAib' => $recapDqeShowAib])
                             @elseif(trim($currentDocument->nom) === 'Cadres de sous détails des prix unitaire')
                                 @php
                                     $dossierDocument = $dossier->documents->firstWhere('type_document_id', $currentDocument->id);

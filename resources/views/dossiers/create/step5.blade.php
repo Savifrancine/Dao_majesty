@@ -494,6 +494,7 @@
                         "Listes des services connexes et calendrier de réalisation",
                         "Listes des Fournitures et Calendrier de livraison",
                         "Tableau de résumé des bordereaux de prix",
+                        "Récapitulatif général des DQE",
                         "Cadres de sous détails des prix unitaire",
                         "Programme d'activités",
                         "Plan de charge",

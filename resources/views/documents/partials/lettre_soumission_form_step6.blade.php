@@ -14,41 +14,16 @@
 
         $tvaRate = 0.18;
 
-        $documents = $dossier->documents ?? collect();
-
-        $sumMontantForNames = function ($names) use ($documents) {
-            return $documents
-                ->filter(fn($doc) => in_array(optional($doc->typeDocument)->nom, $names, true))
-                ->sum(fn($doc) => $doc->bordereau->sum(fn($bordereau) => $bordereau->lignes->sum(fn($ligne) => (float) ($ligne->montant ?? 0))));
-        };
-
-        // Le prix total de l'offre correspond au montant des fournitures livrées
-        // (Bordereau des prix pour les fournitures à importer), pas à la somme de
-        // tous les bordereaux du dossier : additionner en plus le Bordereau prix
-        // unitaire (qui chiffre l'entretien/la maintenance, une prestation distincte)
-        // ou les "sous détails" (qui ne font que détailler des prix déjà comptés
-        // ailleurs) double-compterait des montants et gonflerait le total soumis.
-        // On ne se rabat sur les autres bordereaux "fournitures" que si le dossier
-        // n'a pas de Bordereau des prix pour les fournitures à importer chiffré.
-        $calendrierHT = $sumMontantForNames([
-            'Bordereau des prix pour les fournitures à importer',
-            'Bordereau des prix des fournitures, déjà importées',
-            'Bordereau des prix pour les fournitures fabriquées au Bénin',
-        ]);
-        if ($calendrierHT <= 0) {
-            $calendrierHT = $sumMontantForNames([
-                'Bordereau prix unitaire',
-                'Listes des Fournitures et Calendrier de livraison',
-                'Cadres de sous détails des prix unitaire',
-            ]);
-        }
-        $servicesConnexesDocNames = [
-            "Bordereau des prix et calendrier d'exécution des services connexes",
-            'Listes des services connexes et calendrier de réalisation',
-        ];
+        // Totaux HTVA fournitures/services connexes : meme source que le
+        // "Tableau de resume des bordereaux de prix" (voir
+        // App\Support\BordereauTotals), pour que les deux ne se desynchronisent
+        // jamais. Exclut volontairement les documents dont la quantite est
+        // toujours figee a 1 (Bordereau prix unitaire, Cadres de sous details) :
+        // ils ne font pas de vrai calcul prix x quantite.
+        $calendrierHT = \App\Support\BordereauTotals::fournituresHT($dossier);
         $calendrierTVA = round($calendrierHT * $tvaRate);
 
-        $servicesHT = $sumMontantForNames($servicesConnexesDocNames);
+        $servicesHT = \App\Support\BordereauTotals::servicesConnexesHT($dossier);
         $servicesTVA = round($servicesHT * $tvaRate);
 
         $calendrierTTC = round($calendrierHT + $calendrierTVA);

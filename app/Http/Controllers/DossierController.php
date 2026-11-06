@@ -237,6 +237,7 @@ class DossierController extends Controller
             "Bordereau des prix des fournitures, déjà importées",
             "Bordereau des prix pour les fournitures fabriquées au Bénin",
             "Tableau de résumé des bordereaux de prix",
+            "Récapitulatif général des DQE",
             "Bordereau des prix et calendrier d'exécution des services connexes",
             "Listes des services connexes et calendrier de réalisation",
             "Listes des Fournitures et Calendrier de livraison",
@@ -2554,6 +2555,20 @@ class DossierController extends Controller
                 ]);
             }
 
+            if (trim($currentDocument->nom) === 'Récapitulatif général des DQE') {
+                // Rien a saisir a part l'inclusion ou non de la colonne AIB
+                // (estimee a 1% du HT, aucun document du dossier ne l'indique
+                // reellement) : le reste est entierement recalcule a
+                // l'affichage (formulaire et PDF), voir
+                // App\Support\BordereauTotals::recapitulatifDqeLignes().
+                $showAib = $request->input('recap_dqe.show_aib') === '1';
+
+                $dossierDocument->update([
+                    'content' => json_encode(['show_aib' => $showAib], JSON_UNESCAPED_UNICODE),
+                    'statut' => 'complete',
+                ]);
+            }
+
             if (trim($currentDocument->nom) === 'Chiffre d\'affaires annuel moyen des activités de services') {
                 $values = $request->validate([
                     'years' => ['required', 'array', 'min:1'],
@@ -4388,6 +4403,38 @@ class DossierController extends Controller
         }
 
         return response()->file($finalFull, ['Content-Type' => 'application/pdf']);
+    }
+
+    /**
+     * Aperçu de la seule page de garde du dossier (meme gabarit - renderMode
+     * "cover" - que celui utilise pour la page de garde du PDF complet),
+     * sans avoir a generer tout le dossier pour la verifier.
+     */
+    public function previewPageGarde(Dossier $dossier)
+    {
+        $dossier->load(['entreprise', 'typeDossier']);
+
+        $pageGardeDataUri = null;
+        if (!empty($dossier->page_garde_path)) {
+            $fullPath = storage_path('app/public/' . $dossier->page_garde_path);
+            if (file_exists($fullPath)) {
+                $mime = mime_content_type($fullPath) ?: 'application/octet-stream';
+                $pageGardeDataUri = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($fullPath));
+            }
+        }
+
+        $html = view('dossiers.pdf', compact('dossier', 'pageGardeDataUri'))
+            ->with('renderMode', 'cover')
+            ->render();
+
+        $dompdf = new Dompdf(['isRemoteEnabled' => true]);
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->render();
+
+        return response($dompdf->output(), 200)
+            ->header('Content-Type', 'application/pdf')
+            ->header('Content-Disposition', 'inline; filename="page_de_garde.pdf"');
     }
 
     /**

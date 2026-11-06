@@ -1250,7 +1250,78 @@
                     </div>
                     <div style="margin-top:10px; font-size:11px;">
                         <p style="margin:0 0 6px 0;"><strong>Arrêté le présent résumé des bordereaux de prix à la somme toutes taxes comprises de</strong></p>
-                        <p style="margin:0; font-weight:700;">{{ $amountText ? ucfirst($amountText) : '...' }} Francs CFA.</p>
+                        <p style="margin:0; font-weight:700;">{{ $amountText ? ucfirst($amountText) : '...' }} ({{ number_format($i, 0, ',', ' ') }}) Francs CFA.</p>
+                    </div>
+                </div>
+            @elseif(strcasecmp(trim($doc->typeDocument->nom), 'Récapitulatif général des DQE') === 0)
+                @php
+                    $dqeLignes = \App\Support\BordereauTotals::recapitulatifDqeLignes($dossier);
+                    $dqeTotalHt = $dqeLignes->sum('ht');
+                    $dqeTotalTva = $dqeLignes->sum('tva');
+                    $dqeTotalTtc = $dqeLignes->sum('ttc');
+                    $dqeTotalAib = $dqeLignes->sum('aib');
+                    $dqeShowAib = true;
+                    if (!empty($doc->content)) {
+                        $dqeDecoded = json_decode($doc->content, true);
+                        if (is_array($dqeDecoded) && array_key_exists('show_aib', $dqeDecoded)) {
+                            $dqeShowAib = (bool) $dqeDecoded['show_aib'];
+                        }
+                    }
+                @endphp
+                <div style="margin-top:10px; font-size:11px; line-height:1.4;">
+                    <div style="font-weight:700; font-size:13px; text-align:center; margin-bottom:12px;">RECAPITULATIF GENERAL DES DQE</div>
+                    <div style="overflow-x:auto;">
+                        <table style="width:100%; border-collapse:collapse; font-size:11px; table-layout:fixed;">
+                            <colgroup>
+                                <col style="width:6%;">
+                                <col style="width:{{ $dqeShowAib ? '38' : '43' }}%;">
+                                <col style="width:{{ $dqeShowAib ? '16' : '18' }}%;">
+                                <col style="width:{{ $dqeShowAib ? '13' : '15' }}%;">
+                                <col style="width:{{ $dqeShowAib ? '16' : '18' }}%;">
+                                @if($dqeShowAib)
+                                    <col style="width:11%;">
+                                @endif
+                            </colgroup>
+                            <thead>
+                                <tr style="background:#f3f4f6; font-weight:700;">
+                                    <th style="border:1px solid #000; padding:8px; text-align:center;">N°</th>
+                                    <th style="border:1px solid #000; padding:8px; text-align:left;">Désignation</th>
+                                    <th style="border:1px solid #000; padding:8px; text-align:right;">Montant HT (FCFA)</th>
+                                    <th style="border:1px solid #000; padding:8px; text-align:right;">TVA (FCFA)</th>
+                                    <th style="border:1px solid #000; padding:8px; text-align:right;">Montant TTC (FCFA)</th>
+                                    @if($dqeShowAib)
+                                        <th style="border:1px solid #000; padding:8px; text-align:right;">AIB indiqué (FCFA)</th>
+                                    @endif
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse($dqeLignes as $dqeIndex => $dqeLigne)
+                                    <tr>
+                                        <td style="border:1px solid #000; padding:8px; text-align:center;">{{ $dqeIndex + 1 }}</td>
+                                        <td style="border:1px solid #000; padding:8px;">{{ $dqeLigne['designation'] }}</td>
+                                        <td style="border:1px solid #000; padding:8px; text-align:right;">{{ number_format($dqeLigne['ht'], 0, ',', ' ') }}</td>
+                                        <td style="border:1px solid #000; padding:8px; text-align:right;">{{ number_format($dqeLigne['tva'], 0, ',', ' ') }}</td>
+                                        <td style="border:1px solid #000; padding:8px; text-align:right;">{{ number_format($dqeLigne['ttc'], 0, ',', ' ') }}</td>
+                                        @if($dqeShowAib)
+                                            <td style="border:1px solid #000; padding:8px; text-align:right;">{{ number_format($dqeLigne['aib'], 0, ',', ' ') }}</td>
+                                        @endif
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="{{ $dqeShowAib ? 6 : 5 }}" style="border:1px solid #000; padding:12px; text-align:center; color:#444;">Aucun document à calcul (bordereau de prix) rempli pour l'instant dans ce dossier.</td>
+                                    </tr>
+                                @endforelse
+                                <tr style="background:#e8e8e8;">
+                                    <td colspan="2" style="border:1px solid #000; padding:8px; font-weight:700;">TOTAL GÉNÉRAL</td>
+                                    <td style="border:1px solid #000; padding:8px; text-align:right; font-weight:700;">{{ number_format($dqeTotalHt, 0, ',', ' ') }}</td>
+                                    <td style="border:1px solid #000; padding:8px; text-align:right; font-weight:700;">{{ number_format($dqeTotalTva, 0, ',', ' ') }}</td>
+                                    <td style="border:1px solid #000; padding:8px; text-align:right; font-weight:700;">{{ number_format($dqeTotalTtc, 0, ',', ' ') }}</td>
+                                    @if($dqeShowAib)
+                                        <td style="border:1px solid #000; padding:8px; text-align:right; font-weight:700;">{{ number_format($dqeTotalAib, 0, ',', ' ') }}</td>
+                                    @endif
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             @elseif(strcasecmp(trim($doc->typeDocument->nom), 'Bordereau des prix pour les fournitures à importer') === 0)

@@ -144,6 +144,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/dossiers/import-tableau', [App\Http\Controllers\DossierController::class, 'importTableau'])->name('dossiers.importTableau');
     Route::post('/dossiers/save-chiffres', [App\Http\Controllers\DossierController::class, 'saveChiffres'])->name('dossiers.save-chiffres');
     Route::get('/dossiers/{dossier}/pdf', [App\Http\Controllers\DossierController::class, 'generatePDF'])->name('dossiers.pdf');
+    Route::get('/dossiers/{dossier}/page-garde', [App\Http\Controllers\DossierController::class, 'previewPageGarde'])->name('dossiers.previewPageGarde');
     Route::post('/dossiers/{dossier}/destroy', [App\Http\Controllers\DossierController::class, 'destroy'])->name('dossiers.destroy');
     // Chiffres d'affaires (gestion et PDF)
     Route::get('/chiffres', [App\Http\Controllers\ChiffreAffaireController::class, 'index'])->name('chiffres.index');

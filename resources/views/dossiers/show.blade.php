@@ -544,6 +544,8 @@
                     <a href="{{ route('dossiers.pdf', $dossier) }}" class="btn btn-success-custom">Telecharger PDF</a>
                 @endif
 
+                <a href="{{ route('dossiers.previewPageGarde', $dossier) }}" target="_blank" class="btn btn-ghost">Aperçu page de garde</a>
+
                 @if($dossier->documents->count() > 0)
                     <a href="{{ route('dossiers.pdf', $dossier) }}" target="_blank" class="btn btn-success-custom">Générer le dossier</a>
                     @if($dossier->hasIncompleteDocuments())

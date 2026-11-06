@@ -136,6 +136,7 @@ class TypeDocument extends Model
             'Description technique des fournitures/services',
             'Formulaire MTC/FIN – 3.5 : Marchés de fournitures/services en cours',
             'Plan de charge',
+            'Récapitulatif général des DQE',
         ];
     }
 
