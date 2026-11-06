@@ -246,7 +246,7 @@
     (function () {
         const sectionsContainer = document.getElementById('bordereauSections');
         const addSectionButton = document.getElementById('addBordereauSection');
-        const autofillKeys = ['date_prestation'];
+        const autofillKeys = ['site', 'date_prestation'];
         window.DaoBordereauAutofill.attach(sectionsContainer, autofillKeys);
 
         function updateSectionIndexes() {

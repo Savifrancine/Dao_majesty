@@ -456,16 +456,32 @@
                                             return array_search(trim($d->typeDocument->nom), $bordereauFamilyNames, true);
                                         });
 
-                                    // Préfère une source qui a aussi renseigné quantité et date
-                                    // (une simple "Bordereau prix unitaire", plus sommaire, ne les
-                                    // contient pas et ne doit pas priver les autres champs de pré-remplissage).
-                                    $bordereauSiblingSource = $bordereauSiblingCandidates->first(function ($d) {
-                                        return $d->bordereau->contains(function ($b) {
-                                            return $b->lignes->contains(function ($l) {
-                                                return !empty($l->quantite) && !empty($l->date_prestation);
-                                            });
-                                        });
-                                    }) ?? $bordereauSiblingCandidates->first();
+                                    // Choix du "meilleur" document source, dans cet ordre de priorite
+                                    // (du moins au plus important - tri stable: chaque critere
+                                    // n'arbitre qu'entre documents encore a egalite sur les criteres
+                                    // suivants) :
+                                    // 1) ordre de preference de $bordereauFamilyNames (deja applique
+                                    //    ci-dessus sur $bordereauSiblingCandidates) ;
+                                    // 2) a aussi renseigne quantite ET date (une simple "Bordereau
+                                    //    prix unitaire", plus sommaire, ne les contient pas et ne
+                                    //    doit pas priver les autres champs de pre-remplissage) ;
+                                    // 3) le PLUS DE TABLEAUX (lots) - en premier : si l'utilisateur a
+                                    //    supprime un tableau devenu inutile dans UN document precis
+                                    //    (ex: un lot sans activites a decrire dans "Programme
+                                    //    d'activites"), cette suppression ne doit jamais devenir le
+                                    //    modele qui prive un AUTRE document, pas encore rempli, d'un
+                                    //    tableau qui existe toujours ailleurs dans le dossier (ex:
+                                    //    "Bordereau prix unitaire", qui a toujours ses 2 lots).
+                                    $bordereauSiblingSource = $bordereauSiblingCandidates
+                                        ->sortByDesc(function ($d) {
+                                            return $d->bordereau->contains(function ($b) {
+                                                return $b->lignes->contains(function ($l) {
+                                                    return !empty($l->quantite) && !empty($l->date_prestation);
+                                                });
+                                            }) ? 1 : 0;
+                                        })
+                                        ->sortByDesc(fn ($d) => $d->bordereau->count())
+                                        ->first();
 
                                     if ($bordereauSiblingSource) {
                                         $sharedDesignationPrefill = $bordereauSiblingSource->bordereau->map(function ($bordereau) {
