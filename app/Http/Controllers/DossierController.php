@@ -5517,8 +5517,20 @@ class DossierController extends Controller
         $placeholderQuantiteDocNames = ['Bordereau prix unitaire', 'Cadres de sous détails des prix unitaire'];
         $savedDocHasPlaceholderQuantite = in_array(trim($savedDoc->typeDocument->nom), $placeholderQuantiteDocNames, true);
 
-        $sourceByDesignation = [];
-        foreach ($savedDoc->bordereau as $bordereau) {
+        // Indexe par POSITION du tableau (0 = premier "Ajouter un tableau" du
+        // document, 1 = le deuxieme...), jamais par designation seule tous
+        // tableaux confondus : un document peut avoir plusieurs tableaux
+        // (Lot 1, Lot 2...) et il arrive qu'une MEME designation existe dans
+        // 2 lots differents avec un prix different (ex: "Hotte de la salle
+        // PC1" present a la fois en lot 1 et en lot 2) - les fusionner dans
+        // un seul dictionnaire propagerait a tort les valeurs d'un lot vers
+        // l'autre. La correspondance entre tableaux de documents differents
+        // se fait par leur position (1er tableau de la source -> 1er tableau
+        // de la cible, etc.), les lots etant systematiquement crees/ressaisis
+        // dans le meme ordre par l'utilisateur sur tous les bordereaux d'un
+        // meme dossier.
+        $sourceByDesignationPerTableau = [];
+        foreach ($savedDoc->bordereau->values() as $tableauIndex => $bordereau) {
             foreach ($bordereau->lignes as $ligne) {
                 $key = $this->normalizeSommaireName((string) $ligne->designation);
                 if ($key === '') {
@@ -5539,11 +5551,11 @@ class DossierController extends Controller
                         ? \App\Support\BordereauDelai::singleValueFromRaw((string) $ligne->date_prestation, (string) $savedDoc->typeDocument->nom)
                         : $ligne->{$field};
                 }
-                $sourceByDesignation[$key] = $row;
+                $sourceByDesignationPerTableau[$tableauIndex][$key] = $row;
             }
         }
 
-        if (empty($sourceByDesignation)) {
+        if (empty($sourceByDesignationPerTableau)) {
             return;
         }
 
@@ -5552,89 +5564,99 @@ class DossierController extends Controller
                 continue;
             }
 
-            // Designations deja presentes dans CE document (pour detecter,
-            // apres la boucle de mise a jour ci-dessous, les articles du
-            // document source qui n'y existent pas encore DU TOUT - voir
-            // plus bas : "ou ligne" modifiee/ajoutee doit aussi se propager,
-            // pas seulement les champs d'une ligne qui existe deja).
-            $existingKeysInDoc = [];
+            $targetBordereaux = $doc->bordereau->values();
 
-            foreach ($doc->bordereau as $bordereau) {
-                foreach ($bordereau->lignes as $ligne) {
-                    $key = $this->normalizeSommaireName((string) $ligne->designation);
-                    if ($key === '') {
-                        continue;
-                    }
-                    $existingKeysInDoc[$key] = true;
+            foreach ($sourceByDesignationPerTableau as $tableauIndex => $sourceByDesignation) {
+                $targetBordereau = $targetBordereaux->get($tableauIndex);
 
-                    if (!isset($sourceByDesignation[$key])) {
-                        continue;
-                    }
+                // Designations deja presentes dans CE tableau precis (pour
+                // detecter, apres la boucle de mise a jour ci-dessous, les
+                // articles du tableau source qui n'y existent pas encore DU
+                // TOUT - voir plus bas : une ligne modifiee/ajoutee doit
+                // aussi se propager, pas seulement les champs d'une ligne qui
+                // existe deja).
+                $existingKeysInTableau = [];
 
-                    $source = $sourceByDesignation[$key];
-                    $updates = [];
-                    foreach ($propagatableFields as $field) {
-                        if (self::bordereauFieldHasValue($source[$field])) {
-                            $updates[$field] = $source[$field];
+                if ($targetBordereau) {
+                    foreach ($targetBordereau->lignes as $ligne) {
+                        $key = $this->normalizeSommaireName((string) $ligne->designation);
+                        if ($key === '') {
+                            continue;
+                        }
+                        $existingKeysInTableau[$key] = true;
+
+                        if (!isset($sourceByDesignation[$key])) {
+                            continue;
+                        }
+
+                        $source = $sourceByDesignation[$key];
+                        $updates = [];
+                        foreach ($propagatableFields as $field) {
+                            if (self::bordereauFieldHasValue($source[$field])) {
+                                $updates[$field] = $source[$field];
+                            }
+                        }
+
+                        // Le montant est recalcule des que le prix unitaire ou
+                        // la quantite changent, a partir des valeurs FINALES
+                        // de cette ligne (celle propagee si elle l'a ete,
+                        // sinon celle deja presente).
+                        if (isset($updates['prix_unitaire']) || isset($updates['quantite'])) {
+                            $prix = $updates['prix_unitaire'] ?? $ligne->prix_unitaire;
+                            $quantite = $updates['quantite'] ?? $ligne->quantite;
+                            if (self::bordereauFieldHasValue($prix) && self::bordereauFieldHasValue($quantite)) {
+                                $updates['montant'] = (float) $prix * (float) $quantite;
+                            }
+                        }
+
+                        if (!empty($updates)) {
+                            $ligne->update($updates);
                         }
                     }
+                }
 
-                    // Le montant est recalcule des que le prix unitaire ou la
-                    // quantite changent, a partir des valeurs FINALES de
-                    // cette ligne (celle propagee si elle l'a ete, sinon
-                    // celle deja presente).
-                    if (isset($updates['prix_unitaire']) || isset($updates['quantite'])) {
-                        $prix = $updates['prix_unitaire'] ?? $ligne->prix_unitaire;
-                        $quantite = $updates['quantite'] ?? $ligne->quantite;
-                        if (self::bordereauFieldHasValue($prix) && self::bordereauFieldHasValue($quantite)) {
-                            $updates['montant'] = (float) $prix * (float) $quantite;
+                // Un article TOUT NOUVEAU dans CE tableau (jamais vu a cette
+                // position dans ce document) : on l'ajoute comme nouvelle
+                // ligne DANS LE TABLEAU CORRESPONDANT (en le creant si ce
+                // document n'a pas encore ce tableau-la), plutot que de se
+                // limiter a completer des lignes deja existantes. Une
+                // designation que l'utilisateur a deliberement supprimee de
+                // CE document precis (voir le tombstone
+                // "designations_supprimees" alimente juste apres
+                // l'enregistrement d'un bordereau) ne doit jamais y revenir
+                // toute seule, meme si elle existe toujours ailleurs - sinon
+                // une suppression manuelle redeviendrait impossible des
+                // qu'un AUTRE bordereau du dossier est resauvegarde.
+                $tombstoneKeys = array_fill_keys($doc->designations_supprimees ?? [], true);
+                $missingKeys = array_diff(array_keys($sourceByDesignation), array_keys($existingKeysInTableau), array_keys($tombstoneKeys));
+                if (!empty($missingKeys)) {
+                    if (!$targetBordereau) {
+                        $sourceTableau = $savedDoc->bordereau->values()->get($tableauIndex);
+                        $targetBordereau = Bordereau::create([
+                            'dossier_document_id' => $doc->id,
+                            'titre' => $sourceTableau?->titre ?: $doc->typeDocument->nom,
+                        ]);
+                        $targetBordereaux->push($targetBordereau);
+                    }
+
+                    foreach ($missingKeys as $key) {
+                        $ligneData = $sourceByDesignation[$key];
+                        $sourceTableau = $savedDoc->bordereau->values()->get($tableauIndex);
+                        $ligneData['designation'] = $sourceTableau?->lignes
+                            ->first(fn ($l) => $this->normalizeSommaireName((string) $l->designation) === $key)
+                            ->designation ?? '';
+                        if (empty($ligneData['quantite'])) {
+                            $ligneData['quantite'] = 1;
                         }
+                        if (!isset($ligneData['prix_unitaire'])) {
+                            $ligneData['prix_unitaire'] = 0;
+                        }
+                        $ligneData['montant'] = self::bordereauFieldHasValue($ligneData['prix_unitaire'] ?? null) && self::bordereauFieldHasValue($ligneData['quantite'] ?? null)
+                            ? (float) $ligneData['prix_unitaire'] * (float) $ligneData['quantite']
+                            : 0;
+                        $ligneData['bordereau_id'] = $targetBordereau->id;
+                        BordereauLigne::create($ligneData);
                     }
-
-                    if (!empty($updates)) {
-                        $ligne->update($updates);
-                    }
-                }
-            }
-
-            // Un article TOUT NOUVEAU (jamais vu dans ce document) : on
-            // l'ajoute comme nouvelle ligne, plutot que de se limiter a
-            // completer des lignes deja existantes - une ligne ajoutee
-            // quelque part doit, elle aussi, apparaitre automatiquement
-            // ailleurs, pas seulement ses champs une fois la ligne deja la.
-            // Une designation que l'utilisateur a deliberement supprimee de
-            // CE document precis (voir le tombstone "designations_supprimees"
-            // alimente juste apres l'enregistrement d'un bordereau) ne doit
-            // jamais y revenir toute seule, meme si elle existe toujours
-            // ailleurs - sinon une suppression manuelle redeviendrait
-            // impossible des qu'un AUTRE bordereau du dossier est resauvegarde.
-            $tombstoneKeys = array_fill_keys($doc->designations_supprimees ?? [], true);
-            $missingKeys = array_diff(array_keys($sourceByDesignation), array_keys($existingKeysInDoc), array_keys($tombstoneKeys));
-            if (!empty($missingKeys)) {
-                $targetBordereau = $doc->bordereau->first();
-                if (!$targetBordereau) {
-                    $targetBordereau = Bordereau::create([
-                        'dossier_document_id' => $doc->id,
-                        'titre' => $doc->typeDocument->nom,
-                    ]);
-                }
-
-                foreach ($missingKeys as $key) {
-                    $ligneData = $sourceByDesignation[$key];
-                    $ligneData['designation'] = $savedDoc->bordereau->flatMap->lignes
-                        ->first(fn ($l) => $this->normalizeSommaireName((string) $l->designation) === $key)
-                        ->designation ?? '';
-                    if (empty($ligneData['quantite'])) {
-                        $ligneData['quantite'] = 1;
-                    }
-                    if (!isset($ligneData['prix_unitaire'])) {
-                        $ligneData['prix_unitaire'] = 0;
-                    }
-                    $ligneData['montant'] = self::bordereauFieldHasValue($ligneData['prix_unitaire'] ?? null) && self::bordereauFieldHasValue($ligneData['quantite'] ?? null)
-                        ? (float) $ligneData['prix_unitaire'] * (float) $ligneData['quantite']
-                        : 0;
-                    $ligneData['bordereau_id'] = $targetBordereau->id;
-                    BordereauLigne::create($ligneData);
                 }
             }
         }

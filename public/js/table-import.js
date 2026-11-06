@@ -588,7 +588,13 @@
     // Remplissage automatique inter-tableaux : quand une désignation saisie
     // dans un tableau correspond à une déjà connue ailleurs dans le dossier
     // (import initial ou autre document déjà rempli), les champs vides de la
-    // ligne (quantité, prix unitaire, unité, site, date...) sont complétés.
+    // ligne (quantité, prix unitaire, unité, site, date...) sont complétés -
+    // mais JAMAIS en mélangeant les tableaux entre eux : un document peut
+    // avoir plusieurs tableaux (Lot 1, Lot 2...) et la même désignation peut
+    // exister dans 2 lots différents avec des valeurs différentes. L'index
+    // est donc construit PAR TABLEAU (un dictionnaire par position de
+    // tableau), et une ligne ne peut jamais recevoir les valeurs d'un
+    // tableau autre que le sien.
     function buildPrefillIndex(lines) {
         const index = {};
         (lines || []).forEach((line) => {
@@ -608,9 +614,10 @@
     }
 
     // Applique a une ligne les champs encore vides connus pour une designation
-    // donnee (venant d'un autre tableau du dossier deja rempli, ou d'un import
-    // precedent) : utilise par la saisie manuelle (sur blur) comme par l'import
-    // CSV/Excel juste apres avoir rempli les colonnes presentes dans le fichier.
+    // donnee (venant du MEME tableau d'un autre document deja rempli, ou d'un
+    // import precedent) : utilise par la saisie manuelle (sur blur) comme par
+    // l'import CSV/Excel juste apres avoir rempli les colonnes presentes dans
+    // le fichier.
     function applyKnownFieldsToRow(row, designationValue, index) {
         const match = index[normalize(designationValue)];
         if (!match || !row) return;
@@ -625,10 +632,22 @@
         });
     }
 
-    function setupCrossTableFill(lines) {
-        const index = buildPrefillIndex(lines);
-        window.DaoTableImport._crossTableIndex = index;
-        if (Object.keys(index).length === 0) return;
+    // Extrait l'index de tableau (sections[N]) a partir du name d'un champ de
+    // formulaire, pour ne jamais appliquer a une ligne les valeurs connues
+    // d'un AUTRE tableau que le sien.
+    function sectionIndexFromFieldName(name) {
+        const match = /^sections\[(\d+)\]/.exec(name || '');
+        return match ? Number(match[1]) : null;
+    }
+
+    // @param sectionsLignes Tableau de tableaux de lignes, UN tableau de
+    // lignes par position de tableau (sections[0], sections[1]...), pas une
+    // liste de lignes fusionnee - sinon 2 tableaux avec une designation en
+    // commun mais des valeurs differentes se melangeraient.
+    function setupCrossTableFill(sectionsLignes) {
+        const indexPerTableau = (sectionsLignes || []).map((lines) => buildPrefillIndex(lines));
+        window.DaoTableImport._crossTableIndex = indexPerTableau;
+        if (indexPerTableau.every((idx) => Object.keys(idx).length === 0)) return;
 
         document.addEventListener('blur', (event) => {
             const target = event.target;
@@ -636,6 +655,10 @@
 
             const row = target.closest('tr');
             if (row?.dataset.importedFromFile === 'true') return;
+
+            const sectionIndex = sectionIndexFromFieldName(target.name);
+            const index = sectionIndex !== null ? indexPerTableau[sectionIndex] : null;
+            if (!index) return;
             applyKnownFieldsToRow(row, target.value, index);
         }, true);
     }

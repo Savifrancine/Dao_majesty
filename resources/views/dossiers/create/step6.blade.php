@@ -492,7 +492,7 @@
                                 document.addEventListener('DOMContentLoaded', function () {
                                     if (window.DaoTableImport && window.DaoTableImport.setupCrossTableFill) {
                                         window.DaoTableImport.setupCrossTableFill(
-                                            @json($sharedDesignationPrefill->pluck('lignes')->flatten(1)->values())
+                                            @json($sharedDesignationPrefill->pluck('lignes')->values())
                                         );
                                     }
                                 });
