@@ -246,6 +246,24 @@
                 targetRow = rows.find((row) => !claimedRows.has(row) && isRowEmpty(row));
             }
 
+            // A defaut (designation non reconnue telle quelle - OCR imparfait,
+            // casse/accents differents - et aucune ligne totalement vide) : la
+            // ligne a pu etre preparee a la main avant l'import (designation
+            // deja tapee, fusion deja faite) avec seulement les colonnes de
+            // contenu encore vides. On reutilise alors, dans l'ordre du
+            // tableau, la prochaine ligne non reclamee dont au moins un des
+            // champs importes est encore vide, plutot que d'en creer une
+            // autre en plus.
+            if (!targetRow) {
+                targetRow = rows.find((row) => {
+                    if (claimedRows.has(row)) return false;
+                    return Object.keys(data).some((key) => {
+                        const field = row.querySelector(`[name*="[${key}]"]`);
+                        return field && !String(field.value || '').trim();
+                    });
+                });
+            }
+
             if (!targetRow) {
                 addLineButton.click();
                 rows = Array.from(tbody.querySelectorAll('tr'));
