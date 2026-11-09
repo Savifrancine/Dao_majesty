@@ -1,5 +1,10 @@
 <div id="description-technique-step6">
     @php
+        // Distingue un vrai reaffichage apres echec de validation (old()
+        // rempli, jamais touche au pre-remplissage) d'un simple chargement
+        // normal de la page.
+        $hadOldInput = !empty(old('sections'));
+
         $oldSections = old('sections', []);
         if (empty($oldSections) && isset($bordereaux)) {
             if (is_array($bordereaux)) {
@@ -52,7 +57,22 @@
             }
         }
 
-        if (empty($oldSections) && !empty($prefillSections)) {
+        // Le document peut deja avoir un tableau/ligne "vide" auto-cree (visite
+        // une 1ere fois sans rien saisir) : ca ne doit jamais empecher le
+        // pre-remplissage des designations deja connues ailleurs dans le
+        // dossier - seul un vrai echec de validation (old() rempli) ou une
+        // designation deja tapee doivent le bloquer.
+        $noDesignationYet = true;
+        foreach ($oldSections as $sec) {
+            foreach (($sec['lignes'] ?? []) as $l) {
+                if (trim((string) ($l['designation'] ?? '')) !== '') {
+                    $noDesignationYet = false;
+                    break 2;
+                }
+            }
+        }
+
+        if (!$hadOldInput && $noDesignationYet && !empty($prefillSections)) {
             $oldSections = $prefillSections;
         }
 
