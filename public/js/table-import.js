@@ -195,6 +195,33 @@
         return Array.from(row.querySelectorAll('input, textarea')).every((f) => !f.value || !f.value.trim());
     }
 
+    // Dans un tableau source (Word/PDF) ou une cellule de description est
+    // fusionnee sur plusieurs lignes, seule la 1ere ligne du groupe porte le
+    // texte - les suivantes sont vides dans le fichier, alors que leur
+    // designation (elle) reste bien renseignee a chaque ligne. On detecte
+    // ces lignes "sans aucun contenu hors designation" juste apres une ligne
+    // qui en a, et on reporte automatiquement le nombre de lignes couvertes
+    // dans le "merge_rows" de la ligne porteuse - l'utilisateur n'a plus a
+    // le calculer/saisir a la main apres import. N'a d'effet que pour les
+    // formulaires qui ont reellement un champ merge_rows par ligne (ex:
+    // Description technique) ; ignore silencieusement pour les autres
+    // (fillSection ne trouve alors pas de champ a ecrire).
+    function applyMergeRowsFromBlanks(mappedRows) {
+        let openIndex = null;
+        mappedRows.forEach((data, index) => {
+            const contentKeys = Object.keys(data).filter((key) => key !== 'designation' && key !== 'merge_rows');
+            const hasContent = contentKeys.some((key) => String(data[key] || '').trim() !== '');
+
+            if (hasContent || openIndex === null) {
+                data.merge_rows = '1';
+                openIndex = index;
+            } else {
+                const openRow = mappedRows[openIndex];
+                openRow.merge_rows = String((Number(openRow.merge_rows) || 1) + 1);
+            }
+        });
+    }
+
     function fillSection(sectionEl, mappedRows, selectors) {
         const addLineButton = sectionEl.querySelector(selectors.addLineButton);
         const tbody = sectionEl.querySelector(selectors.lines);
@@ -231,7 +258,13 @@
 
             Object.keys(data).forEach((key) => {
                 const field = targetRow.querySelector(`[name*="[${key}]"]`);
-                if (!field || String(field.value || '').trim() !== '') return;
+                if (!field) return;
+                // merge_rows vaut toujours "1" par defaut sur une ligne neuve
+                // (jamais vide) : contrairement aux autres champs, il doit
+                // etre ecrase par la valeur calculee par
+                // applyMergeRowsFromBlanks(), sinon elle ne serait jamais
+                // appliquee.
+                if (key !== 'merge_rows' && String(field.value || '').trim() !== '') return;
                 field.value = data[key];
                 field.dispatchEvent(new Event('input', { bubbles: true }));
                 field.dispatchEvent(new Event('change', { bubbles: true }));
@@ -711,6 +744,7 @@
                             return;
                         }
 
+                        applyMergeRowsFromBlanks(mappedRows);
                         const count = fillSection(targetSection, mappedRows, selectors);
 
                         setStatus(`${count} ligne(s) importée(s) — vérifiez et corrigez les champs si besoin avant d'enregistrer.`, false, targetStatus);
